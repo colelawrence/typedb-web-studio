@@ -47,7 +47,7 @@ function Navigation({ vm }: { vm: TopBarVM["navigation"] }) {
     <Queryable query={vm.items$}>
       {(items) => (
         <nav className="flex items-center gap-1">
-          {items?.map((item) => (
+          {items.map((item) => (
             <NavItem key={item.key} vm={item} />
           ))}
         </nav>
@@ -154,7 +154,7 @@ function DatabaseSelectorDropdown({ vm }: { vm: TopBarVM["databaseSelector"] }) 
           <Queryable query={vm.databases$}>
             {(databases) => (
               <div className="space-y-0.5">
-                {databases?.map((db) => (
+                {databases.map((db) => (
                   <DatabaseOption key={db.key} vm={db} />
                 ))}
               </div>

@@ -53,6 +53,18 @@ export function Queryable(props: {
 }) {
   const value = useQuery(props.query);
 
+  // Development-time assertion: catch SSR/LiveStore misconfigurations early
+  // If useQuery returns null when it shouldn't, we're likely rendering outside LiveStoreProvider
+  // or during SSR (where LiveStore's browser APIs aren't available)
+  if (import.meta.env.DEV && value === null && props.query !== null) {
+    console.error(
+      "Queryable received null from useQuery. This usually means:\n" +
+      "1. Component is rendering during SSR (add `ssr: false` to route)\n" +
+      "2. Component is outside LiveStoreProvider\n" +
+      "Query:", props.query
+    );
+  }
+
   return (
     <>
       {typeof props.children === "function"
