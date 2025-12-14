@@ -137,7 +137,7 @@ function UsersTable({ vm }: { vm: UsersPageVM }) {
       <Queryable query={vm.users$}>
         {(users) => (
           <div className="divide-y divide-border">
-            {users.map((user) => (
+            {users?.map((user) => (
               <UserRow key={user.key} vm={user} />
             ))}
           </div>

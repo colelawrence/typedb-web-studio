@@ -10,8 +10,6 @@ import StoreDevtools from '../lib/demo-store-devtools'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
-import AiDevtools from '../lib/ai-devtools'
-
 import appCss from '../styles.css?url'
 
 import type { QueryClient } from '@tanstack/react-query'
@@ -64,7 +62,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             },
             StoreDevtools,
             TanStackQueryDevtools,
-            AiDevtools,
+            // NOTE: AiDevtools removed - @tanstack/react-ai-devtools is incompatible
+            // with SSR due to its Solid.js core (@tanstack/ai-devtools-core)
           ]}
         />
         <Scripts />

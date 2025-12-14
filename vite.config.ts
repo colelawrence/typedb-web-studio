@@ -22,6 +22,18 @@ const config = defineConfig({
       },
     }),
   ],
+  // Required for LiveStore web workers
+  worker: { format: 'es' },
+  optimizeDeps: {
+    // Exclude all LiveStore packages from pre-bundling to keep them together
+    // The wa-sqlite package has WASM that needs special handling
+    exclude: [
+      '@livestore/wa-sqlite',
+      '@livestore/adapter-web',
+      '@livestore/livestore',
+      '@livestore/react',
+    ],
+  },
 })
 
 export default config

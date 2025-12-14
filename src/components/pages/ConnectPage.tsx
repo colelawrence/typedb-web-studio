@@ -222,7 +222,7 @@ function SavedConnectionsList({ vm }: { vm: ConnectPageVM["savedConnections"] })
             <Queryable query={vm.items$}>
               {(items) => (
                 <div className="space-y-2">
-                  {items.map((item) => (
+                  {items?.map((item) => (
                     <SavedConnectionItem key={item.key} vm={item} />
                   ))}
                 </div>

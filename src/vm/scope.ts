@@ -324,8 +324,16 @@ export function createStudioScope(
     items$: computed(
       (get) => {
         const page = get(currentPage$);
+        const connected = get(isConnected$);
 
-        return navItems.map((item): NavigationItemVM => ({
+        // Filter items based on connection state:
+        // - When disconnected: only show items that don't require connection
+        // - When connected: show all items
+        const visibleItems = navItems.filter(
+          (item) => !item.requiresConnection || connected
+        );
+
+        return visibleItems.map((item): NavigationItemVM => ({
           key: item.key,
           label: item.label,
           icon: item.icon as unknown as IconComponent,
@@ -333,17 +341,7 @@ export function createStudioScope(
             (get) => get(currentPage$) === item.key,
             { label: `nav.${item.key}.isActive` }
           ),
-          disabled$: computed(
-            (get): DisabledState => {
-              if (!item.requiresConnection) return null;
-              if (get(isConnected$)) return null;
-              return { displayReason: "Connect to a server first" };
-            },
-            { label: `nav.${item.key}.disabled` }
-          ),
           click: () => {
-            const disabled = item.requiresConnection && !store.query(isConnected$);
-            if (disabled) return;
             store.commit(events.uiStateSet({ currentPage: item.key as typeof page }));
             navigate(item.path);
           },

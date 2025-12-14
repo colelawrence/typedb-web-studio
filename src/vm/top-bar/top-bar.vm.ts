@@ -3,7 +3,7 @@
  *
  * The top bar is always visible and contains:
  * - Logo (clickable, navigates to home)
- * - Navigation tabs (Home, Connect, Query, Schema, Users)
+ * - Navigation tabs (conditionally shown based on connection state)
  * - Database selector (when connected)
  * - Connection status indicator
  */
@@ -15,9 +15,16 @@ import type { ConnectionStatusVM } from "./connection-status.vm";
 /**
  * Top bar VM composing all header components.
  *
- * **Layout (left to right):**
+ * **Layout by connection state:**
+ *
+ * When disconnected:
  * ```
- * [Logo] [Home] [Connect] [Query] [Schema] [Users] ... [DB Selector ▼] [● Status]
+ * [Logo] [Home] [Connect] ............................ [● Not connected]
+ * ```
+ *
+ * When connected:
+ * ```
+ * [Logo] [Home] [Connect] [Query] [Schema] [Users] ... [DB Selector ▼] [● admin@localhost]
  * ```
  *
  * **Responsive behavior:**
@@ -36,6 +43,7 @@ export interface TopBarVM {
 
   /**
    * Main navigation tabs.
+   * Items shown depend on connection state - see NavigationVM for details.
    */
   navigation: NavigationVM;
 

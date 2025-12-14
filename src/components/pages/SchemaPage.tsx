@@ -221,7 +221,7 @@ function SchemaTreeGroup({ group }: { group: import("@/vm").SchemaTreeGroupVM })
               <Queryable query={group.items$}>
                 {(items) => (
                   <div className="pl-6 space-y-0.5">
-                    {items.length === 0 ? (
+                    {!items || items.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">None defined</p>
                     ) : (
                       items.map((item) => (

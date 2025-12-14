@@ -2,28 +2,36 @@
  * Main navigation view model.
  *
  * Renders as horizontal tabs in the top bar.
- * Some items may be disabled based on connection state.
+ * Items are conditionally shown based on connection state.
  */
 
 import type { Queryable } from "../types";
-import type { IconComponent, DisabledState } from "../types";
+import type { IconComponent } from "../types";
 
 /**
  * Navigation tabs VM.
  *
- * **Tab order:** Home, Connect, Query, Schema, Users
+ * **Conditional visibility by connection state:**
+ * - Disconnected: Home, Connect
+ * - Connected: Home, Connect, Query, Schema, Users
+ *
+ * **Tab order:** Items appear in a fixed order when visible.
  * **Keyboard navigation:** Arrow keys move between tabs, Enter/Space activates.
  */
 export interface NavigationVM {
   /**
    * Navigation items in display order.
-   * Order is fixed; items are never added/removed dynamically.
+   * Items are dynamically shown/hidden based on connection state.
+   * The order is always: Home, Connect, Query, Schema, Users (when visible).
    */
   items$: Queryable<NavigationItemVM[]>;
 }
 
 /**
  * Individual navigation tab item.
+ *
+ * Items are only present in the items$ array when they should be visible.
+ * There is no disabled state - items are either shown or hidden.
  */
 export interface NavigationItemVM {
   /** Unique key for React rendering */
@@ -50,23 +58,8 @@ export interface NavigationItemVM {
   isActive$: Queryable<boolean>;
 
   /**
-   * Disabled state with reason.
-   *
-   * **Disabled conditions by tab:**
-   * - Home: Never disabled
-   * - Connect: Never disabled
-   * - Query: "Connect to a server first" (when disconnected)
-   * - Schema: "Connect to a server first" (when disconnected)
-   * - Users: "Connect to a server first" (when disconnected)
-   *
-   * **Visual:** Disabled tabs are grayed out with reduced opacity.
-   * **Interaction:** Clicking disabled tab shows tooltip with reason.
-   */
-  disabled$: Queryable<DisabledState>;
-
-  /**
    * Navigates to this tab's route.
-   * No-op if already on this tab or if disabled.
+   * No-op if already on this tab.
    */
   click(): void;
 }

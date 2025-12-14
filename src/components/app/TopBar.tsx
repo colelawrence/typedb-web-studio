@@ -47,7 +47,7 @@ function Navigation({ vm }: { vm: TopBarVM["navigation"] }) {
     <Queryable query={vm.items$}>
       {(items) => (
         <nav className="flex items-center gap-1">
-          {items.map((item) => (
+          {items?.map((item) => (
             <NavItem key={item.key} vm={item} />
           ))}
         </nav>
@@ -58,32 +58,25 @@ function Navigation({ vm }: { vm: TopBarVM["navigation"] }) {
 
 function NavItem({ vm }: { vm: import("@/vm").NavigationItemVM }) {
   return (
-    <Queryable query={vm.disabled$}>
-      {(disabled) => (
-        <Queryable query={vm.isActive$}>
-          {(isActive) => {
-            const Icon = vm.icon;
-            return (
-              <button
-                onClick={vm.click}
-                disabled={disabled !== null}
-                className={`
-                  flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                  ${isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  }
-                  ${disabled !== null ? "opacity-50 cursor-not-allowed" : ""}
-                `}
-                title={disabled?.displayReason}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{vm.label}</span>
-              </button>
-            );
-          }}
-        </Queryable>
-      )}
+    <Queryable query={vm.isActive$}>
+      {(isActive) => {
+        const Icon = vm.icon;
+        return (
+          <button
+            onClick={vm.click}
+            className={`
+              flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors
+              ${isActive
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              }
+            `}
+          >
+            <Icon className="w-4 h-4" />
+            <span>{vm.label}</span>
+          </button>
+        );
+      }}
     </Queryable>
   );
 }
@@ -161,7 +154,7 @@ function DatabaseSelectorDropdown({ vm }: { vm: TopBarVM["databaseSelector"] }) 
           <Queryable query={vm.databases$}>
             {(databases) => (
               <div className="space-y-0.5">
-                {databases.map((db) => (
+                {databases?.map((db) => (
                   <DatabaseOption key={db.key} vm={db} />
                 ))}
               </div>

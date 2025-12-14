@@ -27,7 +27,7 @@ export function HomePage({ vm }: { vm: HomePageVM }) {
         <Queryable query={vm.cards$}>
           {(cards) => (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {cards.map((card) => (
+              {cards?.map((card) => (
                 <NavigationCard key={card.key} vm={card} />
               ))}
             </div>
