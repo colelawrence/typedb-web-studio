@@ -258,8 +258,111 @@ src/
 
 ---
 
+## TypeDB WASM Integration (Browser-Only Mode)
+
+The web studio can run TypeDB entirely in the browser using WebAssembly, allowing users to explore TypeDB without any server setup.
+
+### Available WASM Projects
+
+Located in the parent directory:
+
+- **`../typedb-wasm/`** - Low-level WASM bindings wrapping `typedb-embedded`
+  - `Database` class with `transactionRead()`, `transactionWrite()`, `transactionSchema()`
+  - Each transaction type returns objects with query/execute methods
+
+- **`../wasm-playground/`** - High-level playground wrapper
+  - `TypeDBPlayground` class with convenient API
+  - `execute(query)` - auto-detects query type
+  - `execute_with_mode(query, mode)` - explicit read/write/schema
+  - `detect_query_type(query)` - returns heuristic detection
+  - `analyze(query)` - validates without executing
+  - Returns rich structured JSON for UI rendering
+
+### WASM Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Web Studio UI                        │
+├─────────────────────────────────────────────────────────┤
+│                   TypeDBService                         │
+│              (interface in typedb-service.ts)           │
+├───────────────────────┬─────────────────────────────────┤
+│  TypeDBWasmService    │    TypeDBHttpService            │
+│  (browser-only)       │    (connects to server)         │
+├───────────────────────┼─────────────────────────────────┤
+│  TypeDBPlayground     │    @typedb/driver-http          │
+│  (wasm-playground)    │    (real TypeDB driver)         │
+└───────────────────────┴─────────────────────────────────┘
+```
+
+### WASM Service Implementation Plan
+
+1. **Package wasm-playground as npm package**
+   ```
+   ../wasm-playground/
+   ├── pkg/                    # Built WASM output (wasm-pack)
+   │   ├── wasm_playground.js
+   │   ├── wasm_playground.d.ts
+   │   └── wasm_playground_bg.wasm
+   └── package.json            # NPM package definition
+   ```
+
+2. **Create `TypeDBWasmService`** implementing `TypeDBService`:
+   - `connect()` → Creates a new `TypeDBPlayground` instance
+   - `getDatabases()` → Returns list of in-memory databases
+   - `createDatabase()` → Creates new `TypeDBPlayground` with name
+   - `executeQuery()` → Calls `execute()` or `execute_with_mode()`
+   - User management → Not available in WASM (throws "not supported")
+
+3. **Vite configuration for WASM**:
+   ```typescript
+   // vite.config.ts
+   optimizeDeps: {
+     exclude: [
+       'typedb-wasm-playground',  // Add to existing excludes
+       // ... existing @livestore excludes
+     ],
+   },
+   ```
+
+4. **Service selection in UI**:
+   - Connection page: Toggle between "Browser (WASM)" and "Server (HTTP)"
+   - WASM mode: No credentials needed, creates local in-memory database
+   - HTTP mode: Existing connection form with address/credentials
+
+### Mapping WASM API to Service Interface
+
+| TypeDBService Method | WASM Implementation |
+|---------------------|---------------------|
+| `connect(params)` | `new TypeDBPlayground(params.database \|\| 'default')` |
+| `disconnect()` | Destroy playground instance |
+| `getDatabases()` | Return list of created playgrounds |
+| `createDatabase(name)` | `new TypeDBPlayground(name)` |
+| `deleteDatabase(name)` | Remove from playground map |
+| `executeQuery(db, query, opts)` | `playground.execute_with_mode(query, opts.transactionType)` |
+| `openTransaction()` | Not needed - WASM auto-manages |
+| `getUsers()` | Throw "Not supported in browser mode" |
+
+### WASM Limitations
+
+- **No user management** - WASM runs locally, no server users
+- **No persistence** - Data lost on page refresh
+- **Single user** - No concurrent access concerns
+- **Memory limits** - Large datasets may hit browser memory limits
+
+### Testing WASM Integration
+
+1. Build wasm-playground: `cd ../wasm-playground && ./build.sh`
+2. Link package locally: `pnpm link ../wasm-playground`
+3. Run dev server: `pnpm dev`
+4. Browser DevTools → Network → Verify `.wasm` file loads
+5. Console → Look for `[TypeDB]` logs from WASM
+
+---
+
 ## Notes
 
 - The VM layer is well-designed and mostly complete
 - Focus implementation on the service layer and wiring it to scope.ts
 - The query editor should eventually use CodeMirror with TypeQL grammar from `studio/src/framework/codemirror-lang-typeql/`
+- **WASM mode enables zero-setup TypeDB exploration in the browser**

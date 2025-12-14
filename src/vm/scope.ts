@@ -18,6 +18,12 @@ import {
 
 import { events, type schema } from "../livestore/schema";
 import { uiState$, snackbarNotifications$, allConnections$ } from "../livestore/queries";
+import {
+  getService,
+  getServiceMode,
+  quickConnectWasm,
+  disconnect as disconnectService,
+} from "../services";
 
 import type { TypeDBStudioAppVM, CurrentPageState } from "./app.vm";
 import type { TopBarVM } from "./top-bar/top-bar.vm";
@@ -209,7 +215,12 @@ export function createStudioScope(
       }
     },
 
-    signOut: () => {
+    signOut: async () => {
+      try {
+        await disconnectService();
+      } catch (e) {
+        console.warn("[scope] Error disconnecting:", e);
+      }
       store.commit(
         events.uiStateSet({
           connectionStatus: "disconnected",
@@ -573,32 +584,60 @@ export function createStudioScope(
         connectionStatus: "connecting",
       }));
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      try {
+        // Use WASM service for browser-only mode
+        // TODO: Add mode toggle to switch between WASM and HTTP
+        const serviceMode = getServiceMode();
+        if (serviceMode === "wasm") {
+          // WASM mode - create a playground with the database name
+          const databaseName = ui.connectionFormUsername || "playground";
+          await quickConnectWasm(databaseName);
+        } else {
+          // HTTP mode - connect to real server
+          const service = getService();
+          await service.connect({
+            address: ui.connectionFormAddress,
+            username: ui.connectionFormUsername,
+            password: ui.connectionFormPassword,
+          });
+        }
 
-      const connectionId = createID("conn");
-      store.commit(
-        events.connectionCreated({
-          id: connectionId,
-          name: ui.connectionFormAddress,
-          address: ui.connectionFormAddress,
-          username: ui.connectionFormUsername,
-          database: null,
-          createdAt: new Date(),
-        }),
-        events.connectionUpdated({
-          id: connectionId,
-          lastUsedAt: new Date(),
-        }),
-        events.uiStateSet({
+        const connectionId = createID("conn");
+        store.commit(
+          events.connectionCreated({
+            id: connectionId,
+            name: serviceMode === "wasm" ? "Browser (WASM)" : ui.connectionFormAddress,
+            address: serviceMode === "wasm" ? "wasm://local" : ui.connectionFormAddress,
+            username: ui.connectionFormUsername,
+            database: null,
+            createdAt: new Date(),
+          }),
+          events.connectionUpdated({
+            id: connectionId,
+            lastUsedAt: new Date(),
+          }),
+          events.uiStateSet({
+            isConnecting: false,
+            connectionStatus: "connected",
+            activeConnectionId: connectionId,
+            activeDatabase: serviceMode === "wasm" ? (ui.connectionFormUsername || "playground") : null,
+            currentPage: "query",
+          })
+        );
+
+        showSnackbar("success", serviceMode === "wasm"
+          ? "Connected to TypeDB (browser mode)"
+          : `Connected to ${ui.connectionFormAddress}`
+        );
+        navigate("/query");
+      } catch (error) {
+        console.error("[scope] Connection failed:", error);
+        store.commit(events.uiStateSet({
           isConnecting: false,
-          connectionStatus: "connected",
-          activeConnectionId: connectionId,
-          currentPage: "query",
-        })
-      );
-
-      showSnackbar("success", `Connected to ${ui.connectionFormAddress}`);
-      navigate("/query");
+          connectionStatus: "disconnected",
+        }));
+        showSnackbar("error", `Connection failed: ${error}`);
+      }
     },
 
     isConnecting$: computed(
