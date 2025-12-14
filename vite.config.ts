@@ -15,7 +15,13 @@ const config = defineConfig({
       projects: ['./tsconfig.json'],
     }),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      // SPA mode: LiveStore requires browser APIs (OPFS, Web Workers)
+      // and we're deploying as a static single-page app
+      spa: {
+        enabled: true,
+      },
+    }),
     viteReact({
       babel: {
         plugins: ['babel-plugin-react-compiler'],
@@ -25,13 +31,16 @@ const config = defineConfig({
   // Required for LiveStore web workers
   worker: { format: 'es' },
   optimizeDeps: {
-    // Exclude all LiveStore packages from pre-bundling to keep them together
-    // The wa-sqlite package has WASM that needs special handling
+    // Exclude packages with WASM from pre-bundling
+    // These need special handling for WebAssembly modules
     exclude: [
+      // LiveStore packages (uses wa-sqlite WASM)
       '@livestore/wa-sqlite',
       '@livestore/adapter-web',
       '@livestore/livestore',
       '@livestore/react',
+      // TypeDB WASM packages
+      'typedb-wasm-playground',
     ],
   },
 })
