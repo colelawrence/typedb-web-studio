@@ -4,6 +4,8 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
+import path from 'path'
+
 const config = defineConfig({
   plugins: [
     devtools(),
@@ -39,6 +41,18 @@ const config = defineConfig({
       // TypeDB WASM packages
       'typedb-wasm-playground',
     ],
+  },
+  server: {
+    fs: {
+      // Allow serving files from the linked wasm-playground package
+      // This is needed because the WASM module loads its .wasm file using import.meta.url
+      allow: [
+        // Project root
+        '.',
+        // Parent directory containing the linked wasm-playground
+        path.resolve(__dirname, '..'),
+      ],
+    },
   },
 })
 
