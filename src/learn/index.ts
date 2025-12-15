@@ -1,11 +1,12 @@
 /**
  * Learn Module
  *
- * Interactive learning sidebar with curriculum navigation and search.
+ * Interactive learning sidebar with curriculum navigation, search, and REPL integration.
  *
  * @module learn
  */
 
+// Search
 export {
   buildSearchIndex,
   searchCurriculum,
@@ -17,3 +18,12 @@ export {
   type SearchResult,
   type GroupedSearchResults,
 } from "./search";
+
+// REPL Bridge
+export {
+  createReplBridge,
+  createMockReplBridge,
+  type ReplBridge,
+  type ReplQueryResult,
+  type ReplBridgeOptions,
+} from "./repl-bridge";

@@ -16,6 +16,7 @@ import {
   executedExampleIds$,
 } from "../../livestore/queries";
 import type { ParsedSection } from "../../curriculum/types";
+import type { ReplBridge } from "../../learn/repl-bridge";
 import type {
   DocumentViewerVM,
   DocumentSectionVM,
@@ -48,10 +49,8 @@ export interface DocumentViewerScopeOptions {
   profileId: string;
   /** Parsed curriculum sections (from virtual module) */
   sections: Record<string, ParsedSection>;
-  /** Callback to copy query to REPL editor */
-  copyToRepl: (query: string) => void;
-  /** Callback to run query and get result */
-  runQuery: (query: string) => Promise<{ success: boolean; resultCount?: number; error?: string; executionTimeMs: number }>;
+  /** REPL bridge for document-to-REPL communication */
+  replBridge: ReplBridge;
   /** Callback when section is opened (for navigation) */
   onSectionOpened?: (sectionId: string) => void;
 }
@@ -71,8 +70,7 @@ export function createDocumentViewerScope(
     events: storeEvents,
     profileId,
     sections,
-    copyToRepl,
-    runQuery,
+    replBridge,
     onSectionOpened,
   } = options;
 
@@ -188,7 +186,7 @@ export function createDocumentViewerScope(
       );
 
       const copyToReplAction = () => {
-        copyToRepl(example.query);
+        replBridge.copyToRepl(example.query);
         // Record as docs-copy execution (not a full run)
         store.commit(storeEvents.exampleExecuted({
           profileId,
@@ -205,7 +203,7 @@ export function createDocumentViewerScope(
         executionState = { type: "running" };
 
         try {
-          const result = await runQuery(example.query);
+          const result = await replBridge.runQuery(example.query);
 
           // Record execution
           store.commit(storeEvents.exampleExecuted({

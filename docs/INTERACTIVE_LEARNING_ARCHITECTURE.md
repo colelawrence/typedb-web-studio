@@ -1458,7 +1458,7 @@ Unit-test `ExampleBlock` helper functions (formatting, expectation messaging) in
 
 ---
 
-## Phase 6: REPL Integration [TODO]
+## Phase 6: REPL Integration [DONE]
 
 ### Goals
 - Connect documentation to existing query REPL
@@ -1558,15 +1558,32 @@ describe('REPL Bridge', () => {
 ```
 
 ### Acceptance Criteria
-- [ ] "Copy to REPL" populates editor without running
-- [ ] "Run" from docs executes and shows results in REPL
-- [ ] Query history tracks execution source
-- [ ] REPL state preserved when switching documents
+- [x] "Copy to REPL" populates editor without running
+- [x] "Run" from docs executes and shows results in REPL
+- [x] Query history tracks execution source (docs-run, docs-copy, repl-direct)
+- [x] REPL state preserved when switching documents
 
 ### Artifacts
-<!-- Update this section as you implement -->
-- Integration points with existing VM:
-- State synchronization approach:
+
+#### Key files created:
+
+**REPL Bridge:**
+- `src/learn/repl-bridge.ts` - Bridge interface and factory function for document-to-REPL communication
+
+**Tests:**
+- `src/learn/__tests__/repl-bridge.test.ts` - 19 tests for REPL bridge functionality
+
+#### Implementation notes:
+- **LiveStore integration**: Uses `uiState$` query to read/write editor state via `events.uiStateSet`
+- **Navigation**: Bridge navigates to `/query` page when copying or running from docs
+- **Execution sources**: Tracks three sources in `exampleExecuted` events:
+  - `docs-run`: Query run directly from documentation
+  - `docs-copy`: Query copied to REPL (recorded as execution for progress tracking)
+  - `repl-direct`: Regular REPL execution (for future use)
+- **Mock bridge**: `createMockReplBridge()` provides test doubles with call tracking
+- **Snackbar feedback**: Shows success/error messages after copy/run operations
+- **Readiness check**: `isReady()` validates connection status and database selection before execution
+- **Total tests**: 96 tests (21 search + 28 sidebar + 28 document viewer + 19 REPL bridge)
 
 ---
 

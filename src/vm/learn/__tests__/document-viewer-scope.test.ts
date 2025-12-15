@@ -8,7 +8,7 @@
  * - Visibility state
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createStore, provideOtel } from "@livestore/livestore";
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { Effect } from "effect";
@@ -16,6 +16,7 @@ import { Effect } from "effect";
 import { createDocumentViewerScope, type DocumentViewerScopeOptions } from "../document-viewer-scope";
 import { events, schema } from "../../../livestore/schema";
 import { readingProgressForSection$, executedExampleIds$ } from "../../../livestore/queries";
+import { createMockReplBridge } from "../../../learn/repl-bridge";
 import type { ParsedSection } from "../../../curriculum/types";
 
 // ============================================================================
@@ -96,8 +97,7 @@ interface TestContext {
   store: ReturnType<typeof createStore> extends Promise<infer T> ? T : never;
   viewerVM: ReturnType<typeof createDocumentViewerScope>;
   profileId: string;
-  copyToRepl: ReturnType<typeof vi.fn>;
-  runQuery: ReturnType<typeof vi.fn>;
+  replBridge: ReturnType<typeof createMockReplBridge>;
   cleanup: () => Promise<void>;
 }
 
@@ -124,28 +124,21 @@ async function createTestContext(profileId = "test-profile"): Promise<TestContex
     lastActiveAt: new Date(),
   }));
 
-  const copyToRepl = vi.fn();
-  const runQuery = vi.fn().mockResolvedValue({
-    success: true,
-    resultCount: 3,
-    executionTimeMs: 100,
-  });
+  const replBridge = createMockReplBridge();
 
   const viewerVM = createDocumentViewerScope({
     store,
     events,
     profileId,
     sections: MOCK_SECTIONS,
-    copyToRepl,
-    runQuery,
+    replBridge,
   });
 
   return {
     store,
     viewerVM,
     profileId,
-    copyToRepl,
-    runQuery,
+    replBridge,
     cleanup: async () => {
       // Cleanup is handled by Effect.scoped
     },
@@ -395,7 +388,7 @@ describe("DocumentViewerScope", () => {
 
       example.copyToRepl();
 
-      expect(ctx.copyToRepl).toHaveBeenCalledWith("match $p isa person;");
+      expect(ctx.replBridge.copyToReplCalls).toContain("match $p isa person;");
     });
 
     it("records copy-to-REPL as execution", () => {
@@ -418,7 +411,7 @@ describe("DocumentViewerScope", () => {
 
       expect(result.success).toBe(true);
       expect(result.resultCount).toBe(3);
-      expect(ctx.runQuery).toHaveBeenCalledWith("match $p isa person;");
+      expect(ctx.replBridge.runQueryCalls).toContain("match $p isa person;");
     });
 
     it("records execution to LiveStore", async () => {
@@ -433,7 +426,11 @@ describe("DocumentViewerScope", () => {
     });
 
     it("handles execution errors", async () => {
-      ctx.runQuery.mockRejectedValueOnce(new Error("Connection failed"));
+      ctx.replBridge.setQueryResult({
+        success: false,
+        error: "Connection failed",
+        executionTimeMs: 0,
+      });
 
       ctx.viewerVM.openSection("first-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
