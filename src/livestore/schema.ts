@@ -13,6 +13,87 @@ import { Events, Schema, SessionIdSymbol, State, makeSchema } from "@livestore/l
 
 export const tables = {
   // -------------------------------------------------------------------------
+  // Profiles (Interactive Learning)
+  // -------------------------------------------------------------------------
+
+  /**
+   * User profiles for the interactive learning environment.
+   * Profile ID is the universal isolation boundary for all learning state.
+   */
+  profiles: State.SQLite.table({
+    name: "profiles",
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      displayName: State.SQLite.text({ nullable: true }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      lastActiveAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+  }),
+
+  /**
+   * Reading progress tracks which curriculum sections/headings have been viewed.
+   * Composite key: `${profileId}:${sectionId}:${headingId ?? "root"}`
+   */
+  readingProgress: State.SQLite.table({
+    name: "readingProgress",
+    columns: {
+      /** Composite key: profileId:sectionId:headingId */
+      id: State.SQLite.text({ primaryKey: true }),
+      profileId: State.SQLite.text({}),
+      sectionId: State.SQLite.text({}),
+      /** Heading ID within section, null means the section root */
+      headingId: State.SQLite.text({ nullable: true }),
+      /** Whether explicitly marked as read by user */
+      markedRead: State.SQLite.boolean({ default: false }),
+      firstViewedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      lastViewedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+    },
+  }),
+
+  /**
+   * Tracks example code block executions from curriculum content.
+   * Records whether examples were run from docs or REPL.
+   */
+  exampleExecutions: State.SQLite.table({
+    name: "exampleExecutions",
+    columns: {
+      /** Composite key: profileId:exampleId:executionIndex */
+      id: State.SQLite.text({ primaryKey: true }),
+      profileId: State.SQLite.text({}),
+      /** Example ID from curriculum markdown */
+      exampleId: State.SQLite.text({}),
+      /** Whether the execution succeeded */
+      succeeded: State.SQLite.boolean({ default: false }),
+      /** Source of execution: 'docs-run' | 'docs-copy' | 'repl-direct' */
+      source: State.SQLite.text({ default: "repl-direct" }),
+      executedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      /** Execution duration in milliseconds */
+      durationMs: State.SQLite.integer({ nullable: true }),
+      /** Error message if failed */
+      errorMessage: State.SQLite.text({ nullable: true }),
+    },
+  }),
+
+  /**
+   * User annotations/notes on curriculum content.
+   * Allows users to add personal notes to sections.
+   */
+  annotations: State.SQLite.table({
+    name: "annotations",
+    columns: {
+      id: State.SQLite.text({ primaryKey: true }),
+      profileId: State.SQLite.text({}),
+      sectionId: State.SQLite.text({}),
+      /** Optional heading ID for more specific placement */
+      headingId: State.SQLite.text({ nullable: true }),
+      /** The annotation text content */
+      content: State.SQLite.text({ default: "" }),
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+      updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+  }),
+
+  // -------------------------------------------------------------------------
   // Connections
   // -------------------------------------------------------------------------
 
@@ -288,6 +369,104 @@ export const tables = {
 
 export const events = {
   // -------------------------------------------------------------------------
+  // Profile Events (Interactive Learning)
+  // -------------------------------------------------------------------------
+
+  profileCreated: Events.synced({
+    name: "v1.ProfileCreated",
+    schema: Schema.Struct({
+      id: Schema.String,
+      displayName: Schema.NullOr(Schema.String),
+      createdAt: Schema.Date,
+      lastActiveAt: Schema.Date,
+    }),
+  }),
+
+  profileUpdated: Events.synced({
+    name: "v1.ProfileUpdated",
+    schema: Schema.Struct({
+      id: Schema.String,
+      displayName: Schema.optional(Schema.NullOr(Schema.String)),
+      lastActiveAt: Schema.optional(Schema.Date),
+    }),
+  }),
+
+  profileDeleted: Events.synced({
+    name: "v1.ProfileDeleted",
+    schema: Schema.Struct({ id: Schema.String }),
+  }),
+
+  // -------------------------------------------------------------------------
+  // Reading Progress Events
+  // -------------------------------------------------------------------------
+
+  readingProgressMarked: Events.synced({
+    name: "v1.ReadingProgressMarked",
+    schema: Schema.Struct({
+      profileId: Schema.String,
+      sectionId: Schema.String,
+      headingId: Schema.NullOr(Schema.String),
+      markedRead: Schema.Boolean,
+      viewedAt: Schema.Date,
+    }),
+  }),
+
+  readingProgressCleared: Events.synced({
+    name: "v1.ReadingProgressCleared",
+    schema: Schema.Struct({
+      profileId: Schema.String,
+      sectionId: Schema.optional(Schema.String), // If omitted, clears all for profile
+    }),
+  }),
+
+  // -------------------------------------------------------------------------
+  // Example Execution Events
+  // -------------------------------------------------------------------------
+
+  exampleExecuted: Events.synced({
+    name: "v1.ExampleExecuted",
+    schema: Schema.Struct({
+      profileId: Schema.String,
+      exampleId: Schema.String,
+      succeeded: Schema.Boolean,
+      source: Schema.Literal("docs-run", "docs-copy", "repl-direct"),
+      executedAt: Schema.Date,
+      durationMs: Schema.NullOr(Schema.Number),
+      errorMessage: Schema.NullOr(Schema.String),
+    }),
+  }),
+
+  // -------------------------------------------------------------------------
+  // Annotation Events
+  // -------------------------------------------------------------------------
+
+  annotationCreated: Events.synced({
+    name: "v1.AnnotationCreated",
+    schema: Schema.Struct({
+      id: Schema.String,
+      profileId: Schema.String,
+      sectionId: Schema.String,
+      headingId: Schema.NullOr(Schema.String),
+      content: Schema.String,
+      createdAt: Schema.Date,
+    }),
+  }),
+
+  annotationUpdated: Events.synced({
+    name: "v1.AnnotationUpdated",
+    schema: Schema.Struct({
+      id: Schema.String,
+      content: Schema.String,
+      updatedAt: Schema.Date,
+    }),
+  }),
+
+  annotationDeleted: Events.synced({
+    name: "v1.AnnotationDeleted",
+    schema: Schema.Struct({ id: Schema.String }),
+  }),
+
+  // -------------------------------------------------------------------------
   // Connection Events
   // -------------------------------------------------------------------------
 
@@ -461,6 +640,79 @@ export const events = {
 // ============================================================================
 
 const materializers = State.SQLite.materializers(events, {
+  // Profile materializers
+  "v1.ProfileCreated": ({ id, displayName, createdAt, lastActiveAt }) =>
+    tables.profiles.insert({ id, displayName, createdAt, lastActiveAt }),
+
+  "v1.ProfileUpdated": ({ id, ...updates }) =>
+    tables.profiles.update(updates).where({ id }),
+
+  "v1.ProfileDeleted": ({ id }) => [
+    tables.profiles.delete().where({ id }),
+    tables.readingProgress.delete().where({ profileId: id }),
+    tables.exampleExecutions.delete().where({ profileId: id }),
+    tables.annotations.delete().where({ profileId: id }),
+  ],
+
+  // Reading progress materializers
+  // Using delete + insert pattern since LiveStore doesn't have upsert
+  "v1.ReadingProgressMarked": ({ profileId, sectionId, headingId, markedRead, viewedAt }) => {
+    const id = `${profileId}:${sectionId}:${headingId ?? "root"}`;
+    return [
+      tables.readingProgress.delete().where({ id }),
+      tables.readingProgress.insert({
+        id,
+        profileId,
+        sectionId,
+        headingId,
+        markedRead,
+        firstViewedAt: viewedAt,
+        lastViewedAt: viewedAt,
+      }),
+    ];
+  },
+
+  "v1.ReadingProgressCleared": ({ profileId, sectionId }) => {
+    if (sectionId) {
+      return tables.readingProgress.delete().where({ profileId, sectionId });
+    }
+    return tables.readingProgress.delete().where({ profileId });
+  },
+
+  // Example execution materializers
+  "v1.ExampleExecuted": ({ profileId, exampleId, succeeded, source, executedAt, durationMs, errorMessage }) => {
+    // Generate a unique ID for each execution
+    const id = `${profileId}:${exampleId}:${executedAt.getTime()}`;
+    return tables.exampleExecutions.insert({
+      id,
+      profileId,
+      exampleId,
+      succeeded,
+      source,
+      executedAt,
+      durationMs,
+      errorMessage,
+    });
+  },
+
+  // Annotation materializers
+  "v1.AnnotationCreated": ({ id, profileId, sectionId, headingId, content, createdAt }) =>
+    tables.annotations.insert({
+      id,
+      profileId,
+      sectionId,
+      headingId,
+      content,
+      createdAt,
+      updatedAt: createdAt,
+    }),
+
+  "v1.AnnotationUpdated": ({ id, content, updatedAt }) =>
+    tables.annotations.update({ content, updatedAt }).where({ id }),
+
+  "v1.AnnotationDeleted": ({ id }) =>
+    tables.annotations.delete().where({ id }),
+
   // Connection materializers
   "v1.ConnectionCreated": ({ id, name, address, username, database, createdAt }) =>
     tables.connections.insert({

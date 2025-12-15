@@ -8,6 +8,103 @@ import { queryDb } from "@livestore/livestore";
 import { tables } from "./schema";
 
 // ============================================================================
+// Profile Queries (Interactive Learning)
+// ============================================================================
+
+/** All profiles, ordered by last active */
+export const allProfiles$ = queryDb(
+  tables.profiles.orderBy("lastActiveAt", "desc"),
+  { label: "allProfiles" }
+);
+
+/**
+ * Create a query for a specific profile by ID.
+ * Returns array with single item or empty array.
+ */
+export function profileById$(profileId: string) {
+  return queryDb(
+    tables.profiles.where({ id: profileId }),
+    { label: `profile:${profileId}` }
+  );
+}
+
+/**
+ * Reading progress for a specific profile.
+ * Returns all sections/headings marked or viewed by this profile.
+ */
+export function readingProgressForProfile$(profileId: string) {
+  return queryDb(
+    () => tables.readingProgress.where({ profileId }).orderBy("lastViewedAt", "desc"),
+    { label: `readingProgress:${profileId}` }
+  );
+}
+
+/**
+ * Reading progress for a specific section within a profile.
+ * Returns all heading progress entries for this section.
+ */
+export function readingProgressForSection$(profileId: string, sectionId: string) {
+  return queryDb(
+    () => tables.readingProgress.where({ profileId, sectionId }),
+    { label: `readingProgress:${profileId}:${sectionId}` }
+  );
+}
+
+/**
+ * Check if a specific section/heading has been marked as read.
+ * Returns array with single item or empty array.
+ */
+export function isSectionRead$(profileId: string, sectionId: string, headingId?: string) {
+  const id = `${profileId}:${sectionId}:${headingId ?? "root"}`;
+  return queryDb(
+    tables.readingProgress.where({ id }),
+    { label: `isSectionRead:${id}` }
+  );
+}
+
+/**
+ * Example executions for a specific profile.
+ * Returns all examples that have been executed by this profile.
+ */
+export function executionsForProfile$(profileId: string) {
+  return queryDb(
+    () => tables.exampleExecutions.where({ profileId }).orderBy("executedAt", "desc"),
+    { label: `executions:${profileId}` }
+  );
+}
+
+/**
+ * Get all unique example IDs that have been executed by a profile.
+ * Useful for showing which examples have been "completed".
+ */
+export function executedExampleIds$(profileId: string) {
+  return queryDb(
+    () => tables.exampleExecutions.where({ profileId }),
+    { label: `executedExampleIds:${profileId}` }
+  );
+}
+
+/**
+ * Annotations for a specific profile.
+ */
+export function annotationsForProfile$(profileId: string) {
+  return queryDb(
+    () => tables.annotations.where({ profileId }).orderBy("updatedAt", "desc"),
+    { label: `annotations:${profileId}` }
+  );
+}
+
+/**
+ * Annotations for a specific section within a profile.
+ */
+export function annotationsForSection$(profileId: string, sectionId: string) {
+  return queryDb(
+    () => tables.annotations.where({ profileId, sectionId }),
+    { label: `annotations:${profileId}:${sectionId}` }
+  );
+}
+
+// ============================================================================
 // UI State Queries
 // ============================================================================
 

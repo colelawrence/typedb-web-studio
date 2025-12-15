@@ -30,20 +30,23 @@ importers:
         specifier: ^5.84.2
         version: 5.91.1(@tanstack/react-query@5.90.12(react@19.2.3))(react@19.2.3)
       '@tanstack/react-router':
-        specifier: ^1.136.18
+        specifier: 1.136.18
         version: 1.136.18(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/react-router-devtools':
-        specifier: ^1.136.18
+        specifier: 1.136.18
         version: 1.136.18(@tanstack/react-router@1.136.18(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.141.2)(@types/node@22.19.2)(csstype@3.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)(tsx@4.21.0)(yaml@2.8.2)
       '@tanstack/react-start':
-        specifier: ^1.136.18
+        specifier: 1.136.18
         version: 1.136.18(crossws@0.4.1(srvx@0.9.8))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vite@7.2.7(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/router-plugin':
-        specifier: ^1.136.18
+        specifier: 1.136.18
         version: 1.136.18(@tanstack/react-router@1.136.18(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.2.7(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       '@typedb/embedded':
         specifier: file:vendor/typedb-embedded-0.1.0.tgz
         version: file:vendor/typedb-embedded-0.1.0.tgz
+      fuse.js:
+        specifier: ^7.1.0
+        version: 7.1.0
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.2.3)
@@ -1446,7 +1449,7 @@ packages:
       '@testing-library/dom': '>=7.21.4'
 
   '@typedb/embedded@file:vendor/typedb-embedded-0.1.0.tgz':
-    resolution: {integrity: sha512-WBv5HPg1WmcB+uL8YH/WYk9wOfbpa/7z+/yy/z31gF9KfJejRxP1q6I92KDKz+r2PNtTRLeRkJ4UtgqR/45phw==, tarball: file:vendor/typedb-embedded-0.1.0.tgz}
+    resolution: {integrity: sha512-gdgIJNMLDuxUXxhthUpNvPV5IJNOZWTvEB0ixUM56eYO7io8DTsxtP+KSD09KsrJ8Dm52KpyAhQdAWOpVz3Pzg==, tarball: file:vendor/typedb-embedded-0.1.0.tgz}
     version: 0.1.0
 
   '@types/aria-query@5.0.4':
@@ -1791,6 +1794,10 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  fuse.js@7.1.0:
+    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
+    engines: {node: '>=10'}
 
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
@@ -4296,6 +4303,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  fuse.js@7.1.0: {}
 
   gensync@1.0.0-beta.2: {}
 

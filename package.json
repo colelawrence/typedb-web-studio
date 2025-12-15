@@ -33,6 +33,7 @@
     "@tanstack/react-start": "1.136.18",
     "@tanstack/router-plugin": "1.136.18",
     "@typedb/embedded": "file:vendor/typedb-embedded-0.1.0.tgz",
+    "fuse.js": "^7.1.0",
     "lucide-react": "^0.544.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
