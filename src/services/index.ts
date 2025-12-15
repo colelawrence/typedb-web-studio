@@ -6,7 +6,7 @@
  */
 
 import type { TypeDBService, ConnectionStatus } from "./typedb-service";
-import { TypeDBWasmService } from "./typedb-wasm-service";
+import { TypeDBEmbeddedService } from "./typedb-embedded-service";
 
 // Re-export types
 export type { TypeDBService, ConnectionStatus, TypeDBServiceEvents } from "./typedb-service";
@@ -118,12 +118,12 @@ export function getService(): TypeDBService {
 function createServiceForMode(mode: ServiceMode): TypeDBService {
   switch (mode) {
     case "wasm":
-      console.log("[ServiceProvider] Creating WASM service");
-      return new TypeDBWasmService();
+      console.log("[ServiceProvider] Creating embedded WASM service");
+      return new TypeDBEmbeddedService();
     case "http":
       // TODO: Implement HTTP service
-      console.log("[ServiceProvider] HTTP service not yet implemented, falling back to WASM");
-      return new TypeDBWasmService();
+      console.log("[ServiceProvider] HTTP service not yet implemented, falling back to embedded WASM");
+      return new TypeDBEmbeddedService();
     default:
       throw new Error(`Unknown service mode: ${mode}`);
   }

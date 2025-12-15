@@ -12,3 +12,6 @@ count.txt
 .vinxi
 todos.json
 mcp-todos.json
+
+# Note: vendor/ directory is tracked (contains @typedb/embedded tarball)
+# See vendor/README.md for update instructions
