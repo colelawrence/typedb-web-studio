@@ -42,14 +42,15 @@ const config = defineConfig({
       // and we're deploying as a static single-page app
       spa: {
         enabled: true,
-        prerender: {
-          // Disable link crawling to avoid prerender server issues in CI
-          crawlLinks: false,
-        },
+      },
+      // Disable prerendering - we'll create the shell HTML manually in CI
+      // The Vite preview server fails to start in GitHub Actions
+      prerender: {
+        enabled: false,
       },
       router: {
-        // Keep TanStack prerendering rooted at "/"
-        // (GitHub Pages base path handling is done by Vite + runtime router)
+        // Keep TanStack router rooted at "/"
+        // (GitHub Pages base path handling is done by Vite's base config)
         basepath: '/',
       },
     }),
