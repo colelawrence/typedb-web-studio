@@ -35,6 +35,22 @@ export type {
   ContextSwitchPromptVM,
 } from "./document-viewer.vm";
 
+// Navigation types
+export type {
+  LearnNavigationVM,
+  NavigationTarget,
+  HistoryEntry,
+  HighlightState,
+} from "./navigation.vm";
+
+export {
+  NavigationHistory,
+  targetsEqual,
+  parseNavigationPath,
+  createNavigationPath,
+  HIGHLIGHT_DURATION_MS,
+} from "./navigation.vm";
+
 // Sidebar scope
 export {
   createLearnSidebarScope,
@@ -46,3 +62,11 @@ export {
   createDocumentViewerScope,
   type DocumentViewerScopeOptions,
 } from "./document-viewer-scope";
+
+// Navigation scope
+export {
+  createNavigationScope,
+  createMockNavigationScope,
+  type NavigationScopeOptions,
+  type MockNavigationScope,
+} from "./navigation-scope";

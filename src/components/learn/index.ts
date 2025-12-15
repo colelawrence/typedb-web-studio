@@ -32,3 +32,16 @@ export {
   type ContextSwitchPromptProps,
   type ContextIndicatorProps,
 } from "./ContextSwitchPrompt";
+
+// Cross-link components
+export {
+  CrossLink,
+  Backlink,
+  BacklinksSection,
+  HighlightedTarget,
+  renderContentWithLinks,
+  type CrossLinkProps,
+  type BacklinkProps,
+  type BacklinksSectionProps,
+  type HighlightedTargetProps,
+} from "./CrossLink";

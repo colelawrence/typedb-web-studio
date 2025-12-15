@@ -57,3 +57,21 @@ export {
   type ContextDatabaseOps,
   type ContextManagerOptions,
 } from './context-manager';
+
+// Re-export link utilities
+export {
+  parseLinks,
+  parseSectionLinks,
+  buildLinkIndex,
+  getOutboundLinks,
+  getBacklinks,
+  getSectionsReferencingKeyword,
+  findBrokenLinks,
+  getLinkPath,
+  getLinkDisplayText,
+  type LinkType,
+  type ParsedLink,
+  type SectionLinks,
+  type BacklinkEntry,
+  type LinkIndex,
+} from './links';

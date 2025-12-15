@@ -1694,7 +1694,7 @@ Updated `src/vm/learn/__tests__/document-viewer-scope.test.ts` with 13 additiona
 
 ---
 
-## Phase 8: Cross-Linking and Navigation [TODO]
+## Phase 8: Cross-Linking and Navigation [DONE]
 
 ### Goals
 - Learn sections link to Reference entries
@@ -1704,20 +1704,98 @@ Updated `src/vm/learn/__tests__/document-viewer-scope.test.ts` with 13 additiona
 
 ### Implementation
 
-TBD - Define cross-link syntax in markdown and implement navigation.
+#### 8.1 Cross-Link Syntax
+
+Defined cross-link syntax in markdown content:
+
+```markdown
+[[learn:first-queries]]           → Link to learn section
+[[ref:match]]                     → Link to reference entry
+[[#variables]]                    → Link to heading in current section
+[[learn:first-queries#variables]] → Link to heading in specific section
+[[ref:match|MATCH keyword]]       → Custom display text
+```
+
+#### 8.2 Link Parser
+
+Created `src/curriculum/links.ts` with:
+- `parseLinks(content, sourceFile)` - Extracts all links from markdown
+- `parseSectionLinks(section)` - Extracts links with section metadata
+- `buildLinkIndex(sections)` - Builds bidirectional index
+- `getBacklinks(index, type, targetId)` - Gets backlinks for a target
+- `findBrokenLinks(index, sections)` - Validates all links resolve
+
+#### 8.3 Navigation VM
+
+Created `src/vm/learn/navigation.vm.ts` with:
+- `NavigationHistory` - Stack-based history with back/forward support
+- `NavigationTarget` - Type for learn/ref/heading targets
+- Helper functions: `targetsEqual`, `parseNavigationPath`, `createNavigationPath`
+
+Created `src/vm/learn/navigation-scope.ts` with:
+- `createNavigationScope()` - Full navigation VM with browser history integration
+- `createMockNavigationScope()` - Test double with call tracking
+
+#### 8.4 Link Components
+
+Created `src/components/learn/CrossLink.tsx` with:
+- `CrossLink` - Renders cross-link with icon and styling
+- `Backlink` - Shows source section reference
+- `BacklinksSection` - Renders all backlinks to a target
+- `HighlightedTarget` - Wraps content with highlight animation
+- `renderContentWithLinks()` - Converts markdown with links to React
 
 ### Verification Tests
 
-TBD
+Created `src/curriculum/__tests__/links.test.ts` with 38 tests covering:
+- Link parsing (learn, ref, heading, with anchors, with display text)
+- Link index building and bidirectional lookups
+- Backlink queries and filtering
+- Broken link detection
+- Path generation and display text
+
+Created `src/vm/learn/__tests__/navigation-scope.test.ts` with 35 tests covering:
+- NavigationHistory (push, back, forward, scroll position, clear)
+- Helper functions (targetsEqual, parseNavigationPath, createNavigationPath)
+- Navigation scope (navigateToSection, navigateToReference, history navigation)
+- Mock scope functionality
 
 ### Acceptance Criteria
-- [ ] Links between Learn and Reference work
-- [ ] Navigation preserves scroll position
-- [ ] Browser back/forward works
-- [ ] Links highlight target section briefly
+- [x] Links between Learn and Reference work
+- [x] Navigation preserves scroll position
+- [x] Browser back/forward works
+- [x] Links highlight target section briefly
 
 ### Artifacts
-<!-- Update this section as you implement -->
+
+#### Key files created:
+
+**Link Parser:**
+- `src/curriculum/links.ts` - Cross-link parser and bidirectional index
+- `src/curriculum/__tests__/links.test.ts` - 38 tests
+
+**Navigation VM:**
+- `src/vm/learn/navigation.vm.ts` - NavigationHistory class and VM interfaces
+- `src/vm/learn/navigation-scope.ts` - Navigation scope implementation
+- `src/vm/learn/__tests__/navigation-scope.test.ts` - 35 tests
+
+**React Components:**
+- `src/components/learn/CrossLink.tsx` - CrossLink, Backlink, BacklinksSection, HighlightedTarget components
+
+**Exports:**
+- `src/curriculum/index.ts` - Added link exports
+- `src/vm/learn/index.ts` - Added navigation exports
+- `src/components/learn/index.ts` - Added CrossLink exports
+
+#### Implementation notes:
+- **Link syntax**: Uses double bracket notation `[[type:target#heading|display]]` for cross-links
+- **Link types**: `learn` (curriculum sections), `ref` (reference entries), `heading` (anchors)
+- **Bidirectional index**: `LinkIndex` maps sections to outbound links and targets to backlinks
+- **Navigation history**: Stack-based with configurable max size (default 100), preserves scroll position
+- **Browser integration**: Optional `useBrowserHistory` flag integrates with popstate events
+- **Highlight duration**: 2 second highlight animation when navigating to anchors
+- **Mock scope**: Full test double with call tracking via `navigateCalls` array
+- **Total tests**: 216 tests across learn modules (21 search + 28 sidebar + 41 document viewer + 30 context manager + 19 REPL bridge + 38 links + 35 navigation + 4 parser tests)
 
 ---
 
