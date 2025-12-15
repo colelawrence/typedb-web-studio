@@ -40,6 +40,7 @@ const config = defineConfig({
       '@livestore/react',
       // TypeDB WASM packages
       'typedb-wasm-playground',
+      '@typedb/embedded',
     ],
   },
   server: {

@@ -83,6 +83,28 @@ This project is configured for [shadcn/ui](https://ui.shadcn.com/):
 pnpm dlx shadcn@latest add button
 ```
 
+## Testing
+
+```bash
+pnpm test        # Run all tests
+pnpm test:watch  # Run tests in watch mode
+```
+
+This project uses **VM-first testing** - we test View Models, not React components. See [TESTING-PLAN.md](./TESTING-PLAN.md) for the full testing philosophy.
+
+**Key principle**: React components are "dumb views" that render VM state. If the VM works correctly, the view works correctly. This makes tests more maintainable and meaningful.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  VM INTEGRATION TESTS                       │  ← PRIMARY (90%)
+│  Test full flows: VM ↔ Service ↔ TypeDB WASM               │
+├─────────────────────────────────────────────────────────────┤
+│              Service/Utility Tests                          │  ← SECONDARY (10%)
+├─────────────────────────────────────────────────────────────┤
+│           React Component Tests (NONE)                      │  ← NOT NEEDED
+└─────────────────────────────────────────────────────────────┘
+```
+
 ## Status
 
 🚧 **Work in Progress** - The UI shell and VM interfaces are complete. Business logic implementation (TypeDB driver integration, actual queries, etc.) is pending.
