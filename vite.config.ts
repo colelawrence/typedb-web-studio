@@ -38,8 +38,7 @@ const config = defineConfig({
       '@livestore/adapter-web',
       '@livestore/livestore',
       '@livestore/react',
-      // TypeDB WASM packages
-      'typedb-wasm-playground',
+      // TypeDB WASM package
       '@typedb/embedded',
     ],
   },

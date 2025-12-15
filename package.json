@@ -6,6 +6,8 @@
     "dev": "vite dev --port 3000",
     "build": "vite build",
     "preview": "vite preview",
+    "build:cli": "vite build && rm -rf studio-cli/dist && cp -r dist/client studio-cli/dist",
+    "test:cli-packaging": "bun run studio-cli/packaging-test/run-test.ts",
     "format": "biome format",
     "lint": "biome lint",
     "check": "biome check",

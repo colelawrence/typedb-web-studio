@@ -1,0 +1,5 @@
+# Generated files - built from parent's dist/client
+dist/
+
+# npm tarball
+*.tgz

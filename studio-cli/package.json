@@ -1,0 +1,32 @@
+{
+  "name": "@typedb/studio",
+  "version": "0.1.0",
+  "description": "TypeDB Web Studio - Browser-based IDE for TypeDB with embedded WASM database",
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/typedb/typedb"
+  },
+  "keywords": [
+    "typedb",
+    "database",
+    "studio",
+    "ide",
+    "wasm",
+    "graph-database"
+  ],
+  "bin": {
+    "typedb-studio": "./bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "prepublishOnly": "echo 'Run build:cli from parent directory first'"
+  }
+}
