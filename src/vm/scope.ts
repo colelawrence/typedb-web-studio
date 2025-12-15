@@ -21,11 +21,13 @@ import {
 } from "lucide-react";
 
 import { events, type schema } from "../livestore/schema";
-import { uiState$, snackbarNotifications$, allConnections$, localServers$, schemaTypes$ } from "../livestore/queries";
+import { uiState$, snackbarNotifications$, allConnections$, localServers$, schemaTypes$, queryResults$, availableDatabases$, queryHistory$ } from "../livestore/queries";
 import {
   getService,
   quickConnectWasm,
   disconnect as disconnectService,
+  detectQueryType,
+  type QueryResponse,
 } from "../services";
 import { DEMOS, getDemoById } from "../demos";
 import { parseSchema } from "../services/schema-parser";
@@ -52,7 +54,7 @@ import type {
   SavedConnectionItemVM,
 } from "./pages/connect/connect-page.vm";
 import type { QueryPageVM } from "./pages/query/query-page.vm";
-import type { QuerySidebarVM, QuerySidebarSchemaSectionVM, QuerySidebarSavedQueriesSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
+import type { QuerySidebarVM, QuerySidebarSchemaSectionVM, QuerySidebarSavedQueriesSectionVM, QuerySidebarLearnSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
 import type { QueryEditorVM, QueryEditorHeaderVM, QueryCodeEditorVM, AutocompleteVM, QueryChatAssistantVM, QueryEditorActionsVM } from "./pages/query/editor/query-editor.vm";
 import type { QueryResultsVM, LogOutputVM, TableOutputVM, GraphOutputVM, RawOutputVM } from "./pages/query/results/query-results.vm";
 import type { QueryHistoryBarVM } from "./pages/query/history/query-history-bar.vm";
@@ -72,8 +74,86 @@ import type { LearnPageVM } from "./pages/learn/learn-page.vm";
 import { createLearnSidebarScope } from "./learn/sidebar-scope";
 import { createDocumentViewerScope } from "./learn/document-viewer-scope";
 import { createNavigationScope } from "./learn/navigation-scope";
+import { createReplBridge } from "../learn/repl-bridge";
 import { sections as curriculumSections, contexts as curriculumContexts } from "../curriculum/content";
 import type { ParsedSection, CurriculumMeta, SectionMeta } from "../curriculum/types";
+
+// ============================================================================
+// Service Interfaces
+// ============================================================================
+
+/**
+ * Service for showing snackbar/toast notifications.
+ * Extracted from VM layer to allow sharing across scopes.
+ */
+export interface SnackbarService {
+  /** Show a notification. Error notifications are always persistent. */
+  show(type: "success" | "warning" | "error", message: string, persistent?: boolean): void;
+  /** Dismiss a notification by ID. */
+  dismiss(id: string): void;
+}
+
+/**
+ * Service for managing TypeDB connections.
+ * Handles connect/disconnect and status updates.
+ */
+export interface ConnectionService {
+  /** Connect to TypeDB via WASM (embedded). */
+  connectWasm(databaseName?: string): Promise<void>;
+  /** Connect to TypeDB via HTTP (remote server). */
+  connectHttp(address: string, username: string, password: string): Promise<void>;
+  /** Disconnect from current connection. */
+  disconnect(): Promise<void>;
+  /** Get current connection status. */
+  getStatus(): "disconnected" | "connecting" | "connected" | "reconnecting";
+}
+
+/**
+ * Service for database operations.
+ * Handles listing, selecting, and refreshing databases.
+ */
+export interface DatabaseService {
+  /** Refresh the list of available databases. */
+  refreshList(): Promise<void>;
+  /** Select a database as active. */
+  select(databaseName: string): void;
+  /** Refresh schema for the active database. */
+  refreshSchema(databaseName: string): Promise<void>;
+}
+
+/**
+ * Service for loading demo content.
+ */
+export interface DemoService {
+  /** Load a demo's schema and sample data. */
+  loadDemo(demoId: string, databaseName: string): Promise<void>;
+}
+
+/**
+ * Service for executing queries.
+ */
+export interface QueryExecutionService {
+  /** Execute a query and return results. */
+  execute(queryText: string): Promise<{
+    success: boolean;
+    resultCount?: number;
+    error?: string;
+    executionTimeMs: number;
+  }>;
+  /** Check if ready to execute queries. */
+  isReady(): boolean;
+}
+
+/**
+ * All services returned by createStudioScope.
+ */
+export interface StudioServices {
+  snackbar: SnackbarService;
+  connection: ConnectionService;
+  database: DatabaseService;
+  demo: DemoService;
+  queryExecution: QueryExecutionService;
+}
 
 // ============================================================================
 // Helpers
@@ -93,7 +173,7 @@ function constant<T>(value: NoInfer<T>, label: string): Queryable<T> {
 export function createStudioScope(
   store: Store<typeof schema>,
   navigate: (path: string) => void
-): TypeDBStudioAppVM {
+): { vm: TypeDBStudioAppVM; services: StudioServices } {
   // ---------------------------------------------------------------------------
   // Derived UI State Queries
   // ---------------------------------------------------------------------------
@@ -176,6 +256,12 @@ export function createStudioScope(
     ),
   };
 
+  // Snackbar Service (for use by other scopes)
+  const snackbarService: SnackbarService = {
+    show: showSnackbar,
+    dismiss: dismissSnackbar,
+  };
+
   // ---------------------------------------------------------------------------
   // Connection Status
   // ---------------------------------------------------------------------------
@@ -256,9 +342,112 @@ export function createStudioScope(
     },
   };
 
+  // Connection Service (for use by other scopes)
+  const connectionService: ConnectionService = {
+    async connectWasm(databaseName = "playground") {
+      store.commit(events.uiStateSet({ connectionStatus: "connecting" }));
+      try {
+        await quickConnectWasm(databaseName);
+        store.commit(events.uiStateSet({
+          connectionStatus: "connected",
+          activeDatabase: databaseName,
+        }));
+      } catch (error) {
+        store.commit(events.uiStateSet({ connectionStatus: "disconnected" }));
+        throw error;
+      }
+    },
+    async connectHttp(address: string, username: string, password: string) {
+      store.commit(events.uiStateSet({ connectionStatus: "connecting" }));
+      try {
+        const service = getService();
+        await service.connect({ address, username, password });
+        store.commit(events.uiStateSet({ connectionStatus: "connected" }));
+      } catch (error) {
+        store.commit(events.uiStateSet({ connectionStatus: "disconnected" }));
+        throw error;
+      }
+    },
+    async disconnect() {
+      try {
+        await disconnectService();
+      } catch (e) {
+        console.warn("[scope] Error disconnecting:", e);
+      }
+      store.commit(events.uiStateSet({
+        connectionStatus: "disconnected",
+        activeConnectionId: null,
+        activeDatabase: null,
+      }));
+    },
+    getStatus() {
+      return store.query(connectionStatus$);
+    },
+  };
+
   // ---------------------------------------------------------------------------
   // Database Selector
   // ---------------------------------------------------------------------------
+
+  /**
+   * Refreshes the list of available databases from the service.
+   */
+  const refreshDatabaseList = async (): Promise<void> => {
+    store.commit(events.availableDatabasesSet({ isLoading: true }));
+
+    try {
+      const service = getService();
+      const databases = await service.getDatabases();
+      const databaseNames = databases.map((db) => db.name);
+
+      store.commit(events.availableDatabasesSet({
+        isLoading: false,
+        databases: databaseNames,
+        lastRefreshedAt: Date.now(),
+      }));
+    } catch (error) {
+      console.error("[scope] Failed to refresh databases:", error);
+      store.commit(events.availableDatabasesSet({ isLoading: false }));
+      showSnackbar("error", `Failed to refresh databases: ${error}`);
+    }
+  };
+
+  /**
+   * Refreshes schema for a specific database.
+   * Called when a database is selected.
+   */
+  const refreshSchemaForDatabase = async (databaseName: string): Promise<void> => {
+    try {
+      const service = getService();
+      const schemaText = await service.getDatabaseSchemaText(databaseName);
+      if (schemaText && !schemaText.startsWith("#")) {
+        const parsedSchema = parseSchema(schemaText);
+        store.commit(events.schemaTypesSet({
+          entities: parsedSchema.entities.map((e) => ({
+            label: e.label,
+            isAbstract: e.isAbstract,
+            supertype: e.supertype,
+            ownedAttributes: e.ownedAttributes,
+            playedRoles: e.playedRoles,
+          })),
+          relations: parsedSchema.relations.map((r) => ({
+            label: r.label,
+            isAbstract: r.isAbstract,
+            supertype: r.supertype,
+            ownedAttributes: r.ownedAttributes,
+            relatedRoles: r.relatedRoles,
+          })),
+          attributes: parsedSchema.attributes.map((a) => ({
+            label: a.label,
+            valueType: a.valueType,
+          })),
+        }));
+      }
+    } catch (e) {
+      // Schema fetch failed - this is okay for embedded mode
+      console.warn("[scope] Schema fetch not available:", e);
+    }
+  };
 
   const databaseSelectorVM: DatabaseSelectorVM = {
     visible$: computed(
@@ -272,6 +461,8 @@ export function createStudioScope(
     displayText$: computed(
       (get) => {
         const db = get(activeDatabase$);
+        const dbList = get(availableDatabases$);
+        if (dbList.isLoading) return "Loading...";
         return db ?? "Select database...";
       },
       { label: "databaseSelector.displayText" }
@@ -289,6 +480,10 @@ export function createStudioScope(
 
     toggle: () => {
       const isOpen = store.query(uiState$).activeDialog === "databaseSelector";
+      if (!isOpen) {
+        // Refresh database list when opening
+        refreshDatabaseList();
+      }
       store.commit(
         events.uiStateSet({ activeDialog: isOpen ? null : "databaseSelector" })
       );
@@ -298,24 +493,33 @@ export function createStudioScope(
       store.commit(events.uiStateSet({ activeDialog: null }));
     },
 
-    disabled$: constant<DisabledState>(null, "databaseSelector.disabled"),
+    disabled$: computed(
+      (get): DisabledState => {
+        if (get(availableDatabases$).isLoading) {
+          return { displayReason: "Loading databases..." };
+        }
+        return null;
+      },
+      { label: "databaseSelector.disabled" }
+    ),
 
     databases$: computed(
-      () => {
-        // Mock databases - in real app, this would come from the server
-        const mockDatabases = ["typedb", "social_network", "financial_data"];
+      (get) => {
+        const dbList = get(availableDatabases$);
+        const databases = dbList.databases;
+        const currentDb = get(activeDatabase$);
 
-        return mockDatabases.map((name): DatabaseOptionVM => ({
+        return databases.map((name): DatabaseOptionVM => ({
           key: name,
           label: name,
-          isSelected$: computed(
-            (get) => get(activeDatabase$) === name,
-            { label: `database.${name}.isSelected` }
-          ),
+          isSelected$: constant(currentDb === name, `database.${name}.isSelected`),
           select: () => {
             store.commit(events.uiStateSet({ activeDatabase: name }));
             databaseSelectorVM.close();
             showSnackbar("success", `Now using database '${name}'`);
+
+            // Refresh schema for the newly selected database (async, fire-and-forget)
+            refreshSchemaForDatabase(name);
           },
           openDeleteDialog: () => {
             showSnackbar("warning", "Delete database not yet implemented");
@@ -330,8 +534,18 @@ export function createStudioScope(
     },
 
     refresh: () => {
-      showSnackbar("success", "Database list refreshed");
+      refreshDatabaseList();
     },
+  };
+
+  // Database Service (for use by other scopes)
+  const databaseService: DatabaseService = {
+    refreshList: refreshDatabaseList,
+    select: (databaseName: string) => {
+      store.commit(events.uiStateSet({ activeDatabase: databaseName }));
+      refreshSchemaForDatabase(databaseName);
+    },
+    refreshSchema: refreshSchemaForDatabase,
   };
 
   // ---------------------------------------------------------------------------
@@ -569,6 +783,79 @@ export function createStudioScope(
     }
 
     console.log(`[scope] Demo ${demo.name} loaded successfully`);
+  };
+
+  // Demo Service (for use by other scopes)
+  const demoService: DemoService = {
+    loadDemo: loadDemoData,
+  };
+
+  // Query Execution Service (for use by other scopes, including ReplBridge)
+  const queryExecutionService: QueryExecutionService = {
+    async execute(queryText: string) {
+      const ui = store.query(uiState$);
+      const database = ui.activeDatabase;
+
+      if (!database) {
+        return {
+          success: false,
+          error: "No database selected",
+          executionTimeMs: 0,
+        };
+      }
+
+      const startTime = Date.now();
+      try {
+        const service = getService();
+        const detection = detectQueryType(queryText);
+        const response = await service.executeQuery(database, queryText, {
+          transactionType: detection.transactionType,
+        });
+
+        // Calculate result count based on response type
+        let resultCount = 0;
+        switch (response.data.type) {
+          case "match":
+            resultCount = response.data.answers.length;
+            break;
+          case "fetch":
+            resultCount = response.data.documents.length;
+            break;
+          case "insert":
+            resultCount = response.data.inserted.length;
+            break;
+          case "delete":
+            resultCount = response.data.deletedCount;
+            break;
+          case "aggregate":
+            resultCount = 1;
+            break;
+          case "define":
+          case "undefine":
+          case "redefine":
+            resultCount = response.data.success ? 1 : 0;
+            break;
+        }
+
+        return {
+          success: true,
+          resultCount,
+          executionTimeMs: response.executionTimeMs,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message :
+                            (error as { message?: string })?.message || String(error);
+        return {
+          success: false,
+          error: errorMessage,
+          executionTimeMs: Date.now() - startTime,
+        };
+      }
+    },
+    isReady() {
+      const ui = store.query(uiState$);
+      return ui.connectionStatus === "connected" && ui.activeDatabase !== null;
+    },
   };
 
   // Demos Section
@@ -1003,10 +1290,82 @@ export function createStudioScope(
   };
 
   // ---------------------------------------------------------------------------
+  // Shared Curriculum Data (used by Learn Page and Query Page)
+  // ---------------------------------------------------------------------------
+
+  // Build sections map from curriculum content
+  const curriculumSectionsData: Record<string, ParsedSection> = {};
+  for (const section of curriculumSections) {
+    curriculumSectionsData[section.id] = section;
+  }
+
+  // Get profile ID from localStorage or generate one
+  const getProfileId = (): string => {
+    const PROFILE_KEY = "typedb_studio_profile";
+    let profileId = localStorage.getItem(PROFILE_KEY);
+    if (!profileId) {
+      profileId = `profile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem(PROFILE_KEY, profileId);
+    }
+    return profileId;
+  };
+  const sharedProfileId = getProfileId();
+
+  // ---------------------------------------------------------------------------
+  // Learn Page (created first so we can share VMs with Query Page)
+  // ---------------------------------------------------------------------------
+
+  const learnPageVM: LearnPageVM = createLearnPageVM(store, navigate, showSnackbar, curriculumSectionsData, sharedProfileId, queryExecutionService);
+
+  // ---------------------------------------------------------------------------
   // Query Page
   // ---------------------------------------------------------------------------
 
-  const queryPageVM: QueryPageVM = createQueryPageVM(store, showSnackbar, navigate, databaseSelectorVM, connectionStatus$, activeDatabase$, isConnected$);
+  // Build curriculum meta from parsed sections (shared with Learn page)
+  const sectionsByFolder = new Map<string, ParsedSection[]>();
+  for (const section of curriculumSections) {
+    const folder = section.sourceFile.split("/")[0] || "default";
+    const existing = sectionsByFolder.get(folder) || [];
+    existing.push(section);
+    sectionsByFolder.set(folder, existing);
+  }
+  const formatFolderTitle = (folder: string): string => {
+    return folder
+      .replace(/^\d+-/, "")
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+  const sharedCurriculumMeta: CurriculumMeta = {
+    name: "TypeQL Learning",
+    version: "1.0.0",
+    sections: Array.from(sectionsByFolder.entries()).map(([folder, folderSections]): SectionMeta => ({
+      id: folder,
+      title: formatFolderTitle(folder),
+      path: folder,
+      lessons: folderSections.map((s) => ({
+        id: s.id,
+        title: s.title,
+        file: s.sourceFile,
+        context: s.context,
+      })),
+    })),
+    contexts: curriculumContexts,
+  };
+
+  const queryPageVM: QueryPageVM = createQueryPageVM(
+    store,
+    showSnackbar,
+    navigate,
+    databaseSelectorVM,
+    connectionStatus$,
+    activeDatabase$,
+    isConnected$,
+    curriculumSectionsData,
+    sharedProfileId,
+    sharedCurriculumMeta,
+    queryExecutionService
+  );
 
   // ---------------------------------------------------------------------------
   // Schema Page (Placeholder)
@@ -1019,12 +1378,6 @@ export function createStudioScope(
   // ---------------------------------------------------------------------------
 
   const usersPageVM: UsersPageVM = createUsersPageVM(store, showSnackbar, connectionStatus$);
-
-  // ---------------------------------------------------------------------------
-  // Learn Page
-  // ---------------------------------------------------------------------------
-
-  const learnPageVM: LearnPageVM = createLearnPageVM(store, navigate, showSnackbar);
 
   // ---------------------------------------------------------------------------
   // Dialogs
@@ -1066,7 +1419,7 @@ export function createStudioScope(
   // Root VM
   // ---------------------------------------------------------------------------
 
-  return {
+  const vm: TypeDBStudioAppVM = {
     topBar,
     snackbar,
     currentPage$: currentPageState$,
@@ -1076,6 +1429,16 @@ export function createStudioScope(
       navigate,
     },
   };
+
+  const services: StudioServices = {
+    snackbar: snackbarService,
+    connection: connectionService,
+    database: databaseService,
+    demo: demoService,
+    queryExecution: queryExecutionService,
+  };
+
+  return { vm, services };
 }
 
 // ============================================================================
@@ -1091,7 +1454,11 @@ function createQueryPageVM(
   databaseSelector: DatabaseSelectorVM,
   _connectionStatus$: Queryable<ConnectionStatus>,
   _activeDatabase$: Queryable<string | null>,
-  _isConnected$: Queryable<boolean>
+  _isConnected$: Queryable<boolean>,
+  curriculumSectionsData: Record<string, ParsedSection>,
+  profileId: string,
+  curriculumMeta: CurriculumMeta,
+  queryExecutionService: QueryExecutionService
 ): QueryPageVM {
   // Helper to create schema tree item VMs
   const emptyChildren: SchemaTreeChildItemVM[] = [];
@@ -1328,10 +1695,62 @@ function createQueryPageVM(
     tree: savedQueriesTree,
   };
 
+  // Docs Viewer - created early so Learn Sidebar can reference it
+  // Using createReplBridge for consistent behavior
+  const queryReplBridge = createReplBridge({
+    store,
+    events,
+    navigate,
+    executeQuery: queryExecutionService.execute,
+    showSnackbar,
+  });
+
+  const { vm: docsViewerVM, service: docsViewerService } = createDocumentViewerScope({
+    store,
+    profileId,
+    sections: curriculumSectionsData,
+    replBridge: queryReplBridge,
+    stateKeys: {
+      visibleKey: "queryDocsViewerVisible",
+      sectionIdKey: "queryDocsCurrentSectionId",
+      labelPrefix: "queryDocsViewer",
+    },
+  });
+
+  // Create Learn Sidebar for Query Page (with navigation to docs viewer)
+  const queryLearnSidebar = createLearnSidebarScope({
+    store,
+    profileId,
+    curriculumMeta,
+    sections: curriculumSectionsData,
+    navigate: (sectionId, _headingId) => {
+      // Open the docs viewer in the query page instead of navigating to /learn
+      docsViewerService.openSection(sectionId);
+    },
+    getActiveSectionId: () => store.query(uiState$).queryDocsCurrentSectionId,
+  });
+
+  // Learn Section for Query Sidebar
+  const learnSection: QuerySidebarLearnSectionVM = {
+    label: "Learn",
+    collapsed$: computed(
+      (get) => get(uiState$).querySidebarLearnCollapsed,
+      { label: "querySidebar.learn.collapsed" }
+    ),
+    toggleCollapsed: () => {
+      const collapsed = store.query(uiState$).querySidebarLearnCollapsed;
+      store.commit(events.uiStateSet({ querySidebarLearnCollapsed: !collapsed }));
+    },
+    curriculum: queryLearnSidebar.learnSection,
+    reference: queryLearnSidebar.referenceSection,
+    openFullLearnPage: () => navigate("/learn"),
+  };
+
   // Sidebar
   const sidebar: QuerySidebarVM = {
     width$: computed((get) => get(uiState$).querySidebarWidth, { label: "sidebar.width" }),
     setWidth: (width) => store.commit(events.uiStateSet({ querySidebarWidth: width })),
+    learnSection,
     schemaSection,
     savedQueriesSection,
     urlImportsSection$: constant<QuerySidebarUrlImportsSectionVM | null>(null, "sidebar.urlImports"),
@@ -1400,6 +1819,216 @@ function createQueryPageVM(
     isGenerating$: constant(false, "chat.isGenerating"),
   };
 
+  // ---------------------------------------------------------------------------
+  // Query Execution Helper
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Executes a query and updates the results state.
+   * This is the core function that handles query execution, result processing,
+   * and history recording.
+   */
+  const executeQueryAndUpdateResults = async (queryText: string): Promise<void> => {
+    const ui = store.query(uiState$);
+    const database = ui.activeDatabase;
+
+    if (!database) {
+      showSnackbar("error", "No database selected");
+      return;
+    }
+
+    // Set running state
+    store.commit(events.queryResultsSet({
+      isRunning: true,
+      query: queryText,
+      errorMessage: null,
+    }));
+
+    const startTime = Date.now();
+
+    try {
+      const service = getService();
+      const detection = detectQueryType(queryText);
+      const response = await service.executeQuery(database, queryText, {
+        transactionType: detection.transactionType,
+      });
+
+      // Process results and update state
+      const { logLines, tableColumns, tableRows, resultCount } = processQueryResults(response);
+
+      store.commit(events.queryResultsSet({
+        isRunning: false,
+        query: queryText,
+        transactionType: response.transactionType,
+        executionTimeMs: response.executionTimeMs,
+        completedAt: Date.now(),
+        errorMessage: null,
+        resultType: response.data.type,
+        resultCount,
+        rawJson: JSON.stringify(response.data, null, 2),
+        logLines,
+        tableColumns,
+        tableRows,
+      }));
+
+      // Add to history
+      store.commit(events.historyEntryAdded({
+        id: createID("hist"),
+        connectionId: ui.activeConnectionId,
+        databaseName: database,
+        queryText,
+        executedAt: new Date(),
+        status: "success",
+        durationMs: response.executionTimeMs,
+        rowCount: resultCount,
+        errorMessage: null,
+      }));
+
+      // Show success notification
+      const typeLabel = response.data.type === "define" ? "Schema updated" :
+                       response.data.type === "insert" ? "Data inserted" :
+                       response.data.type === "delete" ? "Data deleted" :
+                       `${resultCount} result${resultCount !== 1 ? "s" : ""}`;
+      showSnackbar("success", `${typeLabel} (${response.executionTimeMs}ms)`);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message :
+                          (error as { message?: string })?.message || String(error);
+
+      store.commit(events.queryResultsSet({
+        isRunning: false,
+        query: queryText,
+        transactionType: null,
+        executionTimeMs: Date.now() - startTime,
+        completedAt: Date.now(),
+        errorMessage,
+        resultType: null,
+        resultCount: null,
+        rawJson: null,
+        logLines: [`Error: ${errorMessage}`],
+        tableColumns: [],
+        tableRows: [],
+      }));
+
+      // Add failed entry to history
+      store.commit(events.historyEntryAdded({
+        id: createID("hist"),
+        connectionId: ui.activeConnectionId,
+        databaseName: database,
+        queryText,
+        executedAt: new Date(),
+        status: "error",
+        durationMs: Date.now() - startTime,
+        rowCount: null,
+        errorMessage,
+      }));
+
+      showSnackbar("error", `Query failed: ${errorMessage}`);
+    }
+  };
+
+  /**
+   * Process query response into display-friendly formats.
+   */
+  const processQueryResults = (response: QueryResponse): {
+    logLines: string[];
+    tableColumns: string[];
+    tableRows: string[];
+    resultCount: number;
+  } => {
+    const logLines: string[] = [];
+    const tableColumns: string[] = [];
+    const tableRows: string[] = [];
+    let resultCount = 0;
+
+    logLines.push(`Query: ${response.query}`);
+    logLines.push(`Transaction: ${response.transactionType}`);
+    logLines.push(`Time: ${response.executionTimeMs}ms`);
+    logLines.push("");
+
+    switch (response.data.type) {
+      case "match": {
+        const answers = response.data.answers;
+        resultCount = answers.length;
+        logLines.push(`Results: ${resultCount} row${resultCount !== 1 ? "s" : ""}`);
+        logLines.push("");
+
+        // Extract columns from first result
+        if (answers.length > 0) {
+          const firstRow = answers[0];
+          tableColumns.push(...Object.keys(firstRow));
+        }
+
+        // Format each row
+        for (const answer of answers) {
+          const row: Record<string, unknown> = {};
+          for (const [key, concept] of Object.entries(answer)) {
+            if (concept.value !== undefined) {
+              row[key] = concept.value;
+            } else if (concept.iid) {
+              row[key] = `${concept.type}:${concept.iid.slice(0, 8)}`;
+            } else {
+              row[key] = concept.type;
+            }
+          }
+          tableRows.push(JSON.stringify(row));
+          logLines.push(JSON.stringify(row));
+        }
+        break;
+      }
+
+      case "fetch": {
+        const documents = response.data.documents;
+        resultCount = documents.length;
+        logLines.push(`Results: ${resultCount} document${resultCount !== 1 ? "s" : ""}`);
+        logLines.push("");
+
+        // Extract columns from first document
+        if (documents.length > 0) {
+          tableColumns.push(...Object.keys(documents[0]));
+        }
+
+        // Format each document
+        for (const doc of documents) {
+          tableRows.push(JSON.stringify(doc));
+          logLines.push(JSON.stringify(doc, null, 2));
+        }
+        break;
+      }
+
+      case "insert": {
+        const inserted = response.data.inserted;
+        resultCount = inserted.length;
+        logLines.push(`Inserted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`);
+        break;
+      }
+
+      case "delete": {
+        resultCount = response.data.deletedCount;
+        logLines.push(`Deleted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`);
+        break;
+      }
+
+      case "define":
+      case "undefine":
+      case "redefine": {
+        resultCount = response.data.success ? 1 : 0;
+        logLines.push(response.data.success ? "Schema updated successfully" : "Schema update failed");
+        break;
+      }
+
+      case "aggregate": {
+        resultCount = 1;
+        logLines.push(`Result: ${response.data.value}`);
+        tableColumns.push("value");
+        tableRows.push(JSON.stringify({ value: response.data.value }));
+        break;
+      }
+    }
+
+    return { logLines, tableColumns, tableRows, resultCount };
+  };
+
   // Editor Actions
   const actions: QueryEditorActionsVM = {
     newScratch: {
@@ -1438,6 +2067,9 @@ function createQueryPageVM(
     run: {
       disabled$: computed(
         (get): DisabledState => {
+          if (get(queryResults$).isRunning) {
+            return { displayReason: "Query is running" };
+          }
           if (get(uiState$).currentQueryText.trim() === "") {
             return { displayReason: "Query is empty" };
           }
@@ -1458,8 +2090,14 @@ function createQueryPageVM(
         },
         { label: "run.tooltip" }
       ),
-      isRunning$: constant(false, "run.isRunning"),
-      click: () => showSnackbar("success", "Query executed"),
+      isRunning$: computed(
+        (get) => get(queryResults$).isRunning,
+        { label: "run.isRunning" }
+      ),
+      click: () => {
+        const queryText = store.query(uiState$).currentQueryText;
+        executeQueryAndUpdateResults(queryText);
+      },
     },
   };
 
@@ -1473,35 +2111,128 @@ function createQueryPageVM(
     actions,
   };
 
-  // Log Output
+  // Log Output - reads from queryResults$
   const log: LogOutputVM = {
-    content$: constant("// Query results will appear here", "log.content"),
-    hasContent$: constant(false, "log.hasContent"),
-    copy: () => showSnackbar("success", "Copied to clipboard"),
+    content$: computed(
+      (get) => {
+        const results = get(queryResults$);
+        if (results.errorMessage) {
+          return `Error: ${results.errorMessage}`;
+        }
+        if (results.logLines.length === 0) {
+          return "// Query results will appear here";
+        }
+        return results.logLines.join("\n");
+      },
+      { label: "log.content" }
+    ),
+    hasContent$: computed(
+      (get) => {
+        const results = get(queryResults$);
+        return results.logLines.length > 0 || results.errorMessage !== null;
+      },
+      { label: "log.hasContent" }
+    ),
+    copy: () => {
+      const results = store.query(queryResults$);
+      const content = results.logLines.join("\n");
+      navigator.clipboard.writeText(content);
+      showSnackbar("success", "Copied to clipboard");
+    },
     copySuccess$: constant(false, "log.copySuccess"),
-    sendToAI: () => showSnackbar("success", "Sent to AI"),
+    sendToAI: () => showSnackbar("warning", "Send to AI not yet implemented"),
     sentToAI$: constant(false, "log.sentToAI"),
-    actionsDisabled$: constant<DisabledState>({ displayReason: "No content" }, "log.actionsDisabled"),
+    actionsDisabled$: computed(
+      (get): DisabledState => {
+        const results = get(queryResults$);
+        if (results.logLines.length === 0 && !results.errorMessage) {
+          return { displayReason: "No content" };
+        }
+        return null;
+      },
+      { label: "log.actionsDisabled" }
+    ),
   };
 
-  // Table Output
-  const emptyColumns: TableColumnVM[] = [];
-  const emptyRows: TableRowVM[] = [];
+  // Table Output - reads from queryResults$
   const table: TableOutputVM = {
-    status$: constant<TableStatus>("idle", "table.status"),
-    statusMessage$: constant<string | null>("Run a query to see results", "table.statusMessage"),
-    columns$: constant(emptyColumns, "table.columns"),
-    rows$: constant(emptyRows, "table.rows"),
+    status$: computed(
+      (get): TableStatus => {
+        const results = get(queryResults$);
+        if (results.isRunning) return "loading";
+        if (results.errorMessage) return "error";
+        if (results.tableRows.length > 0) return "ready";
+        return "idle";
+      },
+      { label: "table.status" }
+    ),
+    statusMessage$: computed(
+      (get): string | null => {
+        const results = get(queryResults$);
+        if (results.isRunning) return "Running query...";
+        if (results.errorMessage) return results.errorMessage;
+        if (results.tableRows.length === 0 && results.completedAt) return "No table data for this query";
+        if (results.tableRows.length === 0) return "Run a query to see results";
+        return null;
+      },
+      { label: "table.statusMessage" }
+    ),
+    columns$: computed(
+      (get): TableColumnVM[] => {
+        const results = get(queryResults$);
+        return results.tableColumns.map((col) => ({
+          key: col,
+          label: col,
+          sortable: true,
+        }));
+      },
+      { label: "table.columns" }
+    ),
+    rows$: computed(
+      (get): TableRowVM[] => {
+        const results = get(queryResults$);
+        return results.tableRows.map((rowJson, index) => {
+          const data = JSON.parse(rowJson);
+          return {
+            key: `row-${index}`,
+            cells: Object.fromEntries(
+              Object.entries(data).map(([col, val]) => [col, String(val)])
+            ),
+          };
+        });
+      },
+      { label: "table.rows" }
+    ),
     isTruncated$: constant(false, "table.isTruncated"),
-    totalRowCount$: constant(0, "table.totalRowCount"),
+    totalRowCount$: computed(
+      (get) => get(queryResults$).resultCount ?? 0,
+      { label: "table.totalRowCount" }
+    ),
     sort$: constant<{ column: string; direction: "asc" | "desc" } | null>(null, "table.sort"),
     setSort: () => {},
   };
 
-  // Graph Output
+  // Graph Output - reads from queryResults$ (placeholder for graph visualization)
   const graph: GraphOutputVM = {
-    status$: constant<GraphStatus>("idle", "graph.status"),
-    statusMessage$: constant<string | null>("Run a query to see results", "graph.statusMessage"),
+    status$: computed(
+      (get): GraphStatus => {
+        const results = get(queryResults$);
+        if (results.isRunning) return "loading";
+        if (results.errorMessage) return "error";
+        // Graph requires special data, currently only show idle
+        return "idle";
+      },
+      { label: "graph.status" }
+    ),
+    statusMessage$: computed(
+      (get): string | null => {
+        const results = get(queryResults$);
+        if (results.isRunning) return "Running query...";
+        if (results.errorMessage) return results.errorMessage;
+        return "Graph visualization not yet implemented";
+      },
+      { label: "graph.statusMessage" }
+    ),
     setCanvasRef: () => {},
     zoom: {
       level$: constant(1, "graph.zoom.level"),
@@ -1513,11 +2244,31 @@ function createQueryPageVM(
     hoveredNode$: constant<GraphNodeVM | null>(null, "graph.hoveredNode"),
   };
 
-  // Raw Output
+  // Raw Output - reads from queryResults$
   const raw: RawOutputVM = {
-    content$: constant("", "raw.content"),
-    hasContent$: constant(false, "raw.hasContent"),
-    copy: () => showSnackbar("success", "Copied to clipboard"),
+    content$: computed(
+      (get) => {
+        const results = get(queryResults$);
+        if (results.errorMessage) {
+          return JSON.stringify({ error: results.errorMessage }, null, 2);
+        }
+        return results.rawJson ?? "";
+      },
+      { label: "raw.content" }
+    ),
+    hasContent$: computed(
+      (get) => {
+        const results = get(queryResults$);
+        return results.rawJson !== null || results.errorMessage !== null;
+      },
+      { label: "raw.hasContent" }
+    ),
+    copy: () => {
+      const results = store.query(queryResults$);
+      const content = results.rawJson ?? "";
+      navigator.clipboard.writeText(content);
+      showSnackbar("success", "Copied to clipboard");
+    },
     copySuccess$: constant(false, "raw.copySuccess"),
   };
 
@@ -1537,18 +2288,75 @@ function createQueryPageVM(
     raw,
   };
 
-  // History Bar
-  const emptyHistoryEntries: HistoryEntryVM[] = [];
+  // History Bar - reads from queryHistory$ table
   const historyBar: QueryHistoryBarVM = {
     isExpanded$: computed((get) => get(uiState$).historyBarExpanded, { label: "history.expanded" }),
     toggle: () => {
       const expanded = store.query(uiState$).historyBarExpanded;
       store.commit(events.uiStateSet({ historyBarExpanded: !expanded }));
     },
-    latest$: constant<HistoryEntryVM | null>(null, "history.latest"),
-    entries$: constant(emptyHistoryEntries, "history.entries"),
-    isEmpty$: constant(true, "history.isEmpty"),
-    clear: () => showSnackbar("success", "History cleared"),
+    latest$: computed(
+      (get): HistoryEntryVM | null => {
+        const history = get(queryHistory$);
+        if (history.length === 0) return null;
+        const entry = history[0];
+        return {
+          key: entry.id,
+          queryText: entry.queryText,
+          queryPreview: entry.queryText.slice(0, 60) + (entry.queryText.length > 60 ? "..." : ""),
+          executedAt: new Date(entry.executedAt),
+          durationMs: entry.durationMs ?? 0,
+          status: entry.status as "success" | "error",
+          rowCount: entry.rowCount ?? undefined,
+          errorMessage: entry.errorMessage ?? undefined,
+          loadInEditor: () => {
+            store.commit(events.uiStateSet({
+              currentQueryText: entry.queryText,
+              hasUnsavedChanges: true,
+            }));
+            showSnackbar("success", "Query loaded into editor");
+          },
+          showErrorDetails: entry.errorMessage ? () => {
+            showSnackbar("error", entry.errorMessage ?? "Unknown error");
+          } : undefined,
+        };
+      },
+      { label: "history.latest" }
+    ),
+    entries$: computed(
+      (get): HistoryEntryVM[] => {
+        const history = get(queryHistory$);
+        return history.map((entry) => ({
+          key: entry.id,
+          queryText: entry.queryText,
+          queryPreview: entry.queryText.slice(0, 60) + (entry.queryText.length > 60 ? "..." : ""),
+          executedAt: new Date(entry.executedAt),
+          durationMs: entry.durationMs ?? 0,
+          status: entry.status as "success" | "error",
+          rowCount: entry.rowCount ?? undefined,
+          errorMessage: entry.errorMessage ?? undefined,
+          loadInEditor: () => {
+            store.commit(events.uiStateSet({
+              currentQueryText: entry.queryText,
+              hasUnsavedChanges: true,
+            }));
+            showSnackbar("success", "Query loaded into editor");
+          },
+          showErrorDetails: entry.errorMessage ? () => {
+            showSnackbar("error", entry.errorMessage ?? "Unknown error");
+          } : undefined,
+        }));
+      },
+      { label: "history.entries" }
+    ),
+    isEmpty$: computed(
+      (get) => get(queryHistory$).length === 0,
+      { label: "history.isEmpty" }
+    ),
+    clear: () => {
+      store.commit(events.historyCleared({}));
+      showSnackbar("success", "History cleared");
+    },
   };
 
   return {
@@ -1556,6 +2364,7 @@ function createQueryPageVM(
     editor,
     results,
     historyBar,
+    docsViewer: docsViewerVM,
     placeholder$: computed(
       (get) => {
         const ui = get(uiState$);
@@ -1726,13 +2535,11 @@ function createUsersPageVM(
 function createLearnPageVM(
   store: Store<typeof schema>,
   navigate: (path: string) => void,
-  showSnackbar: (type: "success" | "warning" | "error", message: string) => void
+  showSnackbar: (type: "success" | "warning" | "error", message: string) => void,
+  sections: Record<string, ParsedSection>,
+  profileId: string,
+  queryExecutionService: QueryExecutionService
 ): LearnPageVM {
-  // Build sections map from curriculum content
-  const sections: Record<string, ParsedSection> = {};
-  for (const section of curriculumSections) {
-    sections[section.id] = section;
-  }
 
   // Group sections by folder path for curriculum structure
   const sectionsByFolder = new Map<string, ParsedSection[]>();
@@ -1771,62 +2578,17 @@ function createLearnPageVM(
       .join(" ");
   }
 
-  // Get profile ID from localStorage or generate one
-  const getProfileId = (): string => {
-    const PROFILE_KEY = "typedb_studio_profile";
-    let profileId = localStorage.getItem(PROFILE_KEY);
-    if (!profileId) {
-      profileId = `profile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      localStorage.setItem(PROFILE_KEY, profileId);
-    }
-    return profileId;
-  };
-
-  const profileId = getProfileId();
-
   // Track current section for navigation
   let currentSectionId: string | null = null;
 
-  // Create REPL bridge
-  const replBridge: import("../learn/repl-bridge").ReplBridge = {
-    copyToRepl(query: string) {
-      store.commit(events.uiStateSet({
-        currentQueryText: query,
-        hasUnsavedChanges: true,
-        editorMode: "code",
-        currentPage: "query",
-      }));
-      navigate("/query");
-      showSnackbar("success", "Query copied to editor");
-    },
-
-    async runQuery(query: string) {
-      store.commit(events.uiStateSet({
-        currentQueryText: query,
-        hasUnsavedChanges: true,
-        editorMode: "code",
-        currentPage: "query",
-      }));
-      navigate("/query");
-
-      // For now, just copy - actual execution would need query engine access
-      showSnackbar("success", "Query copied to editor - press Run to execute");
-      return {
-        success: true,
-        resultCount: 0,
-        executionTimeMs: 0,
-      };
-    },
-
-    getCurrentQuery() {
-      return store.query(uiState$).currentQueryText;
-    },
-
-    isReady() {
-      const ui = store.query(uiState$);
-      return ui.connectionStatus === "connected" && ui.activeDatabase !== null;
-    },
-  };
+  // Create REPL bridge using the shared factory
+  const replBridge = createReplBridge({
+    store,
+    events,
+    navigate,
+    executeQuery: queryExecutionService.execute,
+    showSnackbar,
+  });
 
   // Create navigation scope
   const navigationVM = createNavigationScope({
@@ -1843,9 +2605,8 @@ function createLearnPageVM(
   });
 
   // Create document viewer scope
-  const viewerVM = createDocumentViewerScope({
+  const { vm: viewerVM, service: viewerService } = createDocumentViewerScope({
     store,
-    events,
     profileId,
     sections,
     replBridge,
@@ -1861,7 +2622,7 @@ function createLearnPageVM(
     curriculumMeta,
     sections,
     navigate: (sectionId, headingId) => {
-      viewerVM.openSection(sectionId);
+      viewerService.openSection(sectionId);
       if (headingId) {
         // Navigate to heading within section
         navigationVM.navigateToSection(sectionId, headingId);

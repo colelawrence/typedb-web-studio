@@ -79,7 +79,8 @@ function StudioAppContent() {
       // TODO: Connect to TanStack Router
     };
 
-    return createStudioScope(store, navigate);
+    const { vm } = createStudioScope(store, navigate);
+    return vm;
   }, [store]);
 
   return (

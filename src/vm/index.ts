@@ -93,3 +93,13 @@ export { Queryable as QueryableComponent } from "./components";
 // React context and scope
 export { StudioVMContext, useStudioVM } from "./StudioVMContext";
 export { createStudioScope } from "./scope";
+
+// Service interfaces (for cross-scope dependencies)
+export type {
+  SnackbarService,
+  ConnectionService,
+  DatabaseService,
+  DemoService,
+  QueryExecutionService,
+  StudioServices,
+} from "./scope";

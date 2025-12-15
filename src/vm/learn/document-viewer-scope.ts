@@ -10,22 +10,23 @@
 import { computed } from "@livestore/livestore";
 import type { Queryable, Store } from "@livestore/livestore";
 
-import type { schema, events } from "../../livestore/schema";
+import { events, type schema } from "../../livestore/schema";
 import {
+  uiState$,
   readingProgressForSection$,
   executedExampleIds$,
 } from "../../livestore/queries";
 import type { ParsedSection } from "../../curriculum/types";
 import type { ReplBridge } from "../../learn/repl-bridge";
-import type {
-  DocumentViewerVM,
-  DocumentSectionVM,
-  DocumentProgressVM,
-  DocumentHeadingVM,
-  DocumentExampleVM,
-  ExampleExecutionState,
-  ExampleRunResultVM,
-  ContextSwitchPromptVM,
+import {
+  type DocumentViewerVM,
+  type DocumentSectionVM,
+  type DocumentProgressVM,
+  type DocumentHeadingVM,
+  type DocumentExampleVM,
+  type ExampleExecutionState,
+  type ExampleRunResultVM,
+  type ContextSwitchPromptVM,
 } from "./document-viewer.vm";
 import type { ContextManager } from "../../curriculum/context-manager";
 
@@ -39,14 +40,31 @@ function constant<T>(value: T, label: string): Queryable<T> {
 }
 
 // ============================================================================
+// Service Interface
+// ============================================================================
+
+/**
+ * Service for programmatic control of the document viewer.
+ * Used by other scopes (e.g., sidebar, query page) to interact with the viewer.
+ */
+export interface DocumentViewerService {
+  /** Open a section by ID. */
+  openSection(sectionId: string): void;
+  /** Close the current section. */
+  closeSection(): void;
+  /** Get the currently open section ID, or null if none. */
+  getCurrentSectionId(): string | null;
+  /** Mark a section as fully read. */
+  markSectionRead(sectionId: string): void;
+}
+
+// ============================================================================
 // Scope Types
 // ============================================================================
 
 export interface DocumentViewerScopeOptions {
   /** LiveStore instance */
   store: Store<typeof schema>;
-  /** LiveStore events for committing changes */
-  events: typeof events;
   /** Current profile ID */
   profileId: string;
   /** Parsed curriculum sections (from virtual module) */
@@ -57,6 +75,18 @@ export interface DocumentViewerScopeOptions {
   contextManager?: ContextManager;
   /** Callback when section is opened (for navigation) */
   onSectionOpened?: (sectionId: string) => void;
+  /**
+   * State keys configuration.
+   * Allows different instances (Learn page vs Query page) to use separate state.
+   */
+  stateKeys?: {
+    /** Key for viewer visibility in uiState. Default: "learnViewerVisible" */
+    visibleKey: "learnViewerVisible" | "queryDocsViewerVisible";
+    /** Key for current section ID in uiState. Default: "learnCurrentSectionId" */
+    sectionIdKey: "learnCurrentSectionId" | "queryDocsCurrentSectionId";
+    /** Label prefix for computed queryables. Default: "documentViewer" */
+    labelPrefix: string;
+  };
 }
 
 // ============================================================================
@@ -65,44 +95,73 @@ export interface DocumentViewerScopeOptions {
 
 /**
  * Creates the DocumentViewerVM scope with all reactive state wired up.
+ * Returns both the VM (for UI consumption) and the service (for other scopes).
  */
 export function createDocumentViewerScope(
   options: DocumentViewerScopeOptions
-): DocumentViewerVM {
+): { vm: DocumentViewerVM; service: DocumentViewerService } {
   const {
     store,
-    events: storeEvents,
     profileId,
     sections,
     replBridge,
     contextManager,
     onSectionOpened,
+    stateKeys = {
+      visibleKey: "learnViewerVisible",
+      sectionIdKey: "learnCurrentSectionId",
+      labelPrefix: "documentViewer",
+    },
   } = options;
 
-  // ---------------------------------------------------------------------------
-  // Visibility State
-  // ---------------------------------------------------------------------------
-
-  let isVisible = true;
-  const isVisible$ = computed(() => isVisible, { label: "documentViewer.isVisible" });
-
-  const show = () => { isVisible = true; };
-  const hide = () => { isVisible = false; };
-  const toggle = () => { isVisible = !isVisible; };
+  const { visibleKey, sectionIdKey, labelPrefix } = stateKeys;
 
   // ---------------------------------------------------------------------------
-  // Current Section State
+  // Visibility State (from LiveStore)
   // ---------------------------------------------------------------------------
 
-  let currentSectionId: string | null = null;
-  let currentSectionVM: DocumentSectionVM | null = null;
+  const isVisible$ = computed(
+    (get) => get(uiState$)[visibleKey],
+    { label: `${labelPrefix}.isVisible` }
+  );
 
-  const isLoading$ = constant(false, "documentViewer.isLoading");
-  const error$ = constant(null as string | null, "documentViewer.error");
+  const show = () => {
+    store.commit(events.uiStateSet({ [visibleKey]: true }));
+  };
+  const hide = () => {
+    store.commit(events.uiStateSet({ [visibleKey]: false }));
+  };
+  const toggle = () => {
+    const current = store.query(uiState$)[visibleKey];
+    store.commit(events.uiStateSet({ [visibleKey]: !current }));
+  };
+
+  // ---------------------------------------------------------------------------
+  // Current Section State (from LiveStore)
+  // ---------------------------------------------------------------------------
+
+  const isLoading$ = constant(false, `${labelPrefix}.isLoading`);
+  const error$ = constant(null as string | null, `${labelPrefix}.error`);
+
+  // Cache for section VMs to avoid recreating them on every computed run
+  const sectionVMCache = new Map<string, DocumentSectionVM>();
 
   const currentSection$ = computed(
-    () => currentSectionVM,
-    { label: "documentViewer.currentSection" }
+    (get): DocumentSectionVM | null => {
+      const sectionId = get(uiState$)[sectionIdKey];
+      if (!sectionId) return null;
+
+      // Check cache first
+      let sectionVM = sectionVMCache.get(sectionId);
+      if (!sectionVM) {
+        sectionVM = createSectionVM(sectionId) ?? undefined;
+        if (sectionVM) {
+          sectionVMCache.set(sectionId, sectionVM);
+        }
+      }
+      return sectionVM ?? null;
+    },
+    { label: `${labelPrefix}.currentSection` }
   );
 
   // ---------------------------------------------------------------------------
@@ -130,7 +189,7 @@ export function createDocumentViewerScope(
       );
 
       const markRead = () => {
-        store.commit(storeEvents.readingProgressMarked({
+        store.commit(events.readingProgressMarked({
           profileId,
           sectionId,
           headingId: heading.id,
@@ -140,7 +199,7 @@ export function createDocumentViewerScope(
       };
 
       const markUnread = () => {
-        store.commit(storeEvents.readingProgressMarked({
+        store.commit(events.readingProgressMarked({
           profileId,
           sectionId,
           headingId: heading.id,
@@ -193,7 +252,7 @@ export function createDocumentViewerScope(
       const copyToReplAction = () => {
         replBridge.copyToRepl(example.query);
         // Record as docs-copy execution (not a full run)
-        store.commit(storeEvents.exampleExecuted({
+        store.commit(events.exampleExecuted({
           profileId,
           exampleId: example.id,
           succeeded: true,
@@ -211,7 +270,7 @@ export function createDocumentViewerScope(
           const result = await replBridge.runQuery(example.query);
 
           // Record execution
-          store.commit(storeEvents.exampleExecuted({
+          store.commit(events.exampleExecuted({
             profileId,
             exampleId: example.id,
             succeeded: result.success,
@@ -237,7 +296,7 @@ export function createDocumentViewerScope(
           const errorMessage = err instanceof Error ? err.message : String(err);
           executionState = { type: "error", message: errorMessage };
 
-          store.commit(storeEvents.exampleExecuted({
+          store.commit(events.exampleExecuted({
             profileId,
             exampleId: example.id,
             succeeded: false,
@@ -290,7 +349,7 @@ export function createDocumentViewerScope(
 
     const markAllRead = () => {
       // Mark root section
-      store.commit(storeEvents.readingProgressMarked({
+      store.commit(events.readingProgressMarked({
         profileId,
         sectionId,
         headingId: null,
@@ -300,7 +359,7 @@ export function createDocumentViewerScope(
 
       // Mark all headings
       for (const heading of section.headings) {
-        store.commit(storeEvents.readingProgressMarked({
+        store.commit(events.readingProgressMarked({
           profileId,
           sectionId,
           headingId: heading.id,
@@ -311,7 +370,7 @@ export function createDocumentViewerScope(
     };
 
     const markAllUnread = () => {
-      store.commit(storeEvents.readingProgressCleared({
+      store.commit(events.readingProgressCleared({
         profileId,
         sectionId,
       }));
@@ -336,24 +395,26 @@ export function createDocumentViewerScope(
   // ---------------------------------------------------------------------------
 
   const openSection = (sectionId: string) => {
+    const currentSectionId = store.query(uiState$).learnCurrentSectionId;
     if (sectionId === currentSectionId) {
       // Already open, just ensure visible
       show();
       return;
     }
 
-    const sectionVM = createSectionVM(sectionId);
-    if (sectionVM) {
-      currentSectionId = sectionId;
-      currentSectionVM = sectionVM;
-      show();
+    // Check if section exists before updating state
+    const section = sections[sectionId];
+    if (section) {
+      store.commit(events.uiStateSet({
+        [sectionIdKey]: sectionId,
+        [visibleKey]: true,
+      }));
       onSectionOpened?.(sectionId);
     }
   };
 
   const closeSection = () => {
-    currentSectionId = null;
-    currentSectionVM = null;
+    store.commit(events.uiStateSet({ [sectionIdKey]: null }));
   };
 
   // ---------------------------------------------------------------------------
@@ -362,22 +423,30 @@ export function createDocumentViewerScope(
 
   let contextPromptDismissed = false;
 
+  // Helper to get current section (non-reactive, for imperative code)
+  const getCurrentSection = (): DocumentSectionVM | null => {
+    return store.query(currentSection$);
+  };
+
   const contextPromptIsVisible$ = computed(
-    () => {
+    (get) => {
       // Not visible if dismissed for this section
       if (contextPromptDismissed) return false;
 
       // Not visible if no context manager
       if (!contextManager) return false;
 
+      // Get current section reactively
+      const section = get(currentSection$);
+
       // Not visible if no section loaded
-      if (!currentSectionVM) return false;
+      if (!section) return false;
 
       // Not visible if section doesn't require a context
-      if (!currentSectionVM.context) return false;
+      if (!section.context) return false;
 
       // Visible if context doesn't match
-      return !contextManager.isContextLoaded(currentSectionVM.context);
+      return !contextManager.isContextLoaded(section.context);
     },
     { label: "contextSwitchPrompt.isVisible" }
   );
@@ -388,13 +457,14 @@ export function createDocumentViewerScope(
   );
 
   const requiredContext$ = computed(
-    () => currentSectionVM?.context ?? null,
+    (get) => get(currentSection$)?.context ?? null,
     { label: "contextSwitchPrompt.requiredContext" }
   );
 
   const switchContext = async () => {
-    if (!contextManager || !currentSectionVM?.context) return;
-    await contextManager.loadContext(currentSectionVM.context);
+    const section = getCurrentSection();
+    if (!contextManager || !section?.context) return;
+    await contextManager.loadContext(section.context);
     contextPromptDismissed = false; // Reset dismissal after successful switch
   };
 
@@ -411,10 +481,43 @@ export function createDocumentViewerScope(
   };
 
   // ---------------------------------------------------------------------------
-  // Return VM
+  // Service Methods
   // ---------------------------------------------------------------------------
 
-  return {
+  const getCurrentSectionId = (): string | null => {
+    return store.query(uiState$)[sectionIdKey] ?? null;
+  };
+
+  const markSectionRead = (sectionId: string): void => {
+    const section = sections[sectionId];
+    if (!section) return;
+
+    // Mark root section
+    store.commit(events.readingProgressMarked({
+      profileId,
+      sectionId,
+      headingId: null,
+      markedRead: true,
+      viewedAt: new Date(),
+    }));
+
+    // Mark all headings
+    for (const heading of section.headings) {
+      store.commit(events.readingProgressMarked({
+        profileId,
+        sectionId,
+        headingId: heading.id,
+        markedRead: true,
+        viewedAt: new Date(),
+      }));
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Return VM and Service
+  // ---------------------------------------------------------------------------
+
+  const vm: DocumentViewerVM = {
     isVisible$,
     show,
     hide,
@@ -426,4 +529,13 @@ export function createDocumentViewerScope(
     error$,
     contextSwitchPrompt,
   };
+
+  const service: DocumentViewerService = {
+    openSection,
+    closeSection,
+    getCurrentSectionId,
+    markSectionRead,
+  };
+
+  return { vm, service };
 }

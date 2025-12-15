@@ -61,6 +61,7 @@ export {
 export {
   createDocumentViewerScope,
   type DocumentViewerScopeOptions,
+  type DocumentViewerService,
 } from "./document-viewer-scope";
 
 // Navigation scope

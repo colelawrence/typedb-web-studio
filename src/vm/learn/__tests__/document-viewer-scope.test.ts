@@ -13,7 +13,8 @@ import { createStore, provideOtel } from "@livestore/livestore";
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { Effect } from "effect";
 
-import { createDocumentViewerScope } from "../document-viewer-scope";
+import { createDocumentViewerScope, type DocumentViewerService } from "../document-viewer-scope";
+import type { DocumentViewerVM } from "../document-viewer.vm";
 import { events, schema } from "../../../livestore/schema";
 import { readingProgressForSection$, executedExampleIds$ } from "../../../livestore/queries";
 import { createMockReplBridge } from "../../../learn/repl-bridge";
@@ -111,7 +112,8 @@ async function createTestStore() {
 
 interface TestContext {
   store: Awaited<ReturnType<typeof createTestStore>>;
-  viewerVM: ReturnType<typeof createDocumentViewerScope>;
+  viewerVM: DocumentViewerVM;
+  viewerService: DocumentViewerService;
   profileId: string;
   replBridge: ReturnType<typeof createMockReplBridge>;
   cleanup: () => Promise<void>;
@@ -130,9 +132,8 @@ async function createTestContext(profileId = "test-profile"): Promise<TestContex
 
   const replBridge = createMockReplBridge();
 
-  const viewerVM = createDocumentViewerScope({
+  const { vm: viewerVM, service: viewerService } = createDocumentViewerScope({
     store,
-    events,
     profileId,
     sections: MOCK_SECTIONS,
     replBridge,
@@ -141,6 +142,7 @@ async function createTestContext(profileId = "test-profile"): Promise<TestContex
   return {
     store,
     viewerVM,
+    viewerService,
     profileId,
     replBridge,
     cleanup: async () => {
