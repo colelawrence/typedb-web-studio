@@ -98,6 +98,33 @@ export const tables = {
   }),
 
   // -------------------------------------------------------------------------
+  // Local WASM Servers
+  // -------------------------------------------------------------------------
+
+  /**
+   * User-created local WASM servers.
+   * Each server runs in-browser via @typedb/embedded and can contain multiple databases.
+   * Server data is persisted via snapshots stored in IndexedDB/OPFS.
+   */
+  localServers: State.SQLite.table({
+    name: "localServers",
+    columns: {
+      /** Unique server ID (format: "local_{nanoid}") */
+      id: State.SQLite.text({ primaryKey: true }),
+      /** User-provided or auto-generated name */
+      name: State.SQLite.text({ default: "" }),
+      /** Whether this is a demo server (read-only, pre-loaded data) */
+      isDemo: State.SQLite.boolean({ default: false }),
+      /** Demo identifier if isDemo=true (e.g., "social-network") */
+      demoId: State.SQLite.text({ nullable: true }),
+      /** Last time this server was used/connected */
+      lastUsedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      /** When this server was created */
+      createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+    },
+  }),
+
+  // -------------------------------------------------------------------------
   // UI State (Client Document - Session-scoped)
   // -------------------------------------------------------------------------
 
@@ -120,8 +147,12 @@ export const tables = {
 
       // Active connection session (not persisted)
       activeConnectionId: Schema.NullOr(Schema.String),
+      activeLocalServerId: Schema.NullOr(Schema.String),
       activeDatabase: Schema.NullOr(Schema.String),
       connectionStatus: Schema.Literal("disconnected", "connecting", "connected", "reconnecting"),
+
+      // Remote connection form expanded state
+      remoteConnectionExpanded: Schema.Boolean,
 
       // Query editor state
       currentQueryText: Schema.String,
@@ -162,8 +193,10 @@ export const tables = {
         connectionFormPassword: "",
         isConnecting: false,
         activeConnectionId: null,
+        activeLocalServerId: null,
         activeDatabase: null,
         connectionStatus: "disconnected",
+        remoteConnectionExpanded: false,
         currentQueryText: "",
         currentQueryId: null,
         hasUnsavedChanges: false,
@@ -205,6 +238,48 @@ export const tables = {
       value: { notifications: [] },
     },
   }),
+
+  /**
+   * Parsed schema types for the current database.
+   * Populated when a demo is loaded or schema is refreshed.
+   */
+  schemaTypes: State.SQLite.clientDocument({
+    name: "schemaTypes",
+    schema: Schema.Struct({
+      entities: Schema.Array(
+        Schema.Struct({
+          label: Schema.String,
+          isAbstract: Schema.Boolean,
+          supertype: Schema.NullOr(Schema.String),
+          ownedAttributes: Schema.Array(Schema.String),
+          playedRoles: Schema.Array(Schema.String),
+        })
+      ),
+      relations: Schema.Array(
+        Schema.Struct({
+          label: Schema.String,
+          isAbstract: Schema.Boolean,
+          supertype: Schema.NullOr(Schema.String),
+          ownedAttributes: Schema.Array(Schema.String),
+          relatedRoles: Schema.Array(Schema.String),
+        })
+      ),
+      attributes: Schema.Array(
+        Schema.Struct({
+          label: Schema.String,
+          valueType: Schema.NullOr(Schema.String),
+        })
+      ),
+    }),
+    default: {
+      id: SessionIdSymbol,
+      value: {
+        entities: [],
+        relations: [],
+        attributes: [],
+      },
+    },
+  }),
 };
 
 // ============================================================================
@@ -243,6 +318,35 @@ export const events = {
 
   connectionDeleted: Events.synced({
     name: "v1.ConnectionDeleted",
+    schema: Schema.Struct({ id: Schema.String }),
+  }),
+
+  // -------------------------------------------------------------------------
+  // Local Server Events
+  // -------------------------------------------------------------------------
+
+  localServerCreated: Events.synced({
+    name: "v1.LocalServerCreated",
+    schema: Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      isDemo: Schema.Boolean,
+      demoId: Schema.NullOr(Schema.String),
+      createdAt: Schema.Date,
+    }),
+  }),
+
+  localServerUpdated: Events.synced({
+    name: "v1.LocalServerUpdated",
+    schema: Schema.Struct({
+      id: Schema.String,
+      name: Schema.optional(Schema.String),
+      lastUsedAt: Schema.optional(Schema.Date),
+    }),
+  }),
+
+  localServerDeleted: Events.synced({
+    name: "v1.LocalServerDeleted",
     schema: Schema.Struct({ id: Schema.String }),
   }),
 
@@ -349,6 +453,7 @@ export const events = {
 
   uiStateSet: tables.uiState.set,
   snackbarSet: tables.snackbarNotifications.set,
+  schemaTypesSet: tables.schemaTypes.set,
 };
 
 // ============================================================================
@@ -374,6 +479,23 @@ const materializers = State.SQLite.materializers(events, {
 
   "v1.ConnectionDeleted": ({ id }) =>
     tables.connections.delete().where({ id }),
+
+  // Local server materializers
+  "v1.LocalServerCreated": ({ id, name, isDemo, demoId, createdAt }) =>
+    tables.localServers.insert({
+      id,
+      name,
+      isDemo,
+      demoId,
+      lastUsedAt: null,
+      createdAt,
+    }),
+
+  "v1.LocalServerUpdated": ({ id, ...updates }) =>
+    tables.localServers.update(updates).where({ id }),
+
+  "v1.LocalServerDeleted": ({ id }) =>
+    tables.localServers.delete().where({ id }),
 
   // Folder materializers
   "v1.FolderCreated": ({ id, name, parentId, sortOrder, createdAt }) =>

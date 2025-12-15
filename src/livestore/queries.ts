@@ -30,6 +30,22 @@ export const allConnections$ = queryDb(
 );
 
 // ============================================================================
+// Local Server Queries
+// ============================================================================
+
+/** All local WASM servers (non-demo), ordered by last used */
+export const localServers$ = queryDb(
+  tables.localServers.where({ isDemo: false }).orderBy("lastUsedAt", "desc"),
+  { label: "localServers" }
+);
+
+/** All demo servers, ordered by name */
+export const demoServers$ = queryDb(
+  tables.localServers.where({ isDemo: true }).orderBy("name", "asc"),
+  { label: "demoServers" }
+);
+
+// ============================================================================
 // Saved Queries
 // ============================================================================
 
@@ -54,3 +70,12 @@ export const queryHistory$ = queryDb(
   () => tables.queryHistory.orderBy("executedAt", "desc").limit(50),
   { label: "queryHistory" }
 );
+
+// ============================================================================
+// Schema Types
+// ============================================================================
+
+/** Parsed schema types for the current database */
+export const schemaTypes$ = queryDb(tables.schemaTypes.get(), {
+  label: "schemaTypes",
+});

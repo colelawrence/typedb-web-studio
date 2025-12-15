@@ -104,8 +104,10 @@ export class TypeDBEmbeddedService implements TypeDBService {
   }
 
   async createDatabase(name: string): Promise<void> {
+    // Idempotent: if database already exists, just return
     if (this.databases.has(name)) {
-      throw this.error('DATABASE_EXISTS', `Database '${name}' already exists`)
+      console.log(`[TypeDB Embedded] Database '${name}' already exists, reusing`)
+      return
     }
 
     try {

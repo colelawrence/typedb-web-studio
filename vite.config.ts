@@ -7,6 +7,9 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 const config = defineConfig({
+  // Support GitHub Pages subdirectory deployment
+  // Set BASE_URL env var to "/repo-name/" for GitHub Pages
+  base: process.env.BASE_URL || '/',
   plugins: [
     devtools(),
     // this is the plugin that enables path aliases

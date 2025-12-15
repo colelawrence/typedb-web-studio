@@ -29,8 +29,13 @@ export type { Queryable };
 /**
  * Icon component type abstracted from the UI library.
  * Allows VMs to specify icons without coupling to a specific icon library.
+ *
+ * Uses a permissive callable interface so any component accepting className works,
+ * including Lucide icons (ForwardRefExoticComponent) and simple function components.
  */
-export type IconComponent = React.ComponentType<{ className?: string }>;
+export interface IconComponent {
+  (props: { className?: string }): React.ReactNode;
+}
 
 /**
  * Standard form input view model.

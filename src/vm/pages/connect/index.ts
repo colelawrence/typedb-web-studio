@@ -4,6 +4,12 @@
 
 export type {
   ConnectPageVM,
+  DemosSectionVM,
+  DemoItemVM,
+  DemoExampleQueryVM,
+  LocalServersSectionVM,
+  LocalServerItemVM,
+  RemoteConnectionSectionVM,
   ConnectionFormVM,
   SavedConnectionsListVM,
   SavedConnectionItemVM,

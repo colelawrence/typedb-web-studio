@@ -1,8 +1,15 @@
 /**
  * Connect page view model.
  *
- * Provides the connection form and saved connections list.
- * Supports both URL-based and credential-based connection methods.
+ * Provides three connection options:
+ * 1. **Demos** - Pre-loaded demo databases for exploration (WASM)
+ * 2. **Local Servers** - User-created in-memory servers (WASM)
+ * 3. **Remote Connection** - Connect to TypeDB server via HTTP
+ *
+ * Local servers support:
+ * - Creation with unique IDs
+ * - Deletion
+ * - Snapshot export/import for persistence
  */
 
 import type { Queryable } from "../../types";
@@ -13,35 +20,305 @@ import type { FormInputVM, PasswordInputVM, DisabledState } from "../../types";
  *
  * **Layout:**
  * ```
- * ┌──────────────────────────────────────────────────┐
- * │  Connect to TypeDB Server                        │
- * │                                                  │
- * │  ┌────────────────────────────────────────────┐  │
- * │  │         Connection Form                    │  │
- * │  │  [URL mode] / [Credentials mode]           │  │
- * │  │  ┌────────────────────────────────────┐    │  │
- * │  │  │ Input fields based on mode         │    │  │
- * │  │  └────────────────────────────────────┘    │  │
- * │  │  [Fill Example]           [Connect]        │  │
- * │  └────────────────────────────────────────────┘  │
- * │                                                  │
- * │  Recent Connections                              │
- * │  ┌────────────────────────────────────────────┐  │
- * │  │ connection-1    │ localhost:8729          │  │
- * │  │ connection-2    │ production.example.com  │  │
- * │  └────────────────────────────────────────────┘  │
- * └──────────────────────────────────────────────────┘
+ * ┌──────────────────────────────────────────────────────────────────┐
+ * │  Welcome to TypeDB Studio                                        │
+ * │                                                                  │
+ * │  ┌─────────────────────┐ ┌─────────────────────┐                │
+ * │  │   Explore Demos     │ │   Create New        │                │
+ * │  │   ───────────────   │ │   ───────────────   │                │
+ * │  │   Social Network    │ │   + New Local       │                │
+ * │  │   E-Commerce        │ │     Server          │                │
+ * │  │   Knowledge Graph   │ │                     │                │
+ * │  └─────────────────────┘ └─────────────────────┘                │
+ * │                                                                  │
+ * │  Your Local Servers                                              │
+ * │  ┌────────────────────────────────────────────────────────────┐ │
+ * │  │ my-project    │ 3 databases │ [Export] [Delete]           │ │
+ * │  │ testing       │ 1 database  │ [Export] [Delete]           │ │
+ * │  └────────────────────────────────────────────────────────────┘ │
+ * │                                                                  │
+ * │  ─── or connect to remote server ───                            │
+ * │  [Expand Remote Connection Form]                                 │
+ * └──────────────────────────────────────────────────────────────────┘
  * ```
  */
 export interface ConnectPageVM {
   /**
-   * Connection form for entering server details.
+   * Section for exploring pre-loaded demo databases.
+   */
+  demos: DemosSectionVM;
+
+  /**
+   * Section for user's local WASM servers.
+   */
+  localServers: LocalServersSectionVM;
+
+  /**
+   * Remote connection form (collapsible, for connecting to HTTP servers).
+   */
+  remoteConnection: RemoteConnectionSectionVM;
+}
+
+// =============================================================================
+// Demos Section
+// =============================================================================
+
+/**
+ * Demos section - pre-loaded databases for exploration.
+ *
+ * These are built-in demo databases that showcase TypeDB features.
+ * Each demo loads instantly (WASM) and comes with sample data + queries.
+ */
+export interface DemosSectionVM {
+  /**
+   * List of available demo databases.
+   */
+  items$: Queryable<DemoItemVM[]>;
+
+  /**
+   * Whether demos are loading (fetching demo catalog).
+   */
+  isLoading$: Queryable<boolean>;
+}
+
+/**
+ * Individual demo database item.
+ */
+export interface DemoItemVM {
+  /** Unique key for React rendering */
+  key: string;
+
+  /**
+   * Demo identifier (e.g., "social-network", "e-commerce").
+   */
+  id: string;
+
+  /**
+   * Display name (e.g., "Social Network", "E-Commerce").
+   */
+  name: string;
+
+  /**
+   * Short description of what the demo showcases.
+   * @example "Explore relationships between people, posts, and interactions"
+   */
+  description: string;
+
+  /**
+   * Icon identifier for the demo.
+   * Can be a Lucide icon name or custom icon.
+   */
+  icon: string;
+
+  /**
+   * Example queries that showcase this demo's features.
+   * These are displayed in the query sidebar when demo is active.
+   */
+  exampleQueries: DemoExampleQueryVM[];
+
+  /**
+   * Loads this demo and navigates to query page.
+   *
+   * If demo is already active, just navigates to query page without reloading.
+   *
+   * **Flow:**
+   * 1. If already active, just navigate to /query
+   * 2. Otherwise: Create WASM server with demo name
+   * 3. Load demo schema and data
+   * 4. Navigate to /query
+   * 5. Show welcome toast with demo tips
+   */
+  load(): Promise<void>;
+
+  /**
+   * Whether this demo is currently loading.
+   */
+  isLoading$: Queryable<boolean>;
+
+  /**
+   * Whether this demo is currently active (connected and selected).
+   *
+   * **Visual:** Active demos show a checkmark or "Active" badge.
+   * Clicking an active demo just navigates to the query page.
+   */
+  isActive$: Queryable<boolean>;
+}
+
+/**
+ * Example query for a demo database.
+ */
+export interface DemoExampleQueryVM {
+  /** Unique key for React rendering */
+  key: string;
+
+  /** Query name (e.g., "All Users", "Popular Posts") */
+  name: string;
+
+  /** Description of what this query does */
+  description: string;
+
+  /** TypeQL query text */
+  query: string;
+
+  /** Runs this query (sets it in the editor) */
+  run(): void;
+}
+
+// =============================================================================
+// Local Servers Section
+// =============================================================================
+
+/**
+ * Local servers section - user's in-memory WASM servers.
+ *
+ * Each server:
+ * - Has a unique ID
+ * - Can contain multiple databases
+ * - Persists via LiveStore (metadata) + snapshots (data)
+ * - Can be deleted
+ */
+export interface LocalServersSectionVM {
+  /**
+   * List of user's local servers.
+   * Sorted by last used date.
+   */
+  items$: Queryable<LocalServerItemVM[]>;
+
+  /**
+   * Whether the list is empty.
+   */
+  isEmpty$: Queryable<boolean>;
+
+  /**
+   * Creates a new local server.
+   *
+   * **Flow:**
+   * 1. Generate unique server ID
+   * 2. Prompt for server name (or auto-generate)
+   * 3. Create WASM server instance
+   * 4. Save to LiveStore
+   * 5. Navigate to /query with new server active
+   */
+  createNew(): void;
+
+  /**
+   * Disabled state for create button.
+   * May be disabled if max servers reached.
+   */
+  createDisabled$: Queryable<DisabledState>;
+
+  /**
+   * Imports a server from a snapshot file.
+   *
+   * **Flow:**
+   * 1. Open file picker for .typedb-snapshot file
+   * 2. Validate snapshot format
+   * 3. Create new server with imported data
+   * 4. Save to LiveStore
+   */
+  importSnapshot(): void;
+}
+
+/**
+ * Individual local server item.
+ */
+export interface LocalServerItemVM {
+  /** Unique key for React rendering */
+  key: string;
+
+  /**
+   * Unique server identifier.
+   * Format: "local_{nanoid}"
+   */
+  id: string;
+
+  /**
+   * User-provided or auto-generated name.
+   * @example "my-project", "testing", "Local Server 1"
+   */
+  name: string;
+
+  /**
+   * Number of databases in this server.
+   */
+  databaseCount$: Queryable<number>;
+
+  /**
+   * Last time this server was used.
+   */
+  lastUsedAt: Date | null;
+
+  /**
+   * Human-readable last used time.
+   * @example "2 hours ago", "Yesterday", "Dec 15, 2025"
+   */
+  lastUsedDisplay: string;
+
+  /**
+   * Connects to this server and navigates to query page.
+   */
+  connect(): void;
+
+  /**
+   * Exports this server's data as a snapshot file.
+   *
+   * **Flow:**
+   * 1. Export all databases to snapshot
+   * 2. Trigger browser download
+   * 3. Show success toast
+   */
+  exportSnapshot(): void;
+
+  /**
+   * Deletes this server permanently.
+   *
+   * **Flow:**
+   * 1. Show confirmation dialog
+   * 2. On confirm: delete from LiveStore
+   * 3. Clear any cached WASM data
+   * 4. Show success toast
+   */
+  delete(): void;
+
+  /**
+   * Opens rename dialog for this server.
+   */
+  rename(): void;
+
+  /**
+   * Whether this server is currently connected.
+   */
+  isActive$: Queryable<boolean>;
+}
+
+// =============================================================================
+// Remote Connection Section
+// =============================================================================
+
+/**
+ * Remote connection section - connect to TypeDB HTTP server.
+ *
+ * Collapsible section for connecting to remote servers.
+ * Hidden by default to emphasize local/demo options.
+ */
+export interface RemoteConnectionSectionVM {
+  /**
+   * Whether the remote connection form is expanded.
+   */
+  isExpanded$: Queryable<boolean>;
+
+  /**
+   * Toggles the expanded state.
+   */
+  toggleExpanded(): void;
+
+  /**
+   * The connection form (same as before).
    */
   form: ConnectionFormVM;
 
   /**
-   * List of previously saved connections.
-   * Click to auto-fill the form.
+   * Saved remote connections.
    */
   savedConnections: SavedConnectionsListVM;
 }

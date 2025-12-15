@@ -86,12 +86,15 @@ describe('TypeDBEmbeddedService', () => {
       expect(databases).toContainEqual({ name: 'new_db' })
     })
 
-    test('createDatabase throws if database exists', async () => {
+    test('createDatabase is idempotent (reuses existing database)', async () => {
       await service.createDatabase('dup_db')
 
-      await expect(service.createDatabase('dup_db')).rejects.toMatchObject({
-        code: 'DATABASE_EXISTS',
-      })
+      // Second call should succeed without error (idempotent)
+      await expect(service.createDatabase('dup_db')).resolves.toBeUndefined()
+
+      // Should still only have one database entry
+      const databases = await service.getDatabases()
+      expect(databases.filter(d => d.name === 'dup_db').length).toBe(1)
     })
 
     test('deleteDatabase removes database', async () => {

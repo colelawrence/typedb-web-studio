@@ -13,17 +13,22 @@ import {
   Code,
   GitBranch,
   Users,
+  Box,
+  Diamond,
+  Tag,
   type LucideIcon,
 } from "lucide-react";
 
 import { events, type schema } from "../livestore/schema";
-import { uiState$, snackbarNotifications$, allConnections$ } from "../livestore/queries";
+import { uiState$, snackbarNotifications$, allConnections$, localServers$, schemaTypes$ } from "../livestore/queries";
 import {
   getService,
-  getServiceMode,
   quickConnectWasm,
   disconnect as disconnectService,
 } from "../services";
+import { DEMOS, getDemoById } from "../demos";
+import { parseSchema } from "../services/schema-parser";
+import { generateFetchQuery, generateMatchQuery, generateExploreQuery } from "../services/query-generator";
 
 import type { TypeDBStudioAppVM, CurrentPageState } from "./app.vm";
 import type { TopBarVM } from "./top-bar/top-bar.vm";
@@ -33,7 +38,18 @@ import type { ConnectionStatusVM } from "./top-bar/connection-status.vm";
 import type { SnackbarVM } from "./snackbar.vm";
 import type { DialogsVM } from "./dialogs/dialogs.vm";
 import type { HomePageVM, HomeNavigationCardVM } from "./pages/home/home-page.vm";
-import type { ConnectPageVM, ConnectionFormVM, SavedConnectionsListVM, SavedConnectionItemVM } from "./pages/connect/connect-page.vm";
+import type {
+  ConnectPageVM,
+  DemosSectionVM,
+  DemoItemVM,
+  DemoExampleQueryVM,
+  LocalServersSectionVM,
+  LocalServerItemVM,
+  RemoteConnectionSectionVM,
+  ConnectionFormVM,
+  SavedConnectionsListVM,
+  SavedConnectionItemVM,
+} from "./pages/connect/connect-page.vm";
 import type { QueryPageVM } from "./pages/query/query-page.vm";
 import type { QuerySidebarVM, QuerySidebarSchemaSectionVM, QuerySidebarSavedQueriesSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
 import type { QueryEditorVM, QueryEditorHeaderVM, QueryCodeEditorVM, AutocompleteVM, QueryChatAssistantVM, QueryEditorActionsVM } from "./pages/query/editor/query-editor.vm";
@@ -41,8 +57,8 @@ import type { QueryResultsVM, LogOutputVM, TableOutputVM, GraphOutputVM, RawOutp
 import type { QueryHistoryBarVM } from "./pages/query/history/query-history-bar.vm";
 import type { SchemaPageVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageVM } from "./pages/users/users-page.vm";
-import type { DisabledState, IconComponent, FormInputVM } from "./types";
-import type { SchemaTreeVM, SchemaTreeGroupVM, SchemaTreeItemVM, SchemaTreeStatus } from "./shared/schema-tree.vm";
+import type { DisabledState, FormInputVM } from "./types";
+import type { SchemaTreeVM, SchemaTreeGroupVM, SchemaTreeItemVM, SchemaTreeChildItemVM, SchemaTreeStatus } from "./shared/schema-tree.vm";
 import type { SavedQueriesTreeVM, SavedQueryTreeItemVM } from "./pages/query/sidebar/saved-queries.vm";
 import type { ActiveDialogVM } from "./dialogs/dialogs.vm";
 import type { AutocompleteSuggestionVM, ChatMessageVM } from "./pages/query/editor/query-editor.vm";
@@ -347,7 +363,7 @@ export function createStudioScope(
         return visibleItems.map((item): NavigationItemVM => ({
           key: item.key,
           label: item.label,
-          icon: item.icon as unknown as IconComponent,
+          icon: item.icon,
           isActive$: computed(
             (get) => get(currentPage$) === item.key,
             { label: `nav.${item.key}.isActive` }
@@ -388,7 +404,7 @@ export function createStudioScope(
             key: "connect",
             title: "Connect to Server",
             description: "Connect to a TypeDB server to start querying",
-            icon: Plug as unknown as IconComponent,
+            icon: Plug,
             disabled$: constant<DisabledState>(null, "homeCard.connect.disabled"),
             click: () => {
               store.commit(events.uiStateSet({ currentPage: "connect" }));
@@ -399,7 +415,7 @@ export function createStudioScope(
             key: "query",
             title: "Query Editor",
             description: "Write and execute TypeQL queries",
-            icon: Code as unknown as IconComponent,
+            icon: Code,
             disabled$: computed(
               (get): DisabledState => get(isConnected$) ? null : { displayReason: "Connect to a server first" },
               { label: "homeCard.query.disabled" }
@@ -414,7 +430,7 @@ export function createStudioScope(
             key: "schema",
             title: "Schema Explorer",
             description: "Visualize and explore your database schema",
-            icon: GitBranch as unknown as IconComponent,
+            icon: GitBranch,
             disabled$: computed(
               (get): DisabledState => get(isConnected$) ? null : { displayReason: "Connect to a server first" },
               { label: "homeCard.schema.disabled" }
@@ -455,6 +471,278 @@ export function createStudioScope(
   // Connect Page
   // ---------------------------------------------------------------------------
 
+  // Helper to format relative time
+  const formatRelativeTime = (date: Date | null): string => {
+    if (!date) return "Never used";
+    const now = Date.now();
+    const diff = now - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  /**
+   * Loads a demo's schema and sample data into the database.
+   */
+  const loadDemoData = async (demoId: string, databaseName: string): Promise<void> => {
+    const demo = getDemoById(demoId);
+    if (!demo) {
+      throw new Error(`Demo not found: ${demoId}`);
+    }
+
+    const service = getService();
+
+    // Parse schema for the schema tree
+    console.log(`[scope] Parsing schema for ${demo.name}...`);
+    const parsedSchema = parseSchema(demo.schema);
+
+    // Store parsed schema types
+    store.commit(
+      events.schemaTypesSet({
+        entities: parsedSchema.entities.map((e) => ({
+          label: e.label,
+          isAbstract: e.isAbstract,
+          supertype: e.supertype,
+          ownedAttributes: e.ownedAttributes,
+          playedRoles: e.playedRoles,
+        })),
+        relations: parsedSchema.relations.map((r) => ({
+          label: r.label,
+          isAbstract: r.isAbstract,
+          supertype: r.supertype,
+          ownedAttributes: r.ownedAttributes,
+          relatedRoles: r.relatedRoles,
+        })),
+        attributes: parsedSchema.attributes.map((a) => ({
+          label: a.label,
+          valueType: a.valueType,
+        })),
+      })
+    );
+    console.log(`[scope] Stored ${parsedSchema.entities.length} entities, ${parsedSchema.relations.length} relations, ${parsedSchema.attributes.length} attributes`);
+
+    // Load schema - send entire define block as one statement
+    console.log(`[scope] Loading schema for ${demo.name}...`);
+    const cleanSchema = demo.schema
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"))
+      .join("\n");
+
+    try {
+      await service.executeQuery(databaseName, cleanSchema, { transactionType: "schema" });
+      console.log(`[scope] Schema loaded successfully`);
+    } catch (e) {
+      console.warn(`[scope] Schema loading warning:`, e);
+    }
+
+    // Load sample data (insert statements)
+    console.log(`[scope] Loading sample data for ${demo.name}...`);
+    const dataStatements = demo.sampleData
+      .split(/;\s*\n/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !s.startsWith("#"));
+
+    for (const statement of dataStatements) {
+      if (statement.trim()) {
+        try {
+          await service.executeQuery(databaseName, statement + ";", { transactionType: "write" });
+        } catch (e) {
+          console.warn(`[scope] Data statement warning:`, e);
+          // Continue with other statements
+        }
+      }
+    }
+
+    console.log(`[scope] Demo ${demo.name} loaded successfully`);
+  };
+
+  // Demos Section
+  const demosSectionVM: DemosSectionVM = {
+    isLoading$: constant(false, "demos.isLoading"),
+
+    items$: computed(
+      () => {
+        return DEMOS.map((demo): DemoItemVM => ({
+          key: `demo-${demo.id}`,
+          id: demo.id,
+          name: demo.name,
+          description: demo.description,
+          icon: demo.icon,
+          exampleQueries: demo.exampleQueries.map((eq, idx): DemoExampleQueryVM => ({
+            key: `${demo.id}-query-${idx}`,
+            name: eq.name,
+            description: eq.description,
+            query: eq.query,
+            run: () => {
+              store.commit(events.uiStateSet({
+                currentQueryText: eq.query,
+                hasUnsavedChanges: true,
+              }));
+              showSnackbar("success", `Loaded: ${eq.name}`);
+            },
+          })),
+          isLoading$: constant(false, `demo.${demo.id}.isLoading`),
+          isActive$: computed(
+            (get) => {
+              const ui = get(uiState$);
+              return ui.connectionStatus === "connected" && ui.activeDatabase === demo.id;
+            },
+            { label: `demo.${demo.id}.isActive` }
+          ),
+          load: async () => {
+            // Check if already active
+            const ui = store.query(uiState$);
+            if (ui.connectionStatus === "connected" && ui.activeDatabase === demo.id) {
+              // Already on this demo, just navigate to query page
+              showSnackbar("success", `Continuing with ${demo.name}`);
+              store.commit(events.uiStateSet({ currentPage: "query" }));
+              navigate("/query");
+              return;
+            }
+
+            try {
+              showSnackbar("success", `Loading ${demo.name}...`);
+
+              // Create a demo server entry
+              const serverId = createID("demo");
+              store.commit(
+                events.localServerCreated({
+                  id: serverId,
+                  name: demo.name,
+                  isDemo: true,
+                  demoId: demo.id,
+                  createdAt: new Date(),
+                })
+              );
+
+              // Connect via WASM (creates the database)
+              await quickConnectWasm(demo.id);
+
+              // Load the demo schema and data
+              await loadDemoData(demo.id, demo.id);
+
+              store.commit(
+                events.uiStateSet({
+                  connectionStatus: "connected",
+                  activeLocalServerId: serverId,
+                  activeDatabase: demo.id,
+                  currentPage: "query",
+                }),
+                events.localServerUpdated({
+                  id: serverId,
+                  lastUsedAt: new Date(),
+                })
+              );
+
+              showSnackbar("success", `${demo.name} ready! Try the example queries.`);
+              navigate("/query");
+            } catch (error) {
+              console.error("[scope] Failed to load demo:", error);
+              showSnackbar("error", `Failed to load demo: ${error}`);
+            }
+          },
+        }));
+      },
+      { label: "demos.items" }
+    ),
+  };
+
+  // Local Servers Section
+  const localServersSectionVM: LocalServersSectionVM = {
+    items$: computed(
+      (get) => {
+        const servers = get(localServers$);
+        return servers.map((server): LocalServerItemVM => ({
+          key: server.id,
+          id: server.id,
+          name: server.name,
+          databaseCount$: constant(0, `server.${server.id}.dbCount`), // TODO: Track actual DB count
+          lastUsedAt: server.lastUsedAt,
+          lastUsedDisplay: formatRelativeTime(server.lastUsedAt),
+          isActive$: computed(
+            (get) => get(uiState$).activeLocalServerId === server.id,
+            { label: `server.${server.id}.isActive` }
+          ),
+          connect: async () => {
+            try {
+              store.commit(events.uiStateSet({ connectionStatus: "connecting" }));
+
+              await quickConnectWasm(server.name);
+
+              store.commit(
+                events.uiStateSet({
+                  connectionStatus: "connected",
+                  activeLocalServerId: server.id,
+                  activeDatabase: server.name,
+                  currentPage: "query",
+                }),
+                events.localServerUpdated({
+                  id: server.id,
+                  lastUsedAt: new Date(),
+                })
+              );
+
+              showSnackbar("success", `Connected to ${server.name}`);
+              navigate("/query");
+            } catch (error) {
+              console.error("[scope] Failed to connect to server:", error);
+              store.commit(events.uiStateSet({ connectionStatus: "disconnected" }));
+              showSnackbar("error", `Failed to connect: ${error}`);
+            }
+          },
+          exportSnapshot: async () => {
+            showSnackbar("warning", "Snapshot export not yet implemented");
+          },
+          delete: () => {
+            store.commit(events.localServerDeleted({ id: server.id }));
+            showSnackbar("success", `Deleted ${server.name}`);
+          },
+          rename: () => {
+            showSnackbar("warning", "Rename not yet implemented");
+          },
+        }));
+      },
+      { label: "localServers.items" }
+    ),
+
+    isEmpty$: computed(
+      (get) => get(localServers$).length === 0,
+      { label: "localServers.isEmpty" }
+    ),
+
+    createNew: async () => {
+      const serverCount = store.query(localServers$).length;
+      const serverId = createID("local");
+      const serverName = `Local Server ${serverCount + 1}`;
+
+      store.commit(
+        events.localServerCreated({
+          id: serverId,
+          name: serverName,
+          isDemo: false,
+          demoId: null,
+          createdAt: new Date(),
+        })
+      );
+
+      showSnackbar("success", `Created ${serverName}`);
+    },
+
+    createDisabled$: constant<DisabledState>(null, "localServers.createDisabled"),
+
+    importSnapshot: () => {
+      showSnackbar("warning", "Snapshot import not yet implemented");
+    },
+  };
+
+  // Connection Form (for remote connections)
   const connectionFormVM: ConnectionFormVM = {
     mode$: computed(
       (get) => get(uiState$).connectionFormMode,
@@ -585,29 +873,20 @@ export function createStudioScope(
       }));
 
       try {
-        // Use WASM service for browser-only mode
-        // TODO: Add mode toggle to switch between WASM and HTTP
-        const serviceMode = getServiceMode();
-        if (serviceMode === "wasm") {
-          // WASM mode - create a playground with the database name
-          const databaseName = ui.connectionFormUsername || "playground";
-          await quickConnectWasm(databaseName);
-        } else {
-          // HTTP mode - connect to real server
-          const service = getService();
-          await service.connect({
-            address: ui.connectionFormAddress,
-            username: ui.connectionFormUsername,
-            password: ui.connectionFormPassword,
-          });
-        }
+        // HTTP mode - connect to real server
+        const service = getService();
+        await service.connect({
+          address: ui.connectionFormAddress,
+          username: ui.connectionFormUsername,
+          password: ui.connectionFormPassword,
+        });
 
         const connectionId = createID("conn");
         store.commit(
           events.connectionCreated({
             id: connectionId,
-            name: serviceMode === "wasm" ? "Browser (WASM)" : ui.connectionFormAddress,
-            address: serviceMode === "wasm" ? "wasm://local" : ui.connectionFormAddress,
+            name: ui.connectionFormAddress,
+            address: ui.connectionFormAddress,
             username: ui.connectionFormUsername,
             database: null,
             createdAt: new Date(),
@@ -620,15 +899,13 @@ export function createStudioScope(
             isConnecting: false,
             connectionStatus: "connected",
             activeConnectionId: connectionId,
-            activeDatabase: serviceMode === "wasm" ? (ui.connectionFormUsername || "playground") : null,
+            activeLocalServerId: null,
+            activeDatabase: null,
             currentPage: "query",
           })
         );
 
-        showSnackbar("success", serviceMode === "wasm"
-          ? "Connected to TypeDB (browser mode)"
-          : `Connected to ${ui.connectionFormAddress}`
-        );
+        showSnackbar("success", `Connected to ${ui.connectionFormAddress}`);
         navigate("/query");
       } catch (error) {
         console.error("[scope] Connection failed:", error);
@@ -646,6 +923,7 @@ export function createStudioScope(
     ),
   };
 
+  // Saved Connections (for remote connections)
   const savedConnectionsVM: SavedConnectionsListVM = {
     items$: computed(
       (get) => {
@@ -660,6 +938,7 @@ export function createStudioScope(
               connectionFormAddress: conn.address,
               connectionFormUsername: conn.username,
               connectionFormPassword: "",
+              remoteConnectionExpanded: true,
             }));
           },
           remove: () => {
@@ -692,9 +971,27 @@ export function createStudioScope(
     ),
   };
 
-  const connectPageVM: ConnectPageVM = {
+  // Remote Connection Section
+  const remoteConnectionSectionVM: RemoteConnectionSectionVM = {
+    isExpanded$: computed(
+      (get) => get(uiState$).remoteConnectionExpanded,
+      { label: "remoteConnection.isExpanded" }
+    ),
+
+    toggleExpanded: () => {
+      const expanded = store.query(uiState$).remoteConnectionExpanded;
+      store.commit(events.uiStateSet({ remoteConnectionExpanded: !expanded }));
+    },
+
     form: connectionFormVM,
     savedConnections: savedConnectionsVM,
+  };
+
+  // Complete Connect Page VM
+  const connectPageVM: ConnectPageVM = {
+    demos: demosSectionVM,
+    localServers: localServersSectionVM,
+    remoteConnection: remoteConnectionSectionVM,
   };
 
   // ---------------------------------------------------------------------------
@@ -780,23 +1077,187 @@ function createQueryPageVM(
   _activeDatabase$: Queryable<string | null>,
   _isConnected$: Queryable<boolean>
 ): QueryPageVM {
-  // Schema Tree placeholder - create a helper to make schema tree groups
-  const emptySchemaItems: SchemaTreeItemVM[] = [];
-  const createSchemaTreeGroup = (label: string, prefix: string): SchemaTreeGroupVM => ({
-    label,
-    count$: constant(0, `${prefix}.count`),
-    collapsed$: constant(false, `${prefix}.collapsed`),
-    toggleCollapsed: () => {},
-    items$: constant(emptySchemaItems, `${prefix}.items`),
+  // Helper to create schema tree item VMs
+  const emptyChildren: SchemaTreeChildItemVM[] = [];
+
+  const createEntityItem = (entity: { label: string; isAbstract: boolean; ownedAttributes: string[] }): SchemaTreeItemVM => ({
+    key: entity.label,
+    label: entity.label,
+    icon: Box,
+    kind: "entity",
+    isAbstract: entity.isAbstract,
+    level: 0,
+    hasChildren$: constant(entity.ownedAttributes.length > 0, `entity.${entity.label}.hasChildren`),
+    expanded$: constant(false, `entity.${entity.label}.expanded`),
+    toggleExpanded: () => {},
+    children$: constant(
+      entity.ownedAttributes.map((attr): SchemaTreeChildItemVM => ({
+        key: `${entity.label}.${attr}`,
+        label: attr,
+        kind: "attribute",
+        typeInfo: null,
+        generateQuery: () => {
+          const query = `match $x isa ${entity.label}, has ${attr} $a;\nfetch { "value": $a };`;
+          store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+          showSnackbar("success", `Generated query for ${entity.label}.${attr}`);
+        },
+      })),
+      `entity.${entity.label}.children`
+    ),
+    showPlayOnHover: true,
+    generateFetchQuery: () => {
+      const query = generateFetchQuery({
+        label: entity.label,
+        kind: "entity",
+        ownedAttributes: entity.ownedAttributes,
+      });
+      store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+      showSnackbar("success", `Generated fetch query for ${entity.label}`);
+    },
   });
 
+  const createRelationItem = (relation: { label: string; isAbstract: boolean; ownedAttributes: string[]; relatedRoles: string[] }): SchemaTreeItemVM => ({
+    key: relation.label,
+    label: relation.label,
+    icon: Diamond,
+    kind: "relation",
+    isAbstract: relation.isAbstract,
+    level: 0,
+    hasChildren$: constant(relation.relatedRoles.length > 0 || relation.ownedAttributes.length > 0, `relation.${relation.label}.hasChildren`),
+    expanded$: constant(false, `relation.${relation.label}.expanded`),
+    toggleExpanded: () => {},
+    children$: constant(
+      [
+        ...relation.relatedRoles.map((role): SchemaTreeChildItemVM => ({
+          key: `${relation.label}.role.${role}`,
+          label: role,
+          kind: "role",
+          typeInfo: null,
+          generateQuery: () => {
+            const query = `match ($role: $player) isa ${relation.label};\nfetch { "${role}": $player };`;
+            store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+            showSnackbar("success", `Generated query for ${relation.label}:${role}`);
+          },
+        })),
+        ...relation.ownedAttributes.map((attr): SchemaTreeChildItemVM => ({
+          key: `${relation.label}.attr.${attr}`,
+          label: attr,
+          kind: "attribute",
+          typeInfo: null,
+          generateQuery: () => {
+            const query = `match $r isa ${relation.label}, has ${attr} $a;\nfetch { "value": $a };`;
+            store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+            showSnackbar("success", `Generated query for ${relation.label}.${attr}`);
+          },
+        })),
+      ],
+      `relation.${relation.label}.children`
+    ),
+    showPlayOnHover: true,
+    generateFetchQuery: () => {
+      const query = generateFetchQuery({
+        label: relation.label,
+        kind: "relation",
+        ownedAttributes: relation.ownedAttributes,
+        relatedRoles: relation.relatedRoles,
+      });
+      store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+      showSnackbar("success", `Generated fetch query for ${relation.label}`);
+    },
+  });
+
+  const createAttributeItem = (attribute: { label: string; valueType: string | null }): SchemaTreeItemVM => ({
+    key: attribute.label,
+    label: attribute.label,
+    icon: Tag,
+    kind: "attribute",
+    isAbstract: false,
+    level: 0,
+    hasChildren$: constant(false, `attribute.${attribute.label}.hasChildren`),
+    expanded$: constant(null, `attribute.${attribute.label}.expanded`),
+    toggleExpanded: () => {},
+    children$: constant(emptyChildren, `attribute.${attribute.label}.children`),
+    showPlayOnHover: true,
+    generateFetchQuery: () => {
+      const query = generateFetchQuery({
+        label: attribute.label,
+        kind: "attribute",
+      });
+      store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+      showSnackbar("success", `Generated fetch query for ${attribute.label}`);
+    },
+  });
+
+  // Create schema tree groups using stored schema types
+  const entitiesGroup: SchemaTreeGroupVM = {
+    label: "Entities",
+    count$: computed(
+      (get) => get(schemaTypes$).entities.length,
+      { label: "schemaTree.entities.count" }
+    ),
+    collapsed$: constant(false, "schemaTree.entities.collapsed"),
+    toggleCollapsed: () => {},
+    items$: computed(
+      (get) => get(schemaTypes$).entities.map(createEntityItem),
+      { label: "schemaTree.entities.items" }
+    ),
+  };
+
+  const relationsGroup: SchemaTreeGroupVM = {
+    label: "Relations",
+    count$: computed(
+      (get) => get(schemaTypes$).relations.length,
+      { label: "schemaTree.relations.count" }
+    ),
+    collapsed$: constant(false, "schemaTree.relations.collapsed"),
+    toggleCollapsed: () => {},
+    items$: computed(
+      (get) => get(schemaTypes$).relations.map(createRelationItem),
+      { label: "schemaTree.relations.items" }
+    ),
+  };
+
+  const attributesGroup: SchemaTreeGroupVM = {
+    label: "Attributes",
+    count$: computed(
+      (get) => get(schemaTypes$).attributes.length,
+      { label: "schemaTree.attributes.count" }
+    ),
+    collapsed$: constant(false, "schemaTree.attributes.collapsed"),
+    toggleCollapsed: () => {},
+    items$: computed(
+      (get) => get(schemaTypes$).attributes.map(createAttributeItem),
+      { label: "schemaTree.attributes.items" }
+    ),
+  };
+
   const schemaTree: SchemaTreeVM = {
-    status$: constant<SchemaTreeStatus>("ready", "schemaTree.status"),
-    statusMessage$: constant<string | null>(null, "schemaTree.statusMessage"),
+    status$: computed(
+      (get) => {
+        const types = get(schemaTypes$);
+        const totalTypes = types.entities.length + types.relations.length + types.attributes.length;
+        if (totalTypes === 0) {
+          return "empty" as SchemaTreeStatus;
+        }
+        return "ready" as SchemaTreeStatus;
+      },
+      { label: "schemaTree.status" }
+    ),
+    statusMessage$: computed(
+      (get) => {
+        const types = get(schemaTypes$);
+        const totalTypes = types.entities.length + types.relations.length + types.attributes.length;
+        if (totalTypes === 0) {
+          return "No schema types defined. Load a demo or define schema.";
+        }
+        return null;
+      },
+      { label: "schemaTree.statusMessage" }
+    ),
     retry: () => {},
-    entities: createSchemaTreeGroup("Entities", "schemaTree.entities"),
-    relations: createSchemaTreeGroup("Relations", "schemaTree.relations"),
-    attributes: createSchemaTreeGroup("Attributes", "schemaTree.attributes"),
+    entities: entitiesGroup,
+    relations: relationsGroup,
+    attributes: attributesGroup,
   };
 
   // Saved Queries Tree placeholder
