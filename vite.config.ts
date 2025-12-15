@@ -87,8 +87,10 @@ const config = defineConfig({
     },
   },
   preview: {
-    // Binding to IPv4 avoids sandbox issues with ::1 in CI/local sandboxes
-    host: '127.0.0.1',
+    // Binding to all interfaces for CI compatibility
+    host: '0.0.0.0',
+    strictPort: false,
+    open: false,
   },
 })
 
