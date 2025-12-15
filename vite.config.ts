@@ -44,9 +44,8 @@ const config = defineConfig({
         enabled: true,
       },
       router: {
-        // Keep TanStack prerendering rooted at "/"
-        // (GitHub Pages base path handling is done by Vite + runtime router)
-        basepath: '/',
+        // Router basepath must match Vite's base for GitHub Pages subdirectory
+        basepath: base,
       },
     }),
     viteReact({
