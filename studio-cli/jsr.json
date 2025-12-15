@@ -5,5 +5,11 @@
   "exports": {
     ".": "./mod.ts",
     "./server": "./server.ts"
+  },
+  "publish": {
+    "exclude": [
+      "!dist/",
+      "packaging-test/"
+    ]
   }
 }
