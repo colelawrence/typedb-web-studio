@@ -51,6 +51,7 @@
     "@vitest/browser": "^3.2.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "effect": "^3.19.12",
+    "nitro": "3.0.1-alpha.1",
     "playwright": "^1.50.0",
     "typescript": "^5.7.2",
     "vite": "^7.1.7",
