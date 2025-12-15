@@ -72,6 +72,8 @@ import type { LearnPageVM } from "./pages/learn/learn-page.vm";
 import { createLearnSidebarScope } from "./learn/sidebar-scope";
 import { createDocumentViewerScope } from "./learn/document-viewer-scope";
 import { createNavigationScope } from "./learn/navigation-scope";
+import { sections as curriculumSections, contexts as curriculumContexts } from "../curriculum/content";
+import type { ParsedSection, CurriculumMeta, SectionMeta } from "../curriculum/types";
 
 // ============================================================================
 // Helpers
@@ -1726,47 +1728,48 @@ function createLearnPageVM(
   navigate: (path: string) => void,
   showSnackbar: (type: "success" | "warning" | "error", message: string) => void
 ): LearnPageVM {
-  // Import curriculum content dynamically to avoid issues when virtual module isn't ready
-  // In the actual app, this comes from virtual:curriculum-content at build time
-  const getSections = (): Record<string, import("../curriculum/types").ParsedSection> => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const content = require("../curriculum/content");
-      const sectionMap: Record<string, import("../curriculum/types").ParsedSection> = {};
-      for (const section of content.sections || []) {
-        sectionMap[section.id] = section;
-      }
-      return sectionMap;
-    } catch {
-      // Curriculum content not available - return empty
-      return {};
-    }
+  // Build sections map from curriculum content
+  const sections: Record<string, ParsedSection> = {};
+  for (const section of curriculumSections) {
+    sections[section.id] = section;
+  }
+
+  // Group sections by folder path for curriculum structure
+  const sectionsByFolder = new Map<string, ParsedSection[]>();
+  for (const section of curriculumSections) {
+    // Extract folder from sourceFile (e.g., "01-foundations/03-first-queries.md" -> "01-foundations")
+    const folder = section.sourceFile.split("/")[0] || "default";
+    const existing = sectionsByFolder.get(folder) || [];
+    existing.push(section);
+    sectionsByFolder.set(folder, existing);
+  }
+
+  // Build curriculum meta from parsed sections
+  const curriculumMeta: CurriculumMeta = {
+    name: "TypeQL Learning",
+    version: "1.0.0",
+    sections: Array.from(sectionsByFolder.entries()).map(([folder, folderSections]): SectionMeta => ({
+      id: folder,
+      title: formatFolderTitle(folder),
+      path: folder,
+      lessons: folderSections.map((s) => ({
+        id: s.id,
+        title: s.title,
+        file: s.sourceFile,
+        context: s.context,
+      })),
+    })),
+    contexts: curriculumContexts,
   };
 
-  const getCurriculumMeta = (): import("../curriculum/types").CurriculumMeta => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const content = require("../curriculum/content");
-      return {
-        name: "TypeQL Learning",
-        version: "1.0.0",
-        sections: (content.sections || []).map((s: import("../curriculum/types").ParsedSection) => ({
-          id: s.id,
-          title: s.title,
-          path: s.sourceFile?.split("/").slice(0, -1).join("/") || "",
-          lessons: [{
-            id: s.id,
-            title: s.title,
-            file: s.sourceFile || "",
-            context: s.context,
-          }],
-        })),
-        contexts: content.contexts || [],
-      };
-    } catch {
-      return { name: "TypeQL Learning", version: "1.0.0", sections: [], contexts: [] };
-    }
-  };
+  // Helper to format folder names (e.g., "01-foundations" -> "Foundations")
+  function formatFolderTitle(folder: string): string {
+    return folder
+      .replace(/^\d+-/, "") // Remove leading number prefix
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
 
   // Get profile ID from localStorage or generate one
   const getProfileId = (): string => {
@@ -1780,8 +1783,6 @@ function createLearnPageVM(
   };
 
   const profileId = getProfileId();
-  const sections = getSections();
-  const curriculumMeta = getCurriculumMeta();
 
   // Track current section for navigation
   let currentSectionId: string | null = null;
