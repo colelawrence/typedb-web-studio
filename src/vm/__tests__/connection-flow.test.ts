@@ -694,8 +694,6 @@ describe('Connect Page - New Structure', () => {
       exampleQuery.run()
 
       // Check that query text was set
-      const uiState = ctx.store.query(ctx.vm.topBar.connectionStatus.state$)
-      // Query text should be set in uiState
       const queryText = ctx.store.query(ctx.vm.currentPage$)
       if (queryText.page === 'connect') {
         // After running, currentQueryText should be set

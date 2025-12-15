@@ -5,7 +5,7 @@
  * This is the primary testing approach for the application.
  */
 
-import { vi } from 'vitest'
+import { vi, expect } from 'vitest'
 import { createStore, provideOtel, type Store } from '@livestore/livestore'
 import { makeInMemoryAdapter } from '@livestore/adapter-web'
 import { Effect } from 'effect'
@@ -27,7 +27,7 @@ export interface VMTestContext {
   /** The TypeDB service instance */
   service: TypeDBEmbeddedService
   /** Helper to query store values */
-  query: <T>(queryable: { (): T }) => T
+  query: <T>(queryable: import("@/vm").Queryable<T>) => T
   /** Helper to commit events */
   commit: typeof events
   /** Cleanup function - call after test */

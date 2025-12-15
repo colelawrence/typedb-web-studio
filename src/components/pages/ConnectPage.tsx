@@ -12,8 +12,6 @@ import type { ConnectPageVM, DemoItemVM, LocalServerItemVM } from "@/vm";
 import { Queryable } from "@/vm/components";
 import {
   AlertTriangle,
-  Eye,
-  EyeOff,
   Star,
   Trash2,
   Loader2,

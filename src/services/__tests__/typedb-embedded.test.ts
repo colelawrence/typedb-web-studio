@@ -11,7 +11,6 @@ import { TypeDBEmbeddedService, createEmbeddedService } from '../typedb-embedded
 import {
   createSocialNetworkDb,
   socialNetworkExpected,
-  socialNetworkSchema,
 } from '../../test/fixtures'
 
 describe('TypeDBEmbeddedService', () => {

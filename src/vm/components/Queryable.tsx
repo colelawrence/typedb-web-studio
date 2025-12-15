@@ -26,6 +26,7 @@
 
 import type { Queryable as QueryableType } from "@livestore/livestore";
 import { useQuery } from "@livestore/react";
+import { CatchBoundary } from "@tanstack/react-router";
 
 /**
  * Renders a Queryable value directly as text (when the value is ReactNode-compatible).
@@ -52,24 +53,31 @@ export function Queryable(props: {
   children?: (value: unknown) => React.ReactNode;
 }) {
   const value = useQuery(props.query);
-
-  // Development-time assertion: catch SSR/LiveStore misconfigurations early
-  // If useQuery returns null when it shouldn't, we're likely rendering outside LiveStoreProvider
-  // or during SSR (where LiveStore's browser APIs aren't available)
-  if (import.meta.env.DEV && value === null && props.query !== null) {
-    console.error(
-      "Queryable received null from useQuery. This usually means:\n" +
-      "1. Component is rendering during SSR (add `ssr: false` to route)\n" +
-      "2. Component is outside LiveStoreProvider\n" +
-      "Query:", props.query
-    );
-  }
-
+  
   return (
     <>
       {typeof props.children === "function"
-        ? props.children(value)
+        ? <CatchBoundary getResetKey={() => String(props.query) + String((props.query as any).label)} onCatch={() => {
+          // Development-time assertion: catch SSR/LiveStore misconfigurations early
+          // If useQuery returns null when it shouldn't, we're likely rendering outside LiveStoreProvider
+          // or during SSR (where LiveStore's browser APIs aren't available)
+          if (import.meta.env.DEV && value === null && props.query !== null) {
+            console.error(
+              "Queryable received null from useQuery. This usually means:\n" +
+              "1. Component is rendering during SSR (add `ssr: false` to route)\n" +
+              "2. Component is outside LiveStoreProvider\n" +
+              "Query:", props.query
+            );
+          }
+        }}>
+          {/* biome-ignore lint/correctness/noChildrenProp: <explanation> */}
+          <RenderFn value={value} children={props.children} />
+        </CatchBoundary>
         : (value as React.ReactNode)}
     </>
   );
+}
+
+function RenderFn<T>(props: { value: T; children: (value: T) => React.ReactNode }) {
+  return <>{props.children(props.value)}</>;
 }

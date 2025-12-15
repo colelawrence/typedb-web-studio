@@ -963,6 +963,9 @@ pnpm test:a11y         # Run accessibility tests
 | Date | Blocker | Resolution |
 |------|---------|------------|
 | N/A | None encountered in Phase 1 | - |
+| 2025-12-15 | SegmentedControl prop mismatch | Changed `options` → `segments`, `size` → `density` in tabs.tsx |
+| 2025-12-15 | Input missing density prop | Added `InputDensity` type and `density` prop to Input component |
+| 2025-12-15 | Schema page crash on load | Added null-safe access (`?.`) to schemaTypes$ computed queries in scope.ts |
 
 ### Token Adjustments
 
@@ -1069,3 +1072,14 @@ Each phase should be deployable and rollback-able independently:
 - [x] **Checkpoint 5**: Query workspace updated, editor/results functional (2025-12-15)
 - [x] **Checkpoint 6**: All pages updated, no visual regressions (2025-12-15)
 - [x] **Checkpoint 7**: Final audit complete, accessibility verified (2025-12-15)
+
+---
+
+## 9. Known Issues (Pre-existing, Not Styling Related)
+
+| Page | Issue | Notes |
+|------|-------|-------|
+| Users | DOM reconciliation error | "Failed to execute 'removeChild'" - React error unrelated to Dense-Core styling |
+| Users | Blank page on navigation | May be related to Suspense/lazy loading interaction with LiveStore |
+
+These issues predate the Dense-Core styling work and require separate investigation of the VM/routing layer.

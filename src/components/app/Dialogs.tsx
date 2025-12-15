@@ -5,7 +5,19 @@
  * Uses Dense-Core tokens for consistent styling (Phase 3).
  */
 
-import type { DialogsVM, ActiveDialogVM } from "@/vm";
+import type {
+  DialogsVM,
+  ActiveDialogVM,
+  ConfirmationDialogVM,
+  StrongConfirmationDialogVM,
+  CreateDatabaseDialogVM,
+  CreateUserDialogVM,
+  EditPasswordDialogVM,
+  SaveQueryDialogVM,
+  CreateFolderDialogVM,
+  MoveQueryDialogVM,
+  ImportQueriesDialogVM,
+} from "@/vm";
 import { Queryable } from "@/vm/components";
 import {
   Dialog,
@@ -24,19 +36,13 @@ export function Dialogs({ vm }: { vm: DialogsVM }) {
     <Queryable query={vm.active$}>
       {(active) => {
         if (!active) return null;
-        return <ActiveDialog dialog={active} onClose={vm.closeAll} />;
+        return <ActiveDialog dialog={active} />;
       }}
     </Queryable>
   );
 }
 
-function ActiveDialog({
-  dialog,
-  onClose,
-}: {
-  dialog: ActiveDialogVM;
-  onClose: () => void;
-}) {
+function ActiveDialog({ dialog }: { dialog: ActiveDialogVM }) {
   switch (dialog.type) {
     case "confirmation":
       return <ConfirmationDialog vm={dialog.vm} />;
@@ -66,7 +72,7 @@ function ActiveDialog({
 function ConfirmationDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "confirmation"; vm: infer V } ? V : never;
+  vm: ConfirmationDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -92,7 +98,7 @@ function ConfirmationDialog({
 function StrongConfirmationDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "strongConfirmation"; vm: infer V } ? V : never;
+  vm: StrongConfirmationDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -146,7 +152,7 @@ function StrongConfirmationDialog({
 function CreateDatabaseDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "createDatabase"; vm: infer V } ? V : never;
+  vm: CreateDatabaseDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -186,7 +192,7 @@ function CreateDatabaseDialog({
 function CreateUserDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "createUser"; vm: infer V } ? V : never;
+  vm: CreateUserDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -238,7 +244,7 @@ function CreateUserDialog({
 function EditPasswordDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "editPassword"; vm: infer V } ? V : never;
+  vm: EditPasswordDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -287,7 +293,7 @@ function EditPasswordDialog({
 function SaveQueryDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "saveQuery"; vm: infer V } ? V : never;
+  vm: SaveQueryDialogVM;
 }) {
   const title = vm.mode === "create" ? "Save Query" : "Rename Query";
 
@@ -325,7 +331,7 @@ function SaveQueryDialog({
 function CreateFolderDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "createFolder"; vm: infer V } ? V : never;
+  vm: CreateFolderDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -358,7 +364,7 @@ function CreateFolderDialog({
 function MoveQueryDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "moveQuery"; vm: infer V } ? V : never;
+  vm: MoveQueryDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel}>
@@ -393,7 +399,7 @@ function MoveQueryDialog({
 function ImportQueriesDialog({
   vm,
 }: {
-  vm: ActiveDialogVM extends { type: "importQueries"; vm: infer V } ? V : never;
+  vm: ImportQueriesDialogVM;
 }) {
   return (
     <Dialog open onClose={vm.cancel} maxWidth="md">
@@ -532,7 +538,7 @@ function FormFieldFromVM({ input, label, autoFocus }: FormFieldFromVMProps) {
               <Input
                 id={`input-${label}`}
                 value={value}
-                onChange={(e) => input.updateValue(e.target.value)}
+                onChange={(e) => input.update(e.target.value)}
                 error={!!error}
                 autoFocus={autoFocus}
               />
@@ -565,7 +571,7 @@ function PasswordFieldFromVM({ input, label, error, autoFocus }: PasswordFieldFr
               <PasswordInput
                 id={`input-${label}`}
                 value={value}
-                onChange={(e) => input.updateValue(e.target.value)}
+                onChange={(e) => input.update(e.target.value)}
                 error={!!(error ?? vmError)}
                 autoFocus={autoFocus}
               />

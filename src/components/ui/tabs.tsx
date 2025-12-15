@@ -179,15 +179,15 @@ export interface SegmentedControlProps<T extends string> {
   value: T
   /** Callback when selection changes */
   onValueChange: (value: T) => void
-  /** Options to display */
-  options: Array<{
+  /** Segments to display */
+  segments: Array<{
     value: T
     label: string
     icon?: React.ReactNode
     disabled?: boolean
   }>
-  /** Size variant */
-  size?: 'compact' | 'default'
+  /** Density variant */
+  density?: 'compact' | 'default'
   /** Additional CSS classes */
   className?: string
 }
@@ -195,21 +195,21 @@ export interface SegmentedControlProps<T extends string> {
 export function SegmentedControl<T extends string>({
   value,
   onValueChange,
-  options,
-  size = 'compact',
+  segments,
+  density = 'compact',
   className = '',
 }: SegmentedControlProps<T>) {
-  const sizeClasses = size === 'compact' ? 'h-compact text-dense-xs' : 'h-default text-dense-sm'
+  const densityClasses = density === 'compact' ? 'h-compact text-dense-xs' : 'h-default text-dense-sm'
 
   return (
     <div
       role="group"
       className={`inline-flex items-center bg-muted p-0.5 rounded-md ${className}`}
     >
-      {options.map((option) => {
-        const isSelected = value === option.value
+      {segments.map((segment) => {
+        const isSelected = value === segment.value
         const classes = [
-          sizeClasses,
+          densityClasses,
           'px-3',
           'inline-flex items-center justify-center gap-1.5',
           'font-medium rounded-sm',
@@ -218,7 +218,7 @@ export function SegmentedControl<T extends string>({
           isSelected
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground',
-          option.disabled
+          segment.disabled
             ? 'opacity-50 cursor-not-allowed pointer-events-none'
             : 'cursor-pointer',
         ]
@@ -227,16 +227,16 @@ export function SegmentedControl<T extends string>({
 
         return (
           <button
-            key={option.value}
+            key={segment.value}
             type="button"
             role="radio"
             aria-checked={isSelected}
-            aria-disabled={option.disabled}
+            aria-disabled={segment.disabled}
             className={classes}
-            onClick={() => !option.disabled && onValueChange(option.value)}
+            onClick={() => !segment.disabled && onValueChange(segment.value)}
           >
-            {option.icon && <span className="size-4">{option.icon}</span>}
-            {option.label}
+            {segment.icon && <span className="size-4">{segment.icon}</span>}
+            {segment.label}
           </button>
         )
       })}

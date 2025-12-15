@@ -12,7 +12,7 @@ export type { ButtonProps, ButtonDensity, ButtonVariant, IconButtonProps } from 
 
 // Input primitives (Task 1.9)
 export { Input, Textarea, Select, PasswordInput } from './input'
-export type { InputProps, TextareaProps, SelectProps, PasswordInputProps } from './input'
+export type { InputProps, InputDensity, TextareaProps, SelectProps, PasswordInputProps } from './input'
 
 // Form field primitives (Task 1.9)
 export { FormField, FormFieldGroup, FormActions } from './form-field'

@@ -9,12 +9,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createStore, makeSchema, State, Events, provideOtel } from "@livestore/livestore";
+import { createStore, provideOtel } from "@livestore/livestore";
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { Effect } from "effect";
 
 import { createLearnSidebarScope, type LearnSidebarScopeOptions } from "../sidebar-scope";
-import { tables, events, schema } from "../../../livestore/schema";
+import { events, schema } from "../../../livestore/schema";
 import type { CurriculumMeta, ParsedSection } from "../../../curriculum/types";
 
 // ============================================================================
@@ -228,9 +228,8 @@ describe("LearnSidebarScope", () => {
       const ctx = await createTestContext(profileId);
 
       ctx.sidebarVM.setWidth(350);
-      const width = ctx.store.query(ctx.sidebarVM.width$);
-      // Note: The width is stored in a local variable, not LiveStore
-      // So we need to create a new scope to see the persisted value
+      // Note: The width is stored in a local variable and persisted to localStorage
+      // So we verify by checking localStorage directly
       expect(localStorage.getItem("typedb_studio_learn_sidebar_width")).toBe("350");
     });
 

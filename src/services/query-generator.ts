@@ -11,8 +11,8 @@
 export interface SchemaTypeInfo {
   label: string;
   kind: "entity" | "relation" | "attribute";
-  ownedAttributes?: string[];
-  relatedRoles?: string[];
+  ownedAttributes?: readonly string[];
+  relatedRoles?: readonly string[];
 }
 
 /**

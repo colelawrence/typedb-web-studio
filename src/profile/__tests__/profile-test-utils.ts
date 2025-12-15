@@ -5,11 +5,10 @@
  * Builds on top of the VM test utilities to provide profile-specific helpers.
  */
 
-import { vi } from 'vitest'
-import { createStore, provideOtel, queryDb, type Store } from '@livestore/livestore'
+import { createStore, provideOtel, type Store } from '@livestore/livestore'
 import { makeInMemoryAdapter } from '@livestore/adapter-web'
 import { Effect } from 'effect'
-import { schema, events, tables } from '../../livestore/schema'
+import { schema, events } from '../../livestore/schema'
 import {
   readingProgressForProfile$,
   executionsForProfile$,

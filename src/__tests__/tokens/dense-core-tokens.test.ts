@@ -28,7 +28,7 @@ describe('Dense-Core Tokens', () => {
       ['--spacing-8', '32px'],
     ]
 
-    it.each(spacingTokens)('defines %s spacing token', (token, expected) => {
+    it.each(spacingTokens)('defines %s spacing token', (token, _expected) => {
       const value = rootStyles.getPropertyValue(token).trim()
       // Check that the token is defined (not empty)
       expect(value).toBeTruthy()
@@ -60,7 +60,7 @@ describe('Dense-Core Tokens', () => {
       ['--height-header', '48px'],
     ]
 
-    it.each(heightTokens)('defines %s height token', (token, expected) => {
+    it.each(heightTokens)('defines %s height token', (token, _expected) => {
       const value = rootStyles.getPropertyValue(token).trim()
       expect(value).toBeTruthy()
     })

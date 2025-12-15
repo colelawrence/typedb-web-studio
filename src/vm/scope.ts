@@ -28,7 +28,7 @@ import {
 } from "../services";
 import { DEMOS, getDemoById } from "../demos";
 import { parseSchema } from "../services/schema-parser";
-import { generateFetchQuery, generateMatchQuery, generateExploreQuery } from "../services/query-generator";
+import { generateFetchQuery } from "../services/query-generator";
 
 import type { TypeDBStudioAppVM, CurrentPageState } from "./app.vm";
 import type { TopBarVM } from "./top-bar/top-bar.vm";
@@ -75,7 +75,7 @@ import type { UsersPageStatus, UsersPagePlaceholder, UserRowVM } from "./pages/u
 const createID = (prefix: string) => `${prefix}_${nanoid(12)}`;
 
 /** Creates a queryable that always returns the same value with explicit type */
-function constant<T>(value: T, label: string): Queryable<T> {
+function constant<T>(value: NoInfer<T>, label: string): Queryable<T> {
   return computed((): T => value, { label });
 }
 
@@ -1080,7 +1080,7 @@ function createQueryPageVM(
   // Helper to create schema tree item VMs
   const emptyChildren: SchemaTreeChildItemVM[] = [];
 
-  const createEntityItem = (entity: { label: string; isAbstract: boolean; ownedAttributes: string[] }): SchemaTreeItemVM => ({
+  const createEntityItem = (entity: { label: string; isAbstract: boolean; ownedAttributes: readonly string[] }): SchemaTreeItemVM => ({
     key: entity.label,
     label: entity.label,
     icon: Box,
@@ -1116,7 +1116,7 @@ function createQueryPageVM(
     },
   });
 
-  const createRelationItem = (relation: { label: string; isAbstract: boolean; ownedAttributes: string[]; relatedRoles: string[] }): SchemaTreeItemVM => ({
+  const createRelationItem = (relation: { label: string; isAbstract: boolean; ownedAttributes: readonly string[]; relatedRoles: readonly string[] }): SchemaTreeItemVM => ({
     key: relation.label,
     label: relation.label,
     icon: Diamond,
@@ -1192,13 +1192,13 @@ function createQueryPageVM(
   const entitiesGroup: SchemaTreeGroupVM = {
     label: "Entities",
     count$: computed(
-      (get) => get(schemaTypes$).entities.length,
+      (get) => get(schemaTypes$)?.entities?.length ?? 0,
       { label: "schemaTree.entities.count" }
     ),
     collapsed$: constant(false, "schemaTree.entities.collapsed"),
     toggleCollapsed: () => {},
     items$: computed(
-      (get) => get(schemaTypes$).entities.map(createEntityItem),
+      (get) => get(schemaTypes$)?.entities?.map(createEntityItem) ?? [],
       { label: "schemaTree.entities.items" }
     ),
   };
@@ -1206,13 +1206,13 @@ function createQueryPageVM(
   const relationsGroup: SchemaTreeGroupVM = {
     label: "Relations",
     count$: computed(
-      (get) => get(schemaTypes$).relations.length,
+      (get) => get(schemaTypes$)?.relations?.length ?? 0,
       { label: "schemaTree.relations.count" }
     ),
     collapsed$: constant(false, "schemaTree.relations.collapsed"),
     toggleCollapsed: () => {},
     items$: computed(
-      (get) => get(schemaTypes$).relations.map(createRelationItem),
+      (get) => get(schemaTypes$)?.relations?.map(createRelationItem) ?? [],
       { label: "schemaTree.relations.items" }
     ),
   };
@@ -1220,13 +1220,13 @@ function createQueryPageVM(
   const attributesGroup: SchemaTreeGroupVM = {
     label: "Attributes",
     count$: computed(
-      (get) => get(schemaTypes$).attributes.length,
+      (get) => get(schemaTypes$)?.attributes?.length ?? 0,
       { label: "schemaTree.attributes.count" }
     ),
     collapsed$: constant(false, "schemaTree.attributes.collapsed"),
     toggleCollapsed: () => {},
     items$: computed(
-      (get) => get(schemaTypes$).attributes.map(createAttributeItem),
+      (get) => get(schemaTypes$)?.attributes?.map(createAttributeItem) ?? [],
       { label: "schemaTree.attributes.items" }
     ),
   };
@@ -1235,7 +1235,7 @@ function createQueryPageVM(
     status$: computed(
       (get) => {
         const types = get(schemaTypes$);
-        const totalTypes = types.entities.length + types.relations.length + types.attributes.length;
+        const totalTypes = (types?.entities?.length ?? 0) + (types?.relations?.length ?? 0) + (types?.attributes?.length ?? 0);
         if (totalTypes === 0) {
           return "empty" as SchemaTreeStatus;
         }
@@ -1246,9 +1246,9 @@ function createQueryPageVM(
     statusMessage$: computed(
       (get) => {
         const types = get(schemaTypes$);
-        const totalTypes = types.entities.length + types.relations.length + types.attributes.length;
+        const totalTypes = (types?.entities?.length ?? 0) + (types?.relations?.length ?? 0) + (types?.attributes?.length ?? 0);
         if (totalTypes === 0) {
-          return "No schema types defined. Load a demo or define schema.";
+          return "No schema types defined. Load a demo or define schema." as string;
         }
         return null;
       },

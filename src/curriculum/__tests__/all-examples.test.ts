@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { TypeDBEmbeddedService, createEmbeddedService } from '../../services/typedb-embedded-service';
 import { testExample, formatTestResult } from '../test-runner';
 import { registerContext, clearContexts, loadContext } from '../context-loader';
-import type { ParsedSection, ParsedExample } from '../types';
+import type { ParsedExample } from '../types';
 
 // Import curriculum content - in browser tests we inline it rather than using fs
 // This data matches the working TypeQL3 format from existing fixtures
@@ -101,17 +101,18 @@ const FIRST_QUERIES_EXAMPLES: ParsedExample[] = [
   },
 ];
 
-// Simulated section for testing
-const FIRST_QUERIES_SECTION: ParsedSection = {
-  id: 'first-queries',
-  title: 'Your First Queries',
-  context: 'social-network',
-  requires: ['types-intro'],
-  headings: [],
-  examples: FIRST_QUERIES_EXAMPLES,
-  rawContent: '',
-  sourceFile: '01-foundations/03-first-queries.md',
-};
+// Note: FIRST_QUERIES_EXAMPLES is used directly in tests
+// The following section definition shows how examples would be organized:
+// {
+//   id: 'first-queries',
+//   title: 'Your First Queries',
+//   context: 'social-network',
+//   requires: ['types-intro'],
+//   headings: [],
+//   examples: FIRST_QUERIES_EXAMPLES,
+//   rawContent: '',
+//   sourceFile: '01-foundations/03-first-queries.md',
+// }
 
 describe('Curriculum Examples', () => {
   let service: TypeDBEmbeddedService;

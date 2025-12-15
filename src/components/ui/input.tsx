@@ -4,15 +4,23 @@ import * as React from 'react'
  * Dense Input Primitives (Task 1.9)
  *
  * Standardized form input components with Dense-Core tokens for:
- * - Consistent heights (h-default = 36px)
- * - Proper typography (text-dense-sm)
+ * - Consistent heights (h-compact = 28px, h-default = 36px)
+ * - Proper typography (text-dense-xs/sm)
  * - Consistent padding and borders
  */
 
+export type InputDensity = 'compact' | 'default'
+
+// Density-based height and typography classes
+const densityClasses: Record<InputDensity, string> = {
+  compact: 'h-compact text-dense-xs',
+  default: 'h-default text-dense-sm',
+}
+
 // Shared base styles for all input types
 const baseInputClasses = [
-  'h-default px-3 w-full',
-  'text-dense-sm bg-background',
+  'px-3 w-full',
+  'bg-background',
   'border border-input rounded-md',
   'placeholder:text-muted-foreground',
   'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
@@ -24,14 +32,17 @@ const baseInputClasses = [
  * Input - Standard text input
  */
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  /** Density variant */
+  density?: InputDensity
   /** Error state styling */
   error?: boolean
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className = '', error, ...props }, ref) => {
+  ({ className = '', density = 'default', error, ...props }, ref) => {
     const classes = [
       baseInputClasses,
+      densityClasses[density],
       error ? 'border-destructive focus:ring-destructive' : '',
       className,
     ]
@@ -110,15 +121,30 @@ Select.displayName = 'Select'
 
 /**
  * PasswordInput - Password input with visibility toggle
+ *
+ * Supports both controlled (showPassword + onToggleVisibility) and
+ * uncontrolled (internal state) modes for visibility.
  */
 export interface PasswordInputProps extends Omit<InputProps, 'type'> {
   /** Show password visibility toggle button */
   showToggle?: boolean
+  /** Controlled visibility state - when provided, component is controlled */
+  showPassword?: boolean
+  /** Callback for visibility toggle - required when using controlled mode */
+  onToggleVisibility?: () => void
 }
 
 export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className = '', showToggle = true, error, ...props }, ref) => {
-    const [visible, setVisible] = React.useState(false)
+  ({ className = '', showToggle = true, showPassword, onToggleVisibility, error, ...props }, ref) => {
+    // Internal state for uncontrolled mode
+    const [internalVisible, setInternalVisible] = React.useState(false)
+
+    // Use controlled state if provided, otherwise use internal state
+    const isControlled = showPassword !== undefined
+    const visible = isControlled ? showPassword : internalVisible
+    const toggleVisible = isControlled
+      ? onToggleVisibility
+      : () => setInternalVisible((v) => !v)
 
     return (
       <div className="relative">
@@ -129,11 +155,11 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
           error={error}
           {...props}
         />
-        {showToggle && (
+        {showToggle && toggleVisible && (
           <button
             type="button"
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setVisible(!visible)}
+            onClick={toggleVisible}
             tabIndex={-1}
             aria-label={visible ? 'Hide password' : 'Show password'}
           >

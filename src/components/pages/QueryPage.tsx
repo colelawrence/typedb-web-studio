@@ -7,7 +7,7 @@
 
 import type { QueryPageVM } from "@/vm";
 import { Queryable } from "@/vm/components";
-import { Code, Database, Play, Loader2, ChevronRight, FolderOpen, FileText } from "lucide-react";
+import { Database, Play, ChevronRight } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 
