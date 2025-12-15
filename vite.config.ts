@@ -6,10 +6,31 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+function normalizeBaseUrl(value?: string) {
+  if (!value || value === '/') {
+    return '/'
+  }
+
+  let nextValue = value
+
+  if (!nextValue.startsWith('/')) {
+    nextValue = `/${nextValue}`
+  }
+
+  if (!nextValue.endsWith('/')) {
+    nextValue = `${nextValue}/`
+  }
+
+  return nextValue
+}
+
+const base = normalizeBaseUrl(process.env.BASE_URL)
+const routerBasePath = base === '/' ? undefined : base.replace(/\/$/, '')
+
 const config = defineConfig({
   // Support GitHub Pages subdirectory deployment
   // Set BASE_URL env var to "/repo-name/" for GitHub Pages
-  base: process.env.BASE_URL || '/',
+  base,
   plugins: [
     devtools(),
     // this is the plugin that enables path aliases
@@ -22,6 +43,9 @@ const config = defineConfig({
       // and we're deploying as a static single-page app
       spa: {
         enabled: true,
+      },
+      router: {
+        basepath: routerBasePath,
       },
     }),
     viteReact({
@@ -56,6 +80,10 @@ const config = defineConfig({
         path.resolve(__dirname, '..'),
       ],
     },
+  },
+  preview: {
+    // Binding to IPv4 avoids sandbox issues with ::1 in CI/local sandboxes
+    host: '127.0.0.1',
   },
 })
 

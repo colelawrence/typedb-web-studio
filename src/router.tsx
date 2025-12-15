@@ -7,10 +7,12 @@ import { routeTree } from './routeTree.gen'
 // Create a new router instance
 export const getRouter = () => {
   const rqContext = TanstackQuery.getContext()
+  const basepath = getRouterBasePath(import.meta.env.BASE_URL)
 
   const router = createRouter({
     routeTree,
     context: { ...rqContext },
+    basepath,
     defaultPreload: 'intent',
     Wrap: (props: { children: React.ReactNode }) => {
       return (
@@ -22,4 +24,12 @@ export const getRouter = () => {
   })
 
   return router
+}
+
+function getRouterBasePath(value: string | undefined) {
+  if (!value || value === '/' || value === './') {
+    return undefined
+  }
+
+  return value.replace(/\/+$/, '')
 }
