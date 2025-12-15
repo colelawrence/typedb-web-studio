@@ -1,0 +1,90 @@
+# Deploy TypeDB Web Studio to GitHub Pages
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Build for subdirectory if not using custom domain
+          # Set to "/" if using custom domain or root
+          BASE_URL: "/${{ github.event.repository.name }}/"
+
+      - name: Prepare for GitHub Pages
+        run: |
+          # Rename _shell.html to index.html (GitHub Pages expects index.html)
+          if [ -f dist/client/_shell.html ]; then
+            mv dist/client/_shell.html dist/client/index.html
+          fi
+
+          # Download coi-serviceworker for SharedArrayBuffer support (required for WASM)
+          curl -sL https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js \
+            -o dist/client/coi-serviceworker.js
+
+          # Add service worker registration to HTML files
+          for html in dist/client/*.html; do
+            if [ -f "$html" ]; then
+              # Insert service worker script after <head>
+              sed -i 's|<head>|<head><script src="coi-serviceworker.js"></script>|' "$html"
+            fi
+          done
+
+          # Create 404.html for SPA routing (copy from index.html)
+          cp dist/client/index.html dist/client/404.html
+
+          # Add .nojekyll to prevent Jekyll processing (issues with _ prefixed files)
+          touch dist/client/.nojekyll
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/client
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
