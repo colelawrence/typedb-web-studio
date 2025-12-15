@@ -1,0 +1,26 @@
+# Seed data for social-network context
+# This provides a small but interesting dataset for learning
+
+insert
+
+# People
+$alice isa person, has name "Alice", has age 30;
+$bob isa person, has name "Bob", has age 25;
+$carol isa person, has name "Carol", has age 35;
+$dan isa person, has name "Dan", has age 28;
+
+# Companies
+$acme isa company, has name "Acme Corp", has founded-year 2010;
+$globex isa company, has name "Globex Inc", has founded-year 2015;
+
+# Friendships (note: friendship is symmetric)
+(friend: $alice, friend: $bob) isa friendship;
+(friend: $bob, friend: $carol) isa friendship;
+(friend: $carol, friend: $dan) isa friendship;
+(friend: $alice, friend: $carol) isa friendship;
+
+# Employment
+(employee: $alice, employer: $acme) isa employment, has start-date 2020-01-15;
+(employee: $bob, employer: $acme) isa employment, has start-date 2021-06-01;
+(employee: $carol, employer: $globex) isa employment, has start-date 2019-03-20;
+(employee: $dan, employer: $globex) isa employment, has start-date 2022-09-01;

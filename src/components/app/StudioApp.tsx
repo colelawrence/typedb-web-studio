@@ -12,6 +12,7 @@ import { StudioVMContext, createStudioScope } from "@/vm";
 import { schema } from "@/livestore";
 import { TopBar } from "./TopBar";
 import { Snackbar } from "./Snackbar";
+import { Dialogs } from "./Dialogs";
 import { Queryable } from "@/vm/components";
 
 // Import workers using Vite's worker query syntax
@@ -56,8 +57,8 @@ function StudioLoadingScreen() {
   return (
     <div className="flex items-center justify-center h-screen bg-background">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-muted-foreground text-sm">Loading TypeDB Studio...</p>
+        <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-muted-foreground text-dense-sm">Loading TypeDB Studio...</p>
       </div>
     </div>
   );
@@ -110,6 +111,9 @@ function StudioAppContent() {
 
         {/* Snackbar */}
         <Snackbar vm={vm.snackbar} />
+
+        {/* Modal Dialogs */}
+        <Dialogs vm={vm.dialogs} />
       </div>
     </StudioVMContext.Provider>
   );
@@ -121,7 +125,7 @@ function StudioAppContent() {
 function PageLoadingFallback() {
   return (
     <div className="flex items-center justify-center h-full">
-      <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
+      <div className="size-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
     </div>
   );
 }

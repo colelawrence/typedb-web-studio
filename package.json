@@ -13,7 +13,12 @@
     "check": "biome check",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:tokens": "vitest run --dir src/__tests__/tokens",
+    "test:primitives": "vitest run --dir src/__tests__/primitives",
+    "test:components": "vitest run --dir src/__tests__/components",
+    "test:visual": "vitest run --dir src/__tests__/visual",
+    "test:a11y": "vitest run --dir src/__tests__/a11y"
   },
   "dependencies": {
     "@livestore/adapter-web": "0.4.0-dev.21",

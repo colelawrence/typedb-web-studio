@@ -1,0 +1,19 @@
+# Social Network Context
+# A simple social network for teaching basic TypeQL concepts
+
+name: social-network
+description: |
+  A social network with people, friendships, and employment relationships.
+  Used for teaching basic querying, pattern matching, and relations.
+
+schema_file: schema.tql
+seed_file: seed.tql
+
+# Expected state after loading (for validation)
+expected:
+  types:
+    - person
+    - company
+    - friendship
+    - employment
+  min_entities: 4

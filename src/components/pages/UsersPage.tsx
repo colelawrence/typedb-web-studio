@@ -2,11 +2,21 @@
  * Users page component for TypeDB Studio.
  *
  * User management interface for creating, editing, and deleting users.
+ * Updated with Dense-Core tokens (Phase 6: Task 6.4)
  */
 
 import type { UsersPageVM, UserRowVM } from "@/vm";
 import { Queryable } from "@/vm/components";
 import { Users, Plus, Key, Trash2, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Button } from "../ui/button";
+import {
+  DenseTable,
+  DenseTableHeader,
+  DenseTableBody,
+  DenseTableRow,
+  DenseTableHead,
+  DenseTableCell,
+} from "../ui/table";
 
 export function UsersPage({ vm }: { vm: UsersPageVM }) {
   return (
@@ -26,14 +36,11 @@ function PlaceholderView({ placeholder }: { placeholder: NonNullable<UsersPageVM
   return (
     <div className="flex flex-col items-center justify-center h-full">
       <div className="text-center space-y-4">
-        <Users className="w-12 h-12 mx-auto text-muted-foreground" />
-        <p className="text-lg text-muted-foreground">{placeholder.message}</p>
-        <button
-          onClick={placeholder.action}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90"
-        >
+        <Users className="size-12 mx-auto text-muted-foreground" />
+        <p className="text-dense-lg text-muted-foreground">{placeholder.message}</p>
+        <Button onClick={placeholder.action}>
           {placeholder.actionLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -42,40 +49,31 @@ function PlaceholderView({ placeholder }: { placeholder: NonNullable<UsersPageVM
 function UsersPageContent({ vm }: { vm: UsersPageVM }) {
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header - Task 6.4: py-4 px-6 */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-        <h1 className="text-xl font-semibold text-foreground">User Management</h1>
+        <h1 className="text-dense-xl font-semibold text-foreground">User Management</h1>
         <Queryable query={vm.createUser.disabled$}>
           {(disabled) => (
-            <button
-              onClick={disabled === null ? vm.createUser.click : undefined}
+            <Button
+              onClick={vm.createUser.click}
               disabled={disabled !== null}
-              className={`
-                flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-                bg-primary text-primary-foreground
-                ${disabled !== null
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:bg-primary/90"
-                }
-              `}
-              title={disabled?.displayReason}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="size-4" />
               Create User
-            </button>
+            </Button>
           )}
         </Queryable>
       </div>
 
-      {/* Content */}
+      {/* Content - Task 6.4: mx-6 for table */}
       <div className="flex-1 overflow-auto p-6">
         <Queryable query={vm.status$}>
           {(status) => {
             if (status === "loading") {
               return (
                 <div className="flex flex-col items-center justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="mt-4 text-sm text-muted-foreground">Loading users...</p>
+                  <Loader2 className="size-8 animate-spin text-primary" />
+                  <p className="mt-4 text-dense-sm text-muted-foreground">Loading users...</p>
                 </div>
               );
             }
@@ -83,19 +81,16 @@ function UsersPageContent({ vm }: { vm: UsersPageVM }) {
             if (status === "error") {
               return (
                 <div className="flex flex-col items-center justify-center py-16">
-                  <AlertCircle className="w-12 h-12 text-destructive" />
+                  <AlertCircle className="size-12 text-destructive" />
                   <Queryable query={vm.errorMessage$}>
                     {(message) => (
-                      <p className="mt-4 text-sm text-destructive">{message}</p>
+                      <p className="mt-4 text-dense-sm text-destructive">{message}</p>
                     )}
                   </Queryable>
-                  <button
-                    onClick={vm.retry}
-                    className="mt-4 flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-input hover:bg-accent"
-                  >
-                    <RefreshCw className="w-4 h-4" />
+                  <Button variant="outline" className="mt-4" onClick={vm.retry}>
+                    <RefreshCw className="size-4" />
                     Retry
-                  </button>
+                  </Button>
                 </div>
               );
             }
@@ -105,9 +100,9 @@ function UsersPageContent({ vm }: { vm: UsersPageVM }) {
                 {(isEmpty) =>
                   isEmpty ? (
                     <div className="flex flex-col items-center justify-center py-16">
-                      <Users className="w-12 h-12 text-muted-foreground/50" />
-                      <p className="mt-4 text-sm text-muted-foreground">No users found</p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <Users className="size-12 text-muted-foreground/50" />
+                      <p className="mt-4 text-dense-sm text-muted-foreground">No users found</p>
+                      <p className="text-dense-xs text-muted-foreground mt-1">
                         Click "Create User" to add the first user
                       </p>
                     </div>
@@ -126,68 +121,68 @@ function UsersPageContent({ vm }: { vm: UsersPageVM }) {
 
 function UsersTable({ vm }: { vm: UsersPageVM }) {
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      {/* Table Header */}
-      <div className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3 bg-muted/50 border-b border-border">
-        <div className="text-sm font-medium text-muted-foreground">Username</div>
-        <div className="text-sm font-medium text-muted-foreground w-48 text-right">Actions</div>
-      </div>
-
-      {/* Table Body */}
-      <Queryable query={vm.users$}>
-        {(users) => (
-          <div className="divide-y divide-border">
-            {users.map((user) => (
-              <UserRow key={user.key} vm={user} />
-            ))}
-          </div>
-        )}
-      </Queryable>
-    </div>
+    <DenseTable>
+      <DenseTableHeader>
+        <DenseTableRow>
+          <DenseTableHead>Username</DenseTableHead>
+          <DenseTableHead className="w-48 text-right">Actions</DenseTableHead>
+        </DenseTableRow>
+      </DenseTableHeader>
+      <DenseTableBody>
+        <Queryable query={vm.users$}>
+          {(users) => (
+            <>
+              {users.map((user) => (
+                <UserRow key={user.key} vm={user} />
+              ))}
+            </>
+          )}
+        </Queryable>
+      </DenseTableBody>
+    </DenseTable>
   );
 }
 
 function UserRow({ vm }: { vm: UserRowVM }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3 items-center group hover:bg-muted/30 transition-colors">
+    <DenseTableRow>
       {/* Username */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-accent">
-          <Users className="w-4 h-4 text-accent-foreground" />
+      <DenseTableCell>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center size-8 rounded-full bg-accent">
+            <Users className="size-4 text-accent-foreground" />
+          </div>
+          <span className="text-dense-sm font-medium text-foreground">{vm.usernameDisplay}</span>
         </div>
-        <span className="text-sm font-medium text-foreground">{vm.usernameDisplay}</span>
-      </div>
+      </DenseTableCell>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={vm.editPassword}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-input text-foreground hover:bg-accent transition-colors"
-        >
-          <Key className="w-3.5 h-3.5" />
-          Edit Password
-        </button>
-        <Queryable query={vm.deleteDisabled$}>
-          {(disabled) => (
-            <button
-              onClick={disabled === null ? vm.delete : undefined}
-              disabled={disabled !== null}
-              className={`
-                flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border
-                ${disabled !== null
-                  ? "border-input text-muted-foreground cursor-not-allowed"
-                  : "border-destructive/50 text-destructive hover:bg-destructive/10"
-                }
-                transition-colors
-              `}
-              title={disabled?.displayReason}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete
-            </button>
-          )}
-        </Queryable>
-      </div>
-    </div>
+      <DenseTableCell className="text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            density="compact"
+            onClick={vm.editPassword}
+          >
+            <Key className="size-3.5" />
+            Edit Password
+          </Button>
+          <Queryable query={vm.deleteDisabled$}>
+            {(disabled) => (
+              <Button
+                variant="destructive"
+                density="compact"
+                onClick={disabled === null ? vm.delete : undefined}
+                disabled={disabled !== null}
+                title={disabled?.displayReason}
+              >
+                <Trash2 className="size-3.5" />
+                Delete
+              </Button>
+            )}
+          </Queryable>
+        </div>
+      </DenseTableCell>
+    </DenseTableRow>
   );
 }

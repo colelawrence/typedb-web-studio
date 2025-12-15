@@ -5,6 +5,7 @@
  * 1. Demos - Pre-loaded demo databases for exploration
  * 2. Local Servers - User-created in-memory WASM servers
  * 3. Remote Connection - Connect to TypeDB server via HTTP
+ * Updated with Dense-Core tokens (Phase 6: Task 6.2)
  */
 
 import type { ConnectPageVM, DemoItemVM, LocalServerItemVM } from "@/vm";
@@ -29,15 +30,19 @@ import {
   Network,
   Pencil,
 } from "lucide-react";
+import { Button } from "../ui/button";
+import { Input, PasswordInput as PasswordInputPrimitive } from "../ui/input";
+import { FormField } from "../ui/form-field";
+import { SegmentedControl } from "../ui/tabs";
 
 export function ConnectPage({ vm }: { vm: ConnectPageVM }) {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto p-8 space-y-8">
-        {/* Header */}
+        {/* Header - Task 6.2: text-dense-3xl heading */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-foreground">Welcome to TypeDB Studio</h1>
-          <p className="text-muted-foreground">Choose how you'd like to get started</p>
+          <h1 className="text-dense-3xl font-semibold text-foreground">Welcome to TypeDB Studio</h1>
+          <p className="text-dense-base text-muted-foreground">Choose how you'd like to get started</p>
         </div>
 
         {/* Demos Section */}
@@ -60,8 +65,8 @@ export function ConnectPage({ vm }: { vm: ConnectPageVM }) {
 function DemosSection({ vm }: { vm: ConnectPageVM["demos"] }) {
   return (
     <section className="space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Explore Demos</h2>
-      <p className="text-sm text-muted-foreground">
+      <h2 className="text-dense-lg font-semibold text-foreground">Explore Demos</h2>
+      <p className="text-dense-sm text-muted-foreground">
         Try TypeDB with pre-loaded sample databases
       </p>
 
@@ -69,7 +74,7 @@ function DemosSection({ vm }: { vm: ConnectPageVM["demos"] }) {
         {(isLoading) =>
           isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <Queryable query={vm.items$}>
@@ -97,20 +102,20 @@ function DemoCard({ vm }: { vm: DemoItemVM }) {
         <button
           onClick={vm.load}
           disabled={isLoading}
-          className="flex flex-col items-start gap-3 p-4 rounded-lg border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-colors text-left group"
+          className="flex flex-col items-start gap-3 p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-colors text-left group"
         >
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <div className="flex items-center justify-center size-10 rounded-lg bg-primary/10 text-primary">
             {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="size-5 animate-spin" />
             ) : (
-              <IconComponent className="w-5 h-5" />
+              <IconComponent className="size-5" />
             )}
           </div>
           <div className="space-y-1">
-            <h3 className="font-medium text-foreground group-hover:text-primary transition-colors">
+            <h3 className="text-dense-base font-medium text-foreground group-hover:text-primary transition-colors">
               {vm.name}
             </h3>
-            <p className="text-sm text-muted-foreground line-clamp-2">
+            <p className="text-dense-sm text-muted-foreground line-clamp-2">
               {vm.description}
             </p>
           </div>
@@ -142,35 +147,27 @@ function LocalServersSection({ vm }: { vm: ConnectPageVM["localServers"] }) {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Your Local Servers</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-dense-lg font-semibold text-foreground">Your Local Servers</h2>
+          <p className="text-dense-sm text-muted-foreground">
             In-memory databases that run in your browser
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={vm.importSnapshot}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <Upload className="w-4 h-4" />
+          <Button variant="ghost" density="compact" onClick={vm.importSnapshot}>
+            <Upload className="size-4" />
             Import
-          </button>
+          </Button>
           <Queryable query={vm.createDisabled$}>
             {(disabled) => (
-              <button
+              <Button
                 onClick={vm.createNew}
                 disabled={disabled !== null}
-                className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
-                  bg-primary text-primary-foreground
-                  ${disabled !== null ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/90"}
-                  transition-colors
-                `}
+                density="compact"
                 title={disabled?.displayReason}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="size-4" />
                 New Server
-              </button>
+              </Button>
             )}
           </Queryable>
         </div>
@@ -180,9 +177,9 @@ function LocalServersSection({ vm }: { vm: ConnectPageVM["localServers"] }) {
         {(isEmpty) =>
           isEmpty ? (
             <div className="text-center py-8 border border-dashed border-border rounded-lg">
-              <Server className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">No local servers yet</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <Server className="size-10 mx-auto mb-3 text-muted-foreground/50" />
+              <p className="text-dense-sm text-muted-foreground">No local servers yet</p>
+              <p className="text-dense-xs text-muted-foreground mt-1">
                 Create a new server or try a demo
               </p>
             </div>
@@ -205,14 +202,14 @@ function LocalServersSection({ vm }: { vm: ConnectPageVM["localServers"] }) {
 
 function LocalServerItem({ vm }: { vm: LocalServerItemVM }) {
   return (
-    <div className="flex items-center gap-4 p-4 rounded-lg border border-border bg-card hover:border-primary/50 group">
-      <div className="p-2 rounded-lg bg-accent text-foreground">
-        <Server className="w-5 h-5" />
+    <div className="flex items-center gap-4 h-row px-4 rounded-lg border border-border bg-card hover:border-primary/50 group">
+      <div className="flex items-center justify-center size-8 rounded-lg bg-accent text-foreground">
+        <Server className="size-4" />
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-foreground truncate">{vm.name}</div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="text-dense-sm font-medium text-foreground truncate">{vm.name}</div>
+        <div className="flex items-center gap-3 text-dense-xs text-muted-foreground">
           <Queryable query={vm.databaseCount$}>
             {(count) => (
               <span>{count} database{count !== 1 ? "s" : ""}</span>
@@ -225,7 +222,7 @@ function LocalServerItem({ vm }: { vm: LocalServerItemVM }) {
       <Queryable query={vm.isActive$}>
         {(isActive) =>
           isActive ? (
-            <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/10 text-green-600">
+            <span className="px-2 py-0.5 rounded text-dense-xs font-medium bg-beacon-ok/10 text-beacon-ok">
               Active
             </span>
           ) : null
@@ -235,31 +232,31 @@ function LocalServerItem({ vm }: { vm: LocalServerItemVM }) {
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={vm.connect}
-          className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
           title="Connect"
         >
-          <Play className="w-4 h-4" />
+          <Play className="size-4" />
         </button>
         <button
           onClick={vm.rename}
-          className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
           title="Rename"
         >
-          <Pencil className="w-4 h-4" />
+          <Pencil className="size-4" />
         </button>
         <button
           onClick={vm.exportSnapshot}
-          className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
           title="Export snapshot"
         >
-          <Download className="w-4 h-4" />
+          <Download className="size-4" />
         </button>
         <button
           onClick={vm.delete}
-          className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-destructive transition-colors"
+          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive transition-colors"
           title="Delete"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="size-4" />
         </button>
       </div>
     </div>
@@ -281,11 +278,11 @@ function RemoteConnectionSection({ vm }: { vm: ConnectPageVM["remoteConnection"]
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               {isExpanded ? (
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="size-4" />
               ) : (
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="size-4" />
               )}
-              <span className="text-sm font-medium">Connect to Remote Server</span>
+              <span className="text-dense-sm font-medium">Connect to Remote Server</span>
             </button>
 
             {isExpanded && (
@@ -312,31 +309,17 @@ function RemoteConnectionSection({ vm }: { vm: ConnectPageVM["remoteConnection"]
 function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] }) {
   return (
     <div className="space-y-6">
-      {/* Mode Toggle */}
+      {/* Mode Toggle - Task 6.2: SegmentedControl */}
       <Queryable query={vm.mode$}>
         {(mode) => (
-          <div className="flex rounded-lg border border-input p-1 w-fit">
-            <button
-              onClick={() => vm.setMode("url")}
-              className={`py-2 px-4 rounded text-sm font-medium transition-colors ${
-                mode === "url"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              URL
-            </button>
-            <button
-              onClick={() => vm.setMode("credentials")}
-              className={`py-2 px-4 rounded text-sm font-medium transition-colors ${
-                mode === "credentials"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Credentials
-            </button>
-          </div>
+          <SegmentedControl
+            value={mode}
+            onValueChange={(value) => vm.setMode(value as "url" | "credentials")}
+            segments={[
+              { value: "url", label: "URL" },
+              { value: "credentials", label: "Credentials" },
+            ]}
+          />
         )}
       </Queryable>
 
@@ -345,12 +328,12 @@ function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] 
         {(mode) => (
           <div className="space-y-4">
             {mode === "url" ? (
-              <FormInput vm={vm.urlInput} />
+              <FormInputField vm={vm.urlInput} />
             ) : (
               <>
-                <FormInput vm={vm.addressInput} />
-                <FormInput vm={vm.usernameInput} />
-                <PasswordInput vm={vm.passwordInput} />
+                <FormInputField vm={vm.addressInput} />
+                <FormInputField vm={vm.usernameInput} />
+                <PasswordInputField vm={vm.passwordInput} />
               </>
             )}
 
@@ -358,9 +341,9 @@ function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] 
             <Queryable query={vm.safariHttpWarning$}>
               {(warning) =>
                 warning.visible && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-600">
-                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm">{warning.message}</p>
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-beacon-warn/10 border border-beacon-warn/30 text-beacon-warn">
+                    <AlertTriangle className="size-4 mt-0.5 flex-shrink-0" />
+                    <p className="text-dense-sm">{warning.message}</p>
                   </div>
                 )
               }
@@ -371,34 +354,22 @@ function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] 
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={vm.fillExample}
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
+        <Button variant="ghost" density="compact" onClick={vm.fillExample}>
           Fill example
-        </button>
+        </Button>
         <div className="flex-1" />
         <Queryable query={vm.connectDisabled$}>
           {(disabled) => (
             <Queryable query={vm.isConnecting$}>
               {(isConnecting) => (
-                <button
+                <Button
                   onClick={vm.connect}
                   disabled={disabled !== null || isConnecting}
-                  className={`
-                    flex items-center gap-2 px-6 py-2 rounded-lg font-medium text-sm
-                    bg-primary text-primary-foreground
-                    transition-colors
-                    ${disabled !== null || isConnecting
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-primary/90"
-                    }
-                  `}
+                  loading={isConnecting}
                   title={disabled?.displayReason}
                 >
-                  {isConnecting && <Loader2 className="w-4 h-4 animate-spin" />}
                   {isConnecting ? "Connecting..." : "Connect"}
-                </button>
+                </Button>
               )}
             </Queryable>
           )}
@@ -409,81 +380,53 @@ function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] 
 }
 
 // =============================================================================
-// Reusable Form Components
+// Reusable Form Components - Task 6.2: Using FormField and Input primitives
 // =============================================================================
 
-function FormInput({ vm }: { vm: import("@/vm").FormInputVM }) {
+function FormInputField({ vm }: { vm: import("@/vm").FormInputVM }) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-sm font-medium text-foreground">
-        {vm.label}
-      </label>
-      <Queryable query={vm.value$}>
-        {(value) => (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => vm.update(e.target.value)}
-            placeholder={vm.placeholder}
-            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        )}
-      </Queryable>
-      <Queryable query={vm.error$}>
-        {(error) =>
-          error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )
-        }
-      </Queryable>
-    </div>
+    <Queryable query={vm.error$}>
+      {(error) => (
+        <FormField label={vm.label} error={error ?? undefined}>
+          <Queryable query={vm.value$}>
+            {(value) => (
+              <Input
+                type="text"
+                value={value}
+                onChange={(e) => vm.update(e.target.value)}
+                placeholder={vm.placeholder}
+              />
+            )}
+          </Queryable>
+        </FormField>
+      )}
+    </Queryable>
   );
 }
 
-function PasswordInput({ vm }: { vm: import("@/vm").PasswordInputVM }) {
+function PasswordInputField({ vm }: { vm: import("@/vm").PasswordInputVM }) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-sm font-medium text-foreground">
-        {vm.label}
-      </label>
-      <div className="relative">
-        <Queryable query={vm.value$}>
-          {(value) => (
-            <Queryable query={vm.showPassword$}>
-              {(showPassword) => (
-                <>
-                  <input
-                    type={showPassword ? "text" : "password"}
+    <Queryable query={vm.error$}>
+      {(error) => (
+        <FormField label={vm.label} error={error ?? undefined}>
+          <Queryable query={vm.value$}>
+            {(value) => (
+              <Queryable query={vm.showPassword$}>
+                {(showPassword) => (
+                  <PasswordInputPrimitive
                     value={value}
                     onChange={(e) => vm.update(e.target.value)}
                     placeholder={vm.placeholder}
-                    className="w-full px-3 py-2 pr-10 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    showPassword={showPassword}
+                    onToggleVisibility={vm.toggleVisibility}
                   />
-                  <button
-                    type="button"
-                    onClick={vm.toggleVisibility}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </>
-              )}
-            </Queryable>
-          )}
-        </Queryable>
-      </div>
-      <Queryable query={vm.error$}>
-        {(error) =>
-          error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )
-        }
-      </Queryable>
-    </div>
+                )}
+              </Queryable>
+            )}
+          </Queryable>
+        </FormField>
+      )}
+    </Queryable>
   );
 }
 
@@ -494,14 +437,14 @@ function PasswordInput({ vm }: { vm: import("@/vm").PasswordInputVM }) {
 function SavedConnectionsList({ vm }: { vm: ConnectPageVM["remoteConnection"]["savedConnections"] }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-foreground">Saved Connections</h3>
+      <h3 className="text-dense-sm font-semibold text-foreground">Saved Connections</h3>
 
       <Queryable query={vm.isEmpty$}>
         {(isEmpty) =>
           isEmpty ? (
             <div className="text-center py-6">
-              <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-              <p className="text-xs text-muted-foreground">No saved connections</p>
+              <FileText className="size-8 mx-auto mb-2 text-muted-foreground/50" />
+              <p className="text-dense-xs text-muted-foreground">No saved connections</p>
             </div>
           ) : (
             <Queryable query={vm.items$}>
@@ -527,10 +470,10 @@ function SavedConnectionItem({ vm }: { vm: import("@/vm").SavedConnectionItemVM 
         onClick={vm.select}
         className="flex-1 text-left min-w-0"
       >
-        <div className="font-medium text-sm text-foreground truncate">
+        <div className="text-dense-sm font-medium text-foreground truncate">
           {vm.nameDisplay}
         </div>
-        <div className="text-xs text-muted-foreground truncate">
+        <div className="text-dense-xs text-muted-foreground truncate">
           {vm.addressDisplay}
         </div>
       </button>
@@ -541,12 +484,12 @@ function SavedConnectionItem({ vm }: { vm: import("@/vm").SavedConnectionItemVM 
             onClick={vm.toggleStartup}
             className={`p-1 rounded transition-colors ${
               isStartup
-                ? "text-yellow-500"
+                ? "text-beacon-warn"
                 : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground"
             }`}
             title={isStartup ? "Default connection" : "Set as default"}
           >
-            <Star className={`w-3 h-3 ${isStartup ? "fill-current" : ""}`} />
+            <Star className={`size-3 ${isStartup ? "fill-current" : ""}`} />
           </button>
         )}
       </Queryable>
@@ -556,7 +499,7 @@ function SavedConnectionItem({ vm }: { vm: import("@/vm").SavedConnectionItemVM 
         className="p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-colors"
         title="Remove"
       >
-        <Trash2 className="w-3 h-3" />
+        <Trash2 className="size-3" />
       </button>
     </div>
   );

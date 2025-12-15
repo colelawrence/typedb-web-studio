@@ -52,6 +52,19 @@ code {
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.871 0.006 286.286);
+
+  /* TypeQL Syntax Highlighting Colors - Light Mode (Task 1.7) */
+  --syntax-keyword-read: oklch(0.50 0.18 220);       /* cyan - match, fetch, get */
+  --syntax-keyword-write: oklch(0.55 0.18 60);       /* amber - insert, delete, update */
+  --syntax-keyword-schema: oklch(0.50 0.18 290);     /* violet - define, undefine, redefine */
+  --syntax-keyword-struct: oklch(0.45 0.15 280);     /* purple - sub, owns, plays, relates */
+  --syntax-keyword-modifier: oklch(0.40 0.10 250);   /* blue-gray - abstract, @key, @unique */
+  --syntax-type: oklch(0.55 0.15 180);               /* teal - entity, relation, attribute names */
+  --syntax-variable: oklch(0.60 0.12 60);            /* orange - $x, $person, $_ */
+  --syntax-string: oklch(0.50 0.15 140);             /* green - "strings" */
+  --syntax-number: oklch(0.55 0.18 40);              /* orange-red - 123, 45.67 */
+  --syntax-comment: oklch(0.55 0.03 250);            /* gray - # comments */
+  --syntax-punctuation: var(--muted-foreground);     /* muted - ;, :, {, } */
 }
 
 .dark {
@@ -87,9 +100,56 @@ code {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.274 0.006 286.033);
   --sidebar-ring: oklch(0.442 0.017 285.786);
+
+  /* TypeQL Syntax Highlighting Colors - Dark Mode (Task 1.7) */
+  --syntax-keyword-read: oklch(0.75 0.18 220);
+  --syntax-keyword-write: oklch(0.80 0.18 60);
+  --syntax-keyword-schema: oklch(0.75 0.18 290);
+  --syntax-keyword-struct: oklch(0.70 0.15 280);
+  --syntax-keyword-modifier: oklch(0.65 0.10 250);
+  --syntax-type: oklch(0.80 0.15 180);
+  --syntax-variable: oklch(0.85 0.12 60);
+  --syntax-string: oklch(0.75 0.15 140);
+  --syntax-number: oklch(0.80 0.18 40);
+  --syntax-comment: oklch(0.50 0.03 250);
+  --syntax-punctuation: var(--muted-foreground);
 }
 
 @theme inline {
+  /* =====================================================================
+   * Dense-Core Design System Tokens
+   * ===================================================================== */
+
+  /* Dense-Core Spacing Scale (compact, 8px base) - Task 1.1 */
+  --spacing-0: 0;
+  --spacing-0-5: 0.125rem;  /* 2px */
+  --spacing-1: 0.25rem;     /* 4px */
+  --spacing-1-5: 0.375rem;  /* 6px */
+  --spacing-2: 0.5rem;      /* 8px */
+  --spacing-3: 0.75rem;     /* 12px */
+  --spacing-4: 1rem;        /* 16px */
+  --spacing-6: 1.5rem;      /* 24px */
+  --spacing-8: 2rem;        /* 32px */
+
+  /* Dense-Core Typography (compact sizes) - Task 1.2 */
+  --font-size-dense-xs: 0.6875rem;   /* 11px */
+  --font-size-dense-sm: 0.8125rem;   /* 13px */
+  --font-size-dense-base: 0.9375rem; /* 15px */
+  --font-size-dense-lg: 1.0625rem;   /* 17px */
+  --font-size-dense-xl: 1.25rem;     /* 20px */
+  --font-size-dense-2xl: 1.5rem;     /* 24px */
+  --font-size-dense-3xl: 1.875rem;   /* 30px */
+
+  /* Dense-Core Interactive Heights - Task 1.3 */
+  --height-compact: 1.75rem;  /* 28px - inline actions, small buttons */
+  --height-default: 2.25rem;  /* 36px - form inputs, standard buttons */
+  --height-row: 2.5rem;       /* 40px - table rows, list items */
+  --height-header: 3rem;      /* 48px - section headers, top bar */
+
+  /* =====================================================================
+   * Existing Color Tokens
+   * ===================================================================== */
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -126,6 +186,27 @@ code {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* =====================================================================
+   * Dense-Core Semantic Color Tokens
+   * ===================================================================== */
+
+  /* Connection Beacon Colors (semantic) - Task 1.4 */
+  --color-beacon-error: var(--destructive);
+  --color-beacon-warn: var(--chart-4);
+  --color-beacon-ok: var(--chart-2);
+
+  /* Schema Graph Node Colors (OKLCH for wide gamut) - Task 1.5 */
+  --color-graph-entity: oklch(0.65 0.15 250);     /* blue */
+  --color-graph-relation: oklch(0.65 0.15 320);   /* magenta */
+  --color-graph-attribute: oklch(0.65 0.15 140);  /* green */
+
+  /* TypeQL Operation Colors (semantic by operation type) - Task 1.6 */
+  --color-op-read: oklch(0.65 0.18 220);          /* cyan - match, fetch */
+  --color-op-write: oklch(0.70 0.18 60);          /* amber - insert, delete, update */
+  --color-op-schema: oklch(0.65 0.18 290);        /* violet - define, undefine, redefine */
+  --color-op-commit: oklch(0.65 0.18 145);        /* green - commit transaction */
+  --color-op-rollback: oklch(0.65 0.20 25);       /* red - rollback transaction */
 }
 
 @layer base {
@@ -135,4 +216,122 @@ code {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* =====================================================================
+ * Dense-Core Custom Utilities
+ * ===================================================================== */
+
+/* Dense Typography Utilities (Task 1.2) */
+@utility text-dense-xs {
+  font-size: var(--font-size-dense-xs);
+  line-height: 1rem; /* 16px */
+}
+
+@utility text-dense-sm {
+  font-size: var(--font-size-dense-sm);
+  line-height: 1.25rem; /* 20px */
+}
+
+@utility text-dense-base {
+  font-size: var(--font-size-dense-base);
+  line-height: 1.5rem; /* 24px */
+}
+
+@utility text-dense-lg {
+  font-size: var(--font-size-dense-lg);
+  line-height: 1.625rem; /* 26px */
+}
+
+@utility text-dense-xl {
+  font-size: var(--font-size-dense-xl);
+  line-height: 1.75rem; /* 28px */
+}
+
+@utility text-dense-2xl {
+  font-size: var(--font-size-dense-2xl);
+  line-height: 2rem; /* 32px */
+}
+
+@utility text-dense-3xl {
+  font-size: var(--font-size-dense-3xl);
+  line-height: 2.375rem; /* 38px */
+}
+
+/* Dense Height Utilities (Task 1.3) */
+@utility h-compact {
+  height: var(--height-compact);
+}
+
+@utility h-default {
+  height: var(--height-default);
+}
+
+@utility h-row {
+  height: var(--height-row);
+}
+
+@utility h-header {
+  height: var(--height-header);
+}
+
+@utility min-h-compact {
+  min-height: var(--height-compact);
+}
+
+@utility min-h-default {
+  min-height: var(--height-default);
+}
+
+@utility min-h-row {
+  min-height: var(--height-row);
+}
+
+@utility min-h-header {
+  min-height: var(--height-header);
+}
+
+/* Syntax Highlighting Text Utilities (Task 1.7) */
+@utility text-syntax-keyword-read {
+  color: var(--syntax-keyword-read);
+}
+
+@utility text-syntax-keyword-write {
+  color: var(--syntax-keyword-write);
+}
+
+@utility text-syntax-keyword-schema {
+  color: var(--syntax-keyword-schema);
+}
+
+@utility text-syntax-keyword-struct {
+  color: var(--syntax-keyword-struct);
+}
+
+@utility text-syntax-keyword-modifier {
+  color: var(--syntax-keyword-modifier);
+}
+
+@utility text-syntax-type {
+  color: var(--syntax-type);
+}
+
+@utility text-syntax-variable {
+  color: var(--syntax-variable);
+}
+
+@utility text-syntax-string {
+  color: var(--syntax-string);
+}
+
+@utility text-syntax-number {
+  color: var(--syntax-number);
+}
+
+@utility text-syntax-comment {
+  color: var(--syntax-comment);
+}
+
+@utility text-syntax-punctuation {
+  color: var(--syntax-punctuation);
 }

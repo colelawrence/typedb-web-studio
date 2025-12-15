@@ -1,0 +1,97 @@
+# Curriculum Structure
+# This file defines the ordering and structure of the TypeQL curriculum.
+# See INTERACTIVE_LEARNING_ARCHITECTURE.md for full design documentation.
+
+name: TypeQL Interactive Learning
+version: 0.1.0
+
+# Contexts available for lessons
+contexts:
+  - name: social-network
+    description: A simple social network with people, friendships, and companies
+    path: _contexts/social-network
+
+  - name: e-commerce
+    description: An e-commerce store with products, orders, and customers
+    path: _contexts/e-commerce
+
+# Curriculum sections in order
+sections:
+  - id: foundations
+    title: Foundations
+    path: 01-foundations
+    lessons:
+      - id: what-is-typedb
+        title: What is TypeDB?
+        file: 01-what-is-typedb.md
+        context: null  # No DB needed for intro
+
+      - id: types-intro
+        title: Types and Entities
+        file: 02-types-and-entities.md
+        context: social-network
+
+      - id: first-queries
+        title: Your First Queries
+        file: 03-first-queries.md
+        context: social-network
+        requires: [types-intro]
+
+  - id: querying
+    title: Querying Data
+    path: 02-querying
+    lessons:
+      - id: match-basics
+        title: Basic Pattern Matching
+        file: 01-match-basics.md
+        context: social-network
+        requires: [first-queries]
+
+      - id: variables
+        title: Variables and Constraints
+        file: 02-variables.md
+        context: social-network
+        requires: [match-basics]
+
+      - id: relations
+        title: Querying Relations
+        file: 03-relations.md
+        context: social-network
+        requires: [variables]
+
+  - id: writing
+    title: Writing Data
+    path: 03-writing
+    lessons:
+      - id: insert-basics
+        title: Inserting Data
+        file: 01-insert-basics.md
+        context: social-network
+        requires: [match-basics]
+
+      - id: delete-update
+        title: Deleting and Updating
+        file: 02-delete-update.md
+        context: social-network
+        requires: [insert-basics]
+
+  - id: schema
+    title: Schema Design
+    path: 04-schema
+    lessons:
+      - id: define-types
+        title: Defining Types
+        file: 01-define-types.md
+        context: null  # Fresh DB for schema lessons
+
+      - id: relations-deep
+        title: Relation Design
+        file: 02-relations-deep.md
+        context: null
+        requires: [define-types]
+
+      - id: rules
+        title: Rules and Inference
+        file: 03-rules.md
+        context: social-network
+        requires: [relations-deep]
