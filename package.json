@@ -28,10 +28,10 @@
     "@tanstack/react-devtools": "^0.7.0",
     "@tanstack/react-query": "^5.66.5",
     "@tanstack/react-query-devtools": "^5.84.2",
-    "@tanstack/react-router": "^1.136.18",
-    "@tanstack/react-router-devtools": "^1.136.18",
-    "@tanstack/react-start": "^1.136.18",
-    "@tanstack/router-plugin": "^1.136.18",
+    "@tanstack/react-router": "1.136.18",
+    "@tanstack/react-router-devtools": "1.136.18",
+    "@tanstack/react-start": "1.136.18",
+    "@tanstack/router-plugin": "1.136.18",
     "@typedb/embedded": "file:vendor/typedb-embedded-0.1.0.tgz",
     "lucide-react": "^0.544.0",
     "react": "^19.2.0",
@@ -51,9 +51,11 @@
     "@vitest/browser": "^3.2.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "effect": "^3.19.12",
+    "gray-matter": "^4.0.3",
     "playwright": "^1.50.0",
     "typescript": "^5.7.2",
     "vite": "^7.1.7",
-    "vitest": "^3.2.3"
+    "vitest": "^3.2.3",
+    "yaml": "^2.8.2"
   }
 }

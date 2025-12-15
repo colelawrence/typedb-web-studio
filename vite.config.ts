@@ -5,6 +5,7 @@ import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import { curriculumPlugin } from './src/curriculum/vite-plugin'
 
 function normalizeBaseUrl(value?: string) {
   if (!value || value === '/') {
@@ -24,6 +25,9 @@ function normalizeBaseUrl(value?: string) {
   return nextValue
 }
 
+// Base URL for deployment (e.g., "/repo-name/" for GitHub Pages)
+// IMPORTANT: This value is also used for router.basepath below - they must match
+// for client-side routing to work correctly in subdirectory deployments
 const base = normalizeBaseUrl(process.env.BASE_URL)
 
 const config = defineConfig({
@@ -37,6 +41,8 @@ const config = defineConfig({
       projects: ['./tsconfig.json'],
     }),
     tailwindcss(),
+    // Parse curriculum markdown files at build time
+    curriculumPlugin({ curriculumDir: 'docs/curriculum' }),
     tanstackStart({
       // SPA mode: LiveStore requires browser APIs (OPFS, Web Workers)
       // and we're deploying as a static single-page app

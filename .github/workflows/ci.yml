@@ -1,0 +1,75 @@
+# CI checks for pull requests and pushes
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm check
+
+      - name: Build (with GitHub Pages base URL)
+        run: pnpm build
+        env:
+          # Test with the same BASE_URL as production deploy
+          BASE_URL: "/typedb-web-studio/"
+
+      - name: Verify build output
+        run: |
+          # Ensure critical files exist
+          test -f dist/client/_shell.html || (echo "ERROR: _shell.html not generated" && exit 1)
+          test -f dist/client/assets/*.css || (echo "ERROR: CSS not generated" && exit 1)
+          test -f dist/client/assets/*.js || (echo "ERROR: JS not generated" && exit 1)
+          echo "✓ Build output verified"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install chromium
+
+      - name: Run tests
+        run: pnpm test
