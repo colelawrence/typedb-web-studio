@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import { nitro } from 'nitro/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
@@ -54,8 +53,6 @@ const config = defineConfig({
         basepath: '/',
       },
     }),
-    // Nitro provides static deployment support
-    nitro({ preset: 'static' }),
     viteReact({
       babel: {
         plugins: ['babel-plugin-react-compiler'],
