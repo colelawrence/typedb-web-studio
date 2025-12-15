@@ -25,7 +25,6 @@ function normalizeBaseUrl(value?: string) {
 }
 
 const base = normalizeBaseUrl(process.env.BASE_URL)
-const routerBasePath = base === '/' ? undefined : base.replace(/\/$/, '')
 
 const config = defineConfig({
   // Support GitHub Pages subdirectory deployment
@@ -43,9 +42,6 @@ const config = defineConfig({
       // and we're deploying as a static single-page app
       spa: {
         enabled: true,
-      },
-      router: {
-        basepath: routerBasePath,
       },
     }),
     viteReact({
