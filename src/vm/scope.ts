@@ -16,6 +16,7 @@ import {
   Box,
   Diamond,
   Tag,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +68,10 @@ import type { HistoryEntryVM } from "./pages/query/history/query-history-bar.vm"
 import type { QuerySidebarUrlImportsSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
 import type { SchemaGraphStatus, SchemaGraphNodeVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageStatus, UsersPagePlaceholder, UserRowVM } from "./pages/users/users-page.vm";
+import type { LearnPageVM } from "./pages/learn/learn-page.vm";
+import { createLearnSidebarScope } from "./learn/sidebar-scope";
+import { createDocumentViewerScope } from "./learn/document-viewer-scope";
+import { createNavigationScope } from "./learn/navigation-scope";
 
 // ============================================================================
 // Helpers
@@ -342,6 +347,7 @@ export function createStudioScope(
   const navItems: NavItem[] = [
     { key: "home", label: "Home", icon: Home, path: "/", requiresConnection: false },
     { key: "connect", label: "Connect", icon: Plug, path: "/connect", requiresConnection: false },
+    { key: "learn", label: "Learn", icon: BookOpen, path: "/learn", requiresConnection: false },
     { key: "query", label: "Query", icon: Code, path: "/query", requiresConnection: true },
     { key: "schema", label: "Schema", icon: GitBranch, path: "/schema", requiresConnection: true },
     { key: "users", label: "Users", icon: Users, path: "/users", requiresConnection: true },
@@ -1013,6 +1019,12 @@ export function createStudioScope(
   const usersPageVM: UsersPageVM = createUsersPageVM(store, showSnackbar, connectionStatus$);
 
   // ---------------------------------------------------------------------------
+  // Learn Page
+  // ---------------------------------------------------------------------------
+
+  const learnPageVM: LearnPageVM = createLearnPageVM(store, navigate, showSnackbar);
+
+  // ---------------------------------------------------------------------------
   // Dialogs
   // ---------------------------------------------------------------------------
 
@@ -1035,6 +1047,8 @@ export function createStudioScope(
           return { page: "home", vm: homePageVM };
         case "connect":
           return { page: "connect", vm: connectPageVM };
+        case "learn":
+          return { page: "learn", vm: learnPageVM };
         case "query":
           return { page: "query", vm: queryPageVM };
         case "schema":
@@ -1700,5 +1714,164 @@ function createUsersPageVM(
       },
       { label: "users.placeholder" }
     ),
+  };
+}
+
+// ============================================================================
+// Learn Page Factory
+// ============================================================================
+
+function createLearnPageVM(
+  store: Store<typeof schema>,
+  navigate: (path: string) => void,
+  showSnackbar: (type: "success" | "warning" | "error", message: string) => void
+): LearnPageVM {
+  // Import curriculum content dynamically to avoid issues when virtual module isn't ready
+  // In the actual app, this comes from virtual:curriculum-content at build time
+  const getSections = (): Record<string, import("../curriculum/types").ParsedSection> => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const content = require("../curriculum/content");
+      const sectionMap: Record<string, import("../curriculum/types").ParsedSection> = {};
+      for (const section of content.sections || []) {
+        sectionMap[section.id] = section;
+      }
+      return sectionMap;
+    } catch {
+      // Curriculum content not available - return empty
+      return {};
+    }
+  };
+
+  const getCurriculumMeta = (): import("../curriculum/types").CurriculumMeta => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const content = require("../curriculum/content");
+      return {
+        name: "TypeQL Learning",
+        version: "1.0.0",
+        sections: (content.sections || []).map((s: import("../curriculum/types").ParsedSection) => ({
+          id: s.id,
+          title: s.title,
+          path: s.sourceFile?.split("/").slice(0, -1).join("/") || "",
+          lessons: [{
+            id: s.id,
+            title: s.title,
+            file: s.sourceFile || "",
+            context: s.context,
+          }],
+        })),
+        contexts: content.contexts || [],
+      };
+    } catch {
+      return { name: "TypeQL Learning", version: "1.0.0", sections: [], contexts: [] };
+    }
+  };
+
+  // Get profile ID from localStorage or generate one
+  const getProfileId = (): string => {
+    const PROFILE_KEY = "typedb_studio_profile";
+    let profileId = localStorage.getItem(PROFILE_KEY);
+    if (!profileId) {
+      profileId = `profile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem(PROFILE_KEY, profileId);
+    }
+    return profileId;
+  };
+
+  const profileId = getProfileId();
+  const sections = getSections();
+  const curriculumMeta = getCurriculumMeta();
+
+  // Track current section for navigation
+  let currentSectionId: string | null = null;
+
+  // Create REPL bridge
+  const replBridge: import("../learn/repl-bridge").ReplBridge = {
+    copyToRepl(query: string) {
+      store.commit(events.uiStateSet({
+        currentQueryText: query,
+        hasUnsavedChanges: true,
+        editorMode: "code",
+        currentPage: "query",
+      }));
+      navigate("/query");
+      showSnackbar("success", "Query copied to editor");
+    },
+
+    async runQuery(query: string) {
+      store.commit(events.uiStateSet({
+        currentQueryText: query,
+        hasUnsavedChanges: true,
+        editorMode: "code",
+        currentPage: "query",
+      }));
+      navigate("/query");
+
+      // For now, just copy - actual execution would need query engine access
+      showSnackbar("success", "Query copied to editor - press Run to execute");
+      return {
+        success: true,
+        resultCount: 0,
+        executionTimeMs: 0,
+      };
+    },
+
+    getCurrentQuery() {
+      return store.query(uiState$).currentQueryText;
+    },
+
+    isReady() {
+      const ui = store.query(uiState$);
+      return ui.connectionStatus === "connected" && ui.activeDatabase !== null;
+    },
+  };
+
+  // Create navigation scope
+  const navigationVM = createNavigationScope({
+    navigate,
+    onSectionOpened: (sectionId, _headingId) => {
+      currentSectionId = sectionId;
+      // Document viewer will handle the actual opening
+    },
+    onReferenceOpened: (_refId, _headingId) => {
+      // Reference opening - can be handled similarly
+    },
+    useBrowserHistory: false, // Let the app handle history
+    initialTarget: null,
+  });
+
+  // Create document viewer scope
+  const viewerVM = createDocumentViewerScope({
+    store,
+    events,
+    profileId,
+    sections,
+    replBridge,
+    onSectionOpened: (sectionId) => {
+      currentSectionId = sectionId;
+    },
+  });
+
+  // Create sidebar scope
+  const sidebarVM = createLearnSidebarScope({
+    store,
+    profileId,
+    curriculumMeta,
+    sections,
+    navigate: (sectionId, headingId) => {
+      viewerVM.openSection(sectionId);
+      if (headingId) {
+        // Navigate to heading within section
+        navigationVM.navigateToSection(sectionId, headingId);
+      }
+    },
+    getActiveSectionId: () => currentSectionId,
+  });
+
+  return {
+    sidebar: sidebarVM,
+    viewer: viewerVM,
+    navigation: navigationVM,
   };
 }

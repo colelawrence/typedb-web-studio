@@ -8,7 +8,6 @@
  */
 
 import { computed } from "@livestore/livestore";
-import type { Queryable } from "@livestore/livestore";
 
 import {
   type LearnNavigationVM,
@@ -286,7 +285,7 @@ export function createNavigationScope(
   // ---------------------------------------------------------------------------
 
   if (useBrowserHistory && typeof window !== "undefined") {
-    window.addEventListener("popstate", (event) => {
+    window.addEventListener("popstate", (_event) => {
       const path = window.location.pathname + window.location.hash;
       const target = parseNavigationPath(path);
 

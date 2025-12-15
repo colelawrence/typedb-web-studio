@@ -216,7 +216,7 @@ export const tables = {
     name: "uiState",
     schema: Schema.Struct({
       // Current page
-      currentPage: Schema.Literal("home", "connect", "query", "schema", "users"),
+      currentPage: Schema.Literal("home", "connect", "learn", "query", "schema", "users"),
 
       // Connection form state
       connectionFormMode: Schema.Literal("url", "credentials"),

@@ -17,6 +17,7 @@ import type { ConnectPageVM } from "./pages/connect/connect-page.vm";
 import type { QueryPageVM } from "./pages/query/query-page.vm";
 import type { SchemaPageVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageVM } from "./pages/users/users-page.vm";
+import type { LearnPageVM } from "./pages/learn/learn-page.vm";
 import type { DialogsVM } from "./dialogs/dialogs.vm";
 
 /**
@@ -88,4 +89,5 @@ export type CurrentPageState =
   | { page: "connect"; vm: ConnectPageVM }
   | { page: "query"; vm: QueryPageVM }
   | { page: "schema"; vm: SchemaPageVM }
-  | { page: "users"; vm: UsersPageVM };
+  | { page: "users"; vm: UsersPageVM }
+  | { page: "learn"; vm: LearnPageVM };

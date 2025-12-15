@@ -22,6 +22,7 @@ import LiveStoreSharedWorker from "@livestore/adapter-web/shared-worker?sharedwo
 // Lazy load pages
 const HomePage = lazy(() => import("../pages/HomePage").then(m => ({ default: m.HomePage })));
 const ConnectPage = lazy(() => import("../pages/ConnectPage").then(m => ({ default: m.ConnectPage })));
+const LearnPage = lazy(() => import("../pages/LearnPage").then(m => ({ default: m.LearnPage })));
 const QueryPage = lazy(() => import("../pages/QueryPage").then(m => ({ default: m.QueryPage })));
 const SchemaPage = lazy(() => import("../pages/SchemaPage").then(m => ({ default: m.SchemaPage })));
 const UsersPage = lazy(() => import("../pages/UsersPage").then(m => ({ default: m.UsersPage })));
@@ -97,6 +98,8 @@ function StudioAppContent() {
                     return <HomePage vm={pageState.vm} />;
                   case "connect":
                     return <ConnectPage vm={pageState.vm} />;
+                  case "learn":
+                    return <LearnPage vm={pageState.vm} />;
                   case "query":
                     return <QueryPage vm={pageState.vm} />;
                   case "schema":
