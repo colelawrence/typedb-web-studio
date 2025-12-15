@@ -43,14 +43,9 @@ const config = defineConfig({
       spa: {
         enabled: true,
       },
-      // Disable prerendering - we'll create the shell HTML manually in CI
-      // The Vite preview server fails to start in GitHub Actions
-      prerender: {
-        enabled: false,
-      },
       router: {
-        // Keep TanStack router rooted at "/"
-        // (GitHub Pages base path handling is done by Vite's base config)
+        // Keep TanStack prerendering rooted at "/"
+        // (GitHub Pages base path handling is done by Vite + runtime router)
         basepath: '/',
       },
     }),
@@ -88,10 +83,8 @@ const config = defineConfig({
     },
   },
   preview: {
-    // Binding to all interfaces for CI compatibility
-    host: '0.0.0.0',
-    strictPort: false,
-    open: false,
+    // Binding to IPv4 avoids sandbox issues with ::1 in CI/local sandboxes
+    host: '127.0.0.1',
   },
 })
 

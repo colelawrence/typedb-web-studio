@@ -45,42 +45,13 @@ jobs:
           # Set to "/" if using custom domain or root
           BASE_URL: "/${{ github.event.repository.name }}/"
 
-      - name: Generate SPA Shell HTML
-        run: |
-          # Since TanStack Start's prerender server doesn't work in GitHub Actions,
-          # we generate a minimal SPA shell HTML that loads the built assets.
-
-          BASE_URL="/${{ github.event.repository.name }}/"
-
-          # Find the main entry files from the build output
-          MAIN_JS=$(ls dist/client/assets/main-*.js 2>/dev/null | head -1 | xargs basename)
-          STYLES_CSS=$(ls dist/client/assets/styles-*.css 2>/dev/null | head -1 | xargs basename)
-
-          echo "Found main JS: $MAIN_JS"
-          echo "Found styles CSS: $STYLES_CSS"
-
-          # Create the shell HTML
-          cat > dist/client/index.html << HTMLEOF
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>TypeDB Web Studio</title>
-            <link rel="stylesheet" href="${BASE_URL}assets/${STYLES_CSS}" />
-          </head>
-          <body>
-            <div id="root"></div>
-            <script type="module" src="${BASE_URL}assets/${MAIN_JS}"></script>
-          </body>
-          </html>
-          HTMLEOF
-
-          echo "Generated index.html:"
-          cat dist/client/index.html
-
       - name: Prepare for GitHub Pages
         run: |
+          # Rename _shell.html to index.html (GitHub Pages expects index.html)
+          if [ -f dist/client/_shell.html ]; then
+            mv dist/client/_shell.html dist/client/index.html
+          fi
+
           # Download coi-serviceworker for SharedArrayBuffer support (required for WASM)
           curl -sL https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js \
             -o dist/client/coi-serviceworker.js
