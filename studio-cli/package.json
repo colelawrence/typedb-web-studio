@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "TypeDB Web Studio - Browser-based IDE for TypeDB with embedded WASM database",
   "license": "MPL-2.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/typedb/typedb"
@@ -18,9 +19,21 @@
   "bin": {
     "typedb-studio": "./bin/cli.js"
   },
+  "exports": {
+    ".": {
+      "types": "./mod.ts",
+      "import": "./mod.ts"
+    },
+    "./server": {
+      "types": "./server.ts",
+      "import": "./server.ts"
+    }
+  },
   "files": [
     "bin/",
     "dist/",
+    "mod.ts",
+    "server.ts",
     "README.md"
   ],
   "engines": {
