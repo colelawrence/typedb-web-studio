@@ -25,7 +25,9 @@ import type {
   DocumentExampleVM,
   ExampleExecutionState,
   ExampleRunResultVM,
+  ContextSwitchPromptVM,
 } from "./document-viewer.vm";
+import type { ContextManager } from "../../curriculum/context-manager";
 
 // ============================================================================
 // Helpers
@@ -51,6 +53,8 @@ export interface DocumentViewerScopeOptions {
   sections: Record<string, ParsedSection>;
   /** REPL bridge for document-to-REPL communication */
   replBridge: ReplBridge;
+  /** Context manager for loading/switching lesson contexts */
+  contextManager?: ContextManager;
   /** Callback when section is opened (for navigation) */
   onSectionOpened?: (sectionId: string) => void;
 }
@@ -71,6 +75,7 @@ export function createDocumentViewerScope(
     profileId,
     sections,
     replBridge,
+    contextManager,
     onSectionOpened,
   } = options;
 
@@ -352,6 +357,60 @@ export function createDocumentViewerScope(
   };
 
   // ---------------------------------------------------------------------------
+  // Context Switch Prompt
+  // ---------------------------------------------------------------------------
+
+  let contextPromptDismissed = false;
+
+  const contextPromptIsVisible$ = computed(
+    () => {
+      // Not visible if dismissed for this section
+      if (contextPromptDismissed) return false;
+
+      // Not visible if no context manager
+      if (!contextManager) return false;
+
+      // Not visible if no section loaded
+      if (!currentSectionVM) return false;
+
+      // Not visible if section doesn't require a context
+      if (!currentSectionVM.context) return false;
+
+      // Visible if context doesn't match
+      return !contextManager.isContextLoaded(currentSectionVM.context);
+    },
+    { label: "contextSwitchPrompt.isVisible" }
+  );
+
+  const currentContext$ = computed(
+    () => contextManager?.currentContext ?? null,
+    { label: "contextSwitchPrompt.currentContext" }
+  );
+
+  const requiredContext$ = computed(
+    () => currentSectionVM?.context ?? null,
+    { label: "contextSwitchPrompt.requiredContext" }
+  );
+
+  const switchContext = async () => {
+    if (!contextManager || !currentSectionVM?.context) return;
+    await contextManager.loadContext(currentSectionVM.context);
+    contextPromptDismissed = false; // Reset dismissal after successful switch
+  };
+
+  const dismissContextPrompt = () => {
+    contextPromptDismissed = true;
+  };
+
+  const contextSwitchPrompt: ContextSwitchPromptVM = {
+    isVisible$: contextPromptIsVisible$,
+    currentContext$,
+    requiredContext$,
+    switchContext,
+    dismiss: dismissContextPrompt,
+  };
+
+  // ---------------------------------------------------------------------------
   // Return VM
   // ---------------------------------------------------------------------------
 
@@ -365,5 +424,6 @@ export function createDocumentViewerScope(
     closeSection,
     isLoading$,
     error$,
+    contextSwitchPrompt,
   };
 }

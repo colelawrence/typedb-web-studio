@@ -84,6 +84,12 @@ export interface DocumentViewerVM {
    * Error state if section failed to load.
    */
   error$: Queryable<string | null>;
+
+  /**
+   * Context switch prompt VM.
+   * Shows when the current database context doesn't match the section's required context.
+   */
+  contextSwitchPrompt: ContextSwitchPromptVM;
 }
 
 /**

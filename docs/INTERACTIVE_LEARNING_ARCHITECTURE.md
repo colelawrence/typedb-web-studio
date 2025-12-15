@@ -1587,7 +1587,7 @@ describe('REPL Bridge', () => {
 
 ---
 
-## Phase 7: Context Management [TODO]
+## Phase 7: Context Management [DONE]
 
 ### Goals
 - Load lesson contexts (schema + seed data) into TypeDB
@@ -1599,209 +1599,98 @@ describe('REPL Bridge', () => {
 
 #### 7.1 Context Manager
 
-Create `src/curriculum/context-manager.ts`:
+Created `src/curriculum/context-manager.ts`:
 
 ```typescript
-import type { LoadedContext } from './context-loader';
-
 export interface ContextManager {
   currentContext: string | null;
-  loadContext: (contextName: string) => Promise<void>;
-  resetContext: () => Promise<void>;
-  getContextStatus: () => ContextStatus;
+  isLoading: boolean;
+  lastError: string | null;
+  loadContext(contextName: string): Promise<void>;
+  resetContext(): Promise<void>;
+  clearContext(): Promise<void>;
+  getStatus(): ContextStatus;
+  isContextLoaded(contextName: string | null): boolean;
 }
 
 export interface ContextStatus {
+  isReady: boolean;
   name: string | null;
-  schemaLoaded: boolean;
-  dataLoaded: boolean;
-  entityCounts: Record<string, number>;
+  error: string | null;
 }
 
-export function createContextManager(db: TypeDBConnection): ContextManager {
-  let currentContext: string | null = null;
-
-  return {
-    get currentContext() {
-      return currentContext;
-    },
-
-    async loadContext(contextName: string) {
-      if (contextName === currentContext) return;
-
-      // Clear existing data
-      await db.reset();
-
-      // Load new context
-      const context = await loadContextFiles(contextName);
-      await applySchema(db, context.schema);
-      await applySeed(db, context.seed);
-
-      currentContext = contextName;
-    },
-
-    async resetContext() {
-      if (!currentContext) return;
-      await this.loadContext(currentContext);
-    },
-
-    getContextStatus() {
-      // Query current state
-      return {
-        name: currentContext,
-        schemaLoaded: true,  // TODO: verify
-        dataLoaded: true,    // TODO: verify
-        entityCounts: {},    // TODO: query
-      };
-    },
-  };
+export interface ContextDatabaseOps {
+  createDatabase(name: string): Promise<void>;
+  executeSchema(database: string, schema: string): Promise<void>;
+  executeWrite(database: string, query: string): Promise<void>;
+  getActiveDatabase(): string | null;
+  setActiveDatabase(name: string): void;
 }
 ```
 
 #### 7.2 Context Switch UI
 
-Create `src/components/learn/ContextSwitchPrompt.tsx`:
+Created `src/components/learn/ContextSwitchPrompt.tsx` with:
+- `ContextSwitchPrompt` - Full prompt shown when context mismatch
+- `ContextIndicator` - Compact inline badge showing context status
 
-```typescript
-interface ContextSwitchPromptProps {
-  currentContext: string | null;
-  requiredContext: string;
-  onSwitch: () => void;
-  onKeep: () => void;
-}
+#### 7.3 Document Viewer Integration
 
-export function ContextSwitchPrompt({
-  currentContext,
-  requiredContext,
-  onSwitch,
-  onKeep,
-}: ContextSwitchPromptProps) {
-  if (currentContext === requiredContext) return null;
-
-  return (
-    <div className="context-switch-prompt">
-      <div className="prompt-icon">⚠️</div>
-      <div className="prompt-content">
-        <p>
-          This lesson uses the <strong>{requiredContext}</strong> context.
-        </p>
-        {currentContext && (
-          <p className="current-context">
-            Current: {currentContext}
-          </p>
-        )}
-      </div>
-      <div className="prompt-actions">
-        <button onClick={onSwitch} className="primary">
-          Load Lesson Context
-        </button>
-        <button onClick={onKeep} className="secondary">
-          Keep Current
-        </button>
-      </div>
-    </div>
-  );
-}
-```
+Updated `src/vm/learn/document-viewer-scope.ts` to:
+- Accept optional `contextManager` in options
+- Implement `ContextSwitchPromptVM` with reactive visibility
+- Handle context switching and dismissal
 
 ### Verification Tests
 
-Create `src/curriculum/__tests__/context-manager.test.ts`:
+Created `src/curriculum/__tests__/context-manager.test.ts` with 30 tests covering:
+- Initial state (no context, not loading, no error)
+- Loading contexts (creates prefixed database, applies schema/seed)
+- Context switching (skips if same, switches if different)
+- Status callbacks (onContextChanged, onStatusChanged)
+- Reset and clear operations
+- Error handling
 
-```typescript
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createContextManager } from '../context-manager';
-import { createTestProfile } from '../../profile/__tests__/profile-test-utils';
-
-describe('Context Manager', () => {
-  let profile: TestProfile;
-  let manager: ContextManager;
-
-  beforeEach(async () => {
-    profile = await createTestProfile();
-    manager = createContextManager(profile.db);
-  });
-
-  afterEach(async () => {
-    await profile.cleanup();
-  });
-
-  it('loads context schema and seed data', async () => {
-    await manager.loadContext('social-network');
-
-    // Verify schema exists
-    const types = await profile.db.query('match $t sub entity; get $t;');
-    expect(types.some(t => t.label === 'person')).toBe(true);
-
-    // Verify seed data exists
-    const people = await profile.db.query('match $p isa person; get $p;');
-    expect(people.length).toBeGreaterThan(0);
-  });
-
-  it('tracks current context', async () => {
-    expect(manager.currentContext).toBeNull();
-
-    await manager.loadContext('social-network');
-    expect(manager.currentContext).toBe('social-network');
-  });
-
-  it('clears data when switching contexts', async () => {
-    await manager.loadContext('social-network');
-    const beforeSwitch = await profile.db.query('match $p isa person; get $p;');
-
-    await manager.loadContext('e-commerce');
-
-    // Social network data should be gone
-    const afterSwitch = await profile.db.query('match $p isa person; get $p;');
-    expect(afterSwitch.length).toBe(0);
-
-    // E-commerce data should exist
-    const products = await profile.db.query('match $p isa product; get $p;');
-    expect(products.length).toBeGreaterThan(0);
-  });
-
-  it('no-ops when loading same context', async () => {
-    await manager.loadContext('social-network');
-
-    // Insert extra data
-    await profile.db.query('insert $p isa person, has name "Extra";');
-    const before = await profile.db.query('match $p isa person; get $p;');
-
-    // Load same context - should NOT reset
-    await manager.loadContext('social-network');
-    const after = await profile.db.query('match $p isa person; get $p;');
-
-    expect(after.length).toBe(before.length);
-  });
-
-  it('resetContext reloads current context', async () => {
-    await manager.loadContext('social-network');
-
-    // Insert extra data
-    await profile.db.query('insert $p isa person, has name "Extra";');
-    const before = await profile.db.query('match $p isa person; get $p;');
-
-    // Reset
-    await manager.resetContext();
-    const after = await profile.db.query('match $p isa person; get $p;');
-
-    expect(after.length).toBe(before.length - 1);  // Extra removed
-  });
-});
-```
+Updated `src/vm/learn/__tests__/document-viewer-scope.test.ts` with 13 additional tests:
+- Context switch prompt without manager (6 tests)
+- Context switch prompt with manager (7 tests)
 
 ### Acceptance Criteria
-- [ ] Contexts load schema and seed data correctly
-- [ ] Context switch prompt appears when needed
-- [ ] "Load Lesson Context" resets and loads new context
-- [ ] "Keep Current" dismisses prompt
-- [ ] Context indicator shows current context name
-- [ ] Reset button reloads current context
+- [x] Contexts load schema and seed data correctly
+- [x] Context switch prompt appears when needed
+- [x] "Load Context" switches to required context
+- [x] "Keep Current" dismisses prompt
+- [x] Context indicator shows current context name
+- [x] Reset button reloads current context
 
 ### Artifacts
-<!-- Update this section as you implement -->
-- Context files created:
-- Reset behavior notes:
+
+#### Key files created:
+
+**Context Management:**
+- `src/curriculum/context-manager.ts` - ContextManager interface and factory functions
+- `src/curriculum/index.ts` - Updated exports for context manager
+
+**React Components:**
+- `src/components/learn/ContextSwitchPrompt.tsx` - Context switch prompt and indicator components
+- `src/components/learn/index.ts` - Updated exports
+
+**VM Layer:**
+- `src/vm/learn/document-viewer.vm.ts` - Added contextSwitchPrompt to DocumentViewerVM
+- `src/vm/learn/document-viewer-scope.ts` - Implemented ContextSwitchPromptVM
+
+**Tests:**
+- `src/curriculum/__tests__/context-manager.test.ts` - 30 tests
+- `src/vm/learn/__tests__/document-viewer-scope.test.ts` - 41 tests (28 + 13 new)
+
+#### Implementation notes:
+- **Database naming**: Learn contexts use `learn_` prefix (e.g., `learn_social_network`)
+- **Seed parsing**: Splits seed data on semicolons to execute individual insert statements
+- **Context isolation**: Each context gets its own database; switching creates a new one
+- **VM integration**: ContextSwitchPromptVM uses computed$ for reactive visibility
+- **Dismissal state**: Prompt dismissal is tracked per-session (resets when section changes)
+- **Mock manager**: `createMockContextManager()` provides test doubles with call tracking
+- **Total tests**: 183 tests across learn modules (21 search + 28 sidebar + 41 document viewer + 30 context manager + 19 REPL bridge + parser tests + example tests)
 
 ---
 

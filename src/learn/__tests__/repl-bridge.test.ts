@@ -21,18 +21,10 @@ import { uiState$ } from "../../livestore/queries";
 // Test Context
 // ============================================================================
 
-interface TestContext {
-  store: ReturnType<typeof createStore> extends Promise<infer T> ? T : never;
-  navigate: ReturnType<typeof vi.fn>;
-  executeQuery: ReturnType<typeof vi.fn>;
-  showSnackbar: ReturnType<typeof vi.fn>;
-  cleanup: () => Promise<void>;
-}
-
 let storeCounter = 0;
 
-async function createTestContext(): Promise<TestContext> {
-  const store = await Effect.runPromise(
+async function createTestStore() {
+  return await Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         return yield* createStore({
@@ -43,6 +35,18 @@ async function createTestContext(): Promise<TestContext> {
       })
     ).pipe(provideOtel({}))
   );
+}
+
+interface TestContext {
+  store: Awaited<ReturnType<typeof createTestStore>>;
+  navigate: ReturnType<typeof vi.fn>;
+  executeQuery: ReturnType<typeof vi.fn>;
+  showSnackbar: ReturnType<typeof vi.fn>;
+  cleanup: () => Promise<void>;
+}
+
+async function createTestContext(): Promise<TestContext> {
+  const store = await createTestStore();
 
   const navigate = vi.fn();
   const executeQuery = vi.fn().mockResolvedValue({

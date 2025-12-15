@@ -47,3 +47,13 @@ export {
   getSectionNavigation,
   type SectionNavItem,
 } from './content';
+
+// Re-export context manager
+export {
+  createContextManager,
+  createMockContextManager,
+  type ContextManager,
+  type ContextStatus,
+  type ContextDatabaseOps,
+  type ContextManagerOptions,
+} from './context-manager';

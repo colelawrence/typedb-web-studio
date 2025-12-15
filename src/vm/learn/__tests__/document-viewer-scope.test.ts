@@ -13,7 +13,7 @@ import { createStore, provideOtel } from "@livestore/livestore";
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { Effect } from "effect";
 
-import { createDocumentViewerScope, type DocumentViewerScopeOptions } from "../document-viewer-scope";
+import { createDocumentViewerScope } from "../document-viewer-scope";
 import { events, schema } from "../../../livestore/schema";
 import { readingProgressForSection$, executedExampleIds$ } from "../../../livestore/queries";
 import { createMockReplBridge } from "../../../learn/repl-bridge";
@@ -93,18 +93,10 @@ const MOCK_SECTIONS: Record<string, ParsedSection> = {
 // Test Context
 // ============================================================================
 
-interface TestContext {
-  store: ReturnType<typeof createStore> extends Promise<infer T> ? T : never;
-  viewerVM: ReturnType<typeof createDocumentViewerScope>;
-  profileId: string;
-  replBridge: ReturnType<typeof createMockReplBridge>;
-  cleanup: () => Promise<void>;
-}
-
 let storeCounter = 0;
 
-async function createTestContext(profileId = "test-profile"): Promise<TestContext> {
-  const store = await Effect.runPromise(
+async function createTestStore() {
+  return await Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         return yield* createStore({
@@ -115,6 +107,18 @@ async function createTestContext(profileId = "test-profile"): Promise<TestContex
       })
     ).pipe(provideOtel({}))
   );
+}
+
+interface TestContext {
+  store: Awaited<ReturnType<typeof createTestStore>>;
+  viewerVM: ReturnType<typeof createDocumentViewerScope>;
+  profileId: string;
+  replBridge: ReturnType<typeof createMockReplBridge>;
+  cleanup: () => Promise<void>;
+}
+
+async function createTestContext(profileId = "test-profile"): Promise<TestContext> {
+  const store = await createTestStore();
 
   // Create test profile
   store.commit(events.profileCreated({
@@ -479,6 +483,173 @@ describe("DocumentViewerScope", () => {
       expect(example.expect).toEqual({ results: true, min: 1 });
       expect(example.sourceFile).toBe("01-first-queries.md");
       expect(example.lineNumber).toBe(30);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Context Switch Prompt (without ContextManager)
+  // --------------------------------------------------------------------------
+
+  describe("Context Switch Prompt (no manager)", () => {
+    it("is not visible when no context manager provided", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
+      expect(isVisible).toBe(false);
+    });
+
+    it("returns null for current context", () => {
+      const current = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.currentContext$);
+      expect(current).toBeNull();
+    });
+
+    it("returns null for required context when no section", () => {
+      const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
+      expect(required).toBeNull();
+    });
+
+    it("returns required context when section loaded", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
+      expect(required).toBe("social-network");
+    });
+
+    it("dismiss does nothing without manager", () => {
+      ctx.viewerVM.openSection("first-queries");
+      // Should not throw
+      ctx.viewerVM.contextSwitchPrompt.dismiss();
+      const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
+      expect(isVisible).toBe(false);
+    });
+
+    it("switchContext resolves without manager", async () => {
+      ctx.viewerVM.openSection("first-queries");
+      // Should not throw
+      await ctx.viewerVM.contextSwitchPrompt.switchContext();
+    });
+  });
+});
+
+// ============================================================================
+// Context Switch Prompt Tests (with ContextManager)
+// ============================================================================
+
+describe("DocumentViewerScope with ContextManager", () => {
+  let ctx: TestContext;
+  let mockContextManager: {
+    currentContext: string | null;
+    isLoading: boolean;
+    lastError: string | null;
+    loadContextCalls: string[];
+    loadContext: (name: string) => Promise<void>;
+    resetContext: () => Promise<void>;
+    clearContext: () => Promise<void>;
+    getStatus: () => { isReady: boolean; name: string | null; error: string | null };
+    isContextLoaded: (name: string | null) => boolean;
+  };
+
+  beforeEach(async () => {
+    // Create mock context manager
+    mockContextManager = {
+      currentContext: null,
+      isLoading: false,
+      lastError: null,
+      loadContextCalls: [],
+      loadContext: async (name: string) => {
+        mockContextManager.loadContextCalls.push(name);
+        mockContextManager.currentContext = name;
+      },
+      resetContext: async () => {},
+      clearContext: async () => {
+        mockContextManager.currentContext = null;
+      },
+      getStatus: () => ({
+        isReady: mockContextManager.currentContext !== null,
+        name: mockContextManager.currentContext,
+        error: null,
+      }),
+      isContextLoaded: (name: string | null) => mockContextManager.currentContext === name,
+    };
+
+    // Create context with context manager
+    const store = await createTestStore();
+
+    store.commit(events.profileCreated({
+      id: "test-profile-ctx",
+      displayName: "Test User",
+      createdAt: new Date(),
+      lastActiveAt: new Date(),
+    }));
+
+    const replBridge = createMockReplBridge();
+
+    const viewerVM = createDocumentViewerScope({
+      store,
+      events,
+      profileId: "test-profile-ctx",
+      sections: MOCK_SECTIONS,
+      replBridge,
+      contextManager: mockContextManager,
+    });
+
+    ctx = {
+      store,
+      viewerVM,
+      profileId: "test-profile-ctx",
+      replBridge,
+      cleanup: async () => {},
+    };
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  describe("Context Switch Prompt", () => {
+    it("is visible when context doesn't match", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
+      expect(isVisible).toBe(true);
+    });
+
+    it("is not visible when context matches", async () => {
+      mockContextManager.currentContext = "social-network";
+      ctx.viewerVM.openSection("first-queries");
+      const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
+      expect(isVisible).toBe(false);
+    });
+
+    it("shows required context from section", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
+      expect(required).toBe("social-network");
+    });
+
+    it("shows current context from manager", () => {
+      mockContextManager.currentContext = "e-commerce";
+      const current = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.currentContext$);
+      expect(current).toBe("e-commerce");
+    });
+
+    it("switchContext calls context manager", async () => {
+      ctx.viewerVM.openSection("first-queries");
+      await ctx.viewerVM.contextSwitchPrompt.switchContext();
+      expect(mockContextManager.loadContextCalls).toContain("social-network");
+    });
+
+    it("dismiss hides the prompt", () => {
+      ctx.viewerVM.openSection("first-queries");
+      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(true);
+
+      ctx.viewerVM.contextSwitchPrompt.dismiss();
+      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(false);
+    });
+
+    it("is not visible after switching context", async () => {
+      ctx.viewerVM.openSection("first-queries");
+      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(true);
+
+      await ctx.viewerVM.contextSwitchPrompt.switchContext();
+      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(false);
     });
   });
 });

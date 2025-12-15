@@ -24,3 +24,11 @@ export {
 // Document viewer components
 export { DocumentViewer, type DocumentViewerProps } from "./DocumentViewer";
 export { ExampleBlock, type ExampleBlockProps } from "./ExampleBlock";
+
+// Context components
+export {
+  ContextSwitchPrompt,
+  ContextIndicator,
+  type ContextSwitchPromptProps,
+  type ContextIndicatorProps,
+} from "./ContextSwitchPrompt";
