@@ -224,71 +224,71 @@ code {
 
 /* Dense Typography Utilities (Task 1.2) */
 @utility text-dense-xs {
-  font-size: var(--font-size-dense-xs);
+  font-size: 0.6875rem; /* 11px */
   line-height: 1rem; /* 16px */
 }
 
 @utility text-dense-sm {
-  font-size: var(--font-size-dense-sm);
+  font-size: 0.8125rem; /* 13px */
   line-height: 1.25rem; /* 20px */
 }
 
 @utility text-dense-base {
-  font-size: var(--font-size-dense-base);
+  font-size: 0.9375rem; /* 15px */
   line-height: 1.5rem; /* 24px */
 }
 
 @utility text-dense-lg {
-  font-size: var(--font-size-dense-lg);
+  font-size: 1.0625rem; /* 17px */
   line-height: 1.625rem; /* 26px */
 }
 
 @utility text-dense-xl {
-  font-size: var(--font-size-dense-xl);
+  font-size: 1.25rem; /* 20px */
   line-height: 1.75rem; /* 28px */
 }
 
 @utility text-dense-2xl {
-  font-size: var(--font-size-dense-2xl);
+  font-size: 1.5rem; /* 24px */
   line-height: 2rem; /* 32px */
 }
 
 @utility text-dense-3xl {
-  font-size: var(--font-size-dense-3xl);
+  font-size: 1.875rem; /* 30px */
   line-height: 2.375rem; /* 38px */
 }
 
 /* Dense Height Utilities (Task 1.3) */
 @utility h-compact {
-  height: var(--height-compact);
+  height: 1.75rem; /* 28px */
 }
 
 @utility h-default {
-  height: var(--height-default);
+  height: 2.25rem; /* 36px */
 }
 
 @utility h-row {
-  height: var(--height-row);
+  height: 2.5rem; /* 40px */
 }
 
 @utility h-header {
-  height: var(--height-header);
+  height: 3rem; /* 48px */
 }
 
 @utility min-h-compact {
-  min-height: var(--height-compact);
+  min-height: 1.75rem; /* 28px */
 }
 
 @utility min-h-default {
-  min-height: var(--height-default);
+  min-height: 2.25rem; /* 36px */
 }
 
 @utility min-h-row {
-  min-height: var(--height-row);
+  min-height: 2.5rem; /* 40px */
 }
 
 @utility min-h-header {
-  min-height: var(--height-header);
+  min-height: 3rem; /* 48px */
 }
 
 /* Syntax Highlighting Text Utilities (Task 1.7) */
