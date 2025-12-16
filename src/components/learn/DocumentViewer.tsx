@@ -23,6 +23,7 @@
  */
 
 import { X, Check, Circle, BookOpen } from "lucide-react";
+import Markdown from "react-markdown";
 import { Queryable } from "@/vm/components";
 import type {
   DocumentViewerVM,
@@ -281,60 +282,53 @@ function getHeadingTag(level: number): "h1" | "h2" | "h3" | "h4" | "h5" | "h6" {
 }
 
 /**
- * Prose content block.
- *
- * For now, renders markdown-ish content with basic formatting.
- * TODO: Use a proper markdown renderer for full support.
+ * Prose content block using react-markdown for full Markdown support.
  */
 function ProseBlock({ content }: { content: string }) {
-  // Simple inline formatting
-  const formatted = content
-    .split("\n\n")
-    .filter((p) => p.trim())
-    .map((paragraph, i) => (
-      <p key={i} className="text-dense-sm text-foreground leading-relaxed">
-        {formatInlineMarkdown(paragraph)}
-      </p>
-    ));
-
-  return <div className="space-y-3">{formatted}</div>;
-}
-
-/**
- * Format inline markdown (bold, italic, code).
- */
-function formatInlineMarkdown(text: string): React.ReactNode {
-  // This is a simplified formatter - for production, use a proper markdown library
-  const parts: React.ReactNode[] = [];
-  let remaining = text;
-  let key = 0;
-
-  // Match inline code
-  const codeRegex = /`([^`]+)`/g;
-  let match;
-  let lastIndex = 0;
-
-  while ((match = codeRegex.exec(remaining)) !== null) {
-    // Add text before the match
-    if (match.index > lastIndex) {
-      parts.push(remaining.slice(lastIndex, match.index));
-    }
-    // Add the code
-    parts.push(
-      <code
-        key={key++}
-        className="px-1 py-0.5 rounded bg-muted text-dense-xs font-mono"
+  return (
+    <div className="prose-content space-y-3 text-dense-sm text-foreground leading-relaxed">
+      <Markdown
+        components={{
+        p: ({ children }) => (
+          <p className="text-dense-sm text-foreground leading-relaxed">
+            {children}
+          </p>
+        ),
+        code: ({ children }) => (
+          <code className="px-1 py-0.5 rounded bg-muted text-dense-xs font-mono">
+            {children}
+          </code>
+        ),
+        strong: ({ children }) => (
+          <strong className="font-semibold">{children}</strong>
+        ),
+        em: ({ children }) => <em className="italic">{children}</em>,
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            className="text-beacon-info underline hover:no-underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {children}
+          </a>
+        ),
+        ul: ({ children }) => (
+          <ul className="list-disc list-inside space-y-1">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="list-decimal list-inside space-y-1">{children}</ol>
+        ),
+        li: ({ children }) => <li className="text-dense-sm">{children}</li>,
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-border pl-4 italic text-muted-foreground">
+            {children}
+          </blockquote>
+        ),
+        }}
       >
-        {match[1]}
-      </code>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < remaining.length) {
-    parts.push(remaining.slice(lastIndex));
-  }
-
-  return parts.length > 0 ? parts : text;
+        {content}
+      </Markdown>
+    </div>
+  );
 }

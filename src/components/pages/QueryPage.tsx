@@ -5,20 +5,26 @@
  * Updated with Dense-Core tokens (Phase 4: Sidebar, Phase 5: Workspace)
  */
 
+import { useEffect, useRef } from "react";
 import type { QueryPageVM } from "@/vm";
 import { Queryable } from "@/vm/components";
+import { useQuery } from "@livestore/react";
 import {
   Database,
   Play,
   ChevronRight,
   BookOpen,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { LearnSection, ReferenceSection, DocumentViewer } from "../learn";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelHandle,
+} from "react-resizable-panels";
 
 export function QueryPage({ vm }: { vm: QueryPageVM }) {
   return (
@@ -164,62 +170,106 @@ function DocsPane({ vm }: { vm: QueryPageVM["docsViewer"] }) {
 
 function QuerySidebar({ vm }: { vm: QueryPageVM["sidebar"] }) {
   return (
-    <div className="flex-1 overflow-y-auto">
-      {/* Learn Section - First in sidebar */}
-      {vm.learnSection && (
-        <SidebarSection
-          label={vm.learnSection.label}
-          collapsed$={vm.learnSection.collapsed$}
-          onToggle={vm.learnSection.toggleCollapsed}
-          headerIcon={<BookOpen className="size-4" />}
-        >
-          <div className="px-2 py-2 space-y-1">
-            {/* Curriculum tree */}
-            <LearnSection vm={vm.learnSection.curriculum} />
+    <PanelGroup direction="vertical" autoSaveId="query-sidebar-sections" className="h-full">
+      {/* Top sections: Schema + Saved Queries - resizable */}
+      <Panel defaultSize={70} minSize={10} order={1} id="sidebar-top-sections">
+        <div className="h-full overflow-y-auto">
+          {/* Schema Section */}
+          <SidebarSection
+            label={vm.schemaSection.label}
+            collapsed$={vm.schemaSection.collapsed$}
+            onToggle={vm.schemaSection.toggleCollapsed}
+          >
+            <div className="px-3 py-2">
+              <p className="text-dense-sm text-muted-foreground">
+                Schema tree placeholder
+              </p>
+            </div>
+          </SidebarSection>
 
-            {/* Reference tree */}
-            <ReferenceSection vm={vm.learnSection.reference} />
-
-            {/* Open full Learn page link */}
-            <button
-              onClick={vm.learnSection.openFullLearnPage}
-              className="flex items-center gap-1.5 w-full px-2 py-1.5 mt-2
-                         text-dense-xs text-muted-foreground hover:text-foreground
-                         transition-colors"
-            >
-              <ExternalLink className="size-3" />
-              <span>Open full Learn page</span>
-            </button>
-          </div>
-        </SidebarSection>
-      )}
-
-      {/* Schema Section - Task 4.2: h-header section headers */}
-      <SidebarSection
-        label={vm.schemaSection.label}
-        collapsed$={vm.schemaSection.collapsed$}
-        onToggle={vm.schemaSection.toggleCollapsed}
-      >
-        <div className="px-3 py-2">
-          <p className="text-dense-sm text-muted-foreground">
-            Schema tree placeholder
-          </p>
+          {/* Saved Queries Section */}
+          <SidebarSection
+            label={vm.savedQueriesSection.label}
+            collapsed$={vm.savedQueriesSection.collapsed$}
+            onToggle={vm.savedQueriesSection.toggleCollapsed}
+          >
+            <div className="px-3 py-2">
+              <p className="text-dense-sm text-muted-foreground">
+                Saved queries tree placeholder
+              </p>
+            </div>
+          </SidebarSection>
         </div>
-      </SidebarSection>
+      </Panel>
 
-      {/* Saved Queries Section - Task 4.2 */}
-      <SidebarSection
-        label={vm.savedQueriesSection.label}
-        collapsed$={vm.savedQueriesSection.collapsed$}
-        onToggle={vm.savedQueriesSection.toggleCollapsed}
+      {/* Learn Section - pinned at bottom, resizable */}
+      {vm.learnSection && <LearnSectionPanel vm={vm.learnSection} />}
+    </PanelGroup>
+  );
+}
+
+function LearnSectionPanel({
+  vm,
+}: {
+  vm: NonNullable<QueryPageVM["sidebar"]["learnSection"]>;
+}) {
+  const panelRef = useRef<ImperativePanelHandle>(null);
+  const isCollapsed = useQuery(vm.collapsed$);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    if (isCollapsed && !panel.isCollapsed()) {
+      panel.collapse();
+    } else if (!isCollapsed && panel.isCollapsed()) {
+      panel.expand();
+    }
+  }, [isCollapsed]);
+
+  return (
+    <>
+      <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
+      <Panel
+        ref={panelRef}
+        defaultSize={30}
+        minSize={10}
+        maxSize={90}
+        collapsible
+        collapsedSize={6}
+        order={2}
+        id="sidebar-learn-section"
+        onCollapse={() => {
+          if (!isCollapsed) vm.toggleCollapsed();
+        }}
+        onExpand={() => {
+          if (isCollapsed) vm.toggleCollapsed();
+        }}
       >
-        <div className="px-3 py-2">
-          <p className="text-dense-sm text-muted-foreground">
-            Saved queries tree placeholder
-          </p>
+        <div className="h-full flex flex-col border-t border-border">
+          <SidebarSection
+            label={vm.label}
+            collapsed$={vm.collapsed$}
+            onToggle={vm.toggleCollapsed}
+            headerIcon={<BookOpen className="size-4" />}
+          >
+            <div className="px-2 py-2 space-y-1 overflow-y-auto">
+              <LearnSection vm={vm.curriculum} />
+              <ReferenceSection vm={vm.reference} />
+              <button
+                onClick={vm.openFullLearnPage}
+                className="flex items-center gap-1.5 w-full px-2 py-1.5 mt-2
+                           text-dense-xs text-muted-foreground hover:text-foreground
+                           transition-colors"
+              >
+                <ExternalLink className="size-3" />
+                <span>Open full Learn page</span>
+              </button>
+            </div>
+          </SidebarSection>
         </div>
-      </SidebarSection>
-    </div>
+      </Panel>
+    </>
   );
 }
 
