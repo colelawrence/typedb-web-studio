@@ -413,10 +413,11 @@ describe("DocumentViewerScope", () => {
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
-      const result = await example.run();
+      await example.run();
+      const result = ctx.store.query(example.currentResult$);
 
-      expect(result.success).toBe(true);
-      expect(result.resultCount).toBe(3);
+      expect(result?.success).toBe(true);
+      expect(result?.resultCount).toBe(3);
       expect(ctx.replBridge.runQueryCalls).toContain("match $p isa person;");
     });
 
@@ -442,10 +443,11 @@ describe("DocumentViewerScope", () => {
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
-      const result = await example.run();
+      await example.run();
+      const result = ctx.store.query(example.currentResult$);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe("Connection failed");
+      expect(result?.success).toBe(false);
+      expect(result?.error).toBe("Connection failed");
     });
 
     it("tracks execution state", async () => {

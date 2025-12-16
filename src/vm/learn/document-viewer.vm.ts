@@ -278,14 +278,19 @@ export interface DocumentExampleVM {
   copyToRepl(): void;
 
   /**
-   * Runs the query and shows results.
+   * Runs the query. Updates currentResult$ when complete.
    */
-  run(): Promise<ExampleRunResultVM>;
+  run(): Promise<void>;
 
   /**
    * Current execution state.
    */
   executionState$: Queryable<ExampleExecutionState>;
+
+  /**
+   * Result of the last run, or null if not yet executed.
+   */
+  currentResult$: Queryable<ExampleRunResultVM | null>;
 }
 
 /**

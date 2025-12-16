@@ -28,7 +28,7 @@ import type {
   DocumentViewerVM,
   DocumentSectionVM,
   DocumentHeadingVM,
-  DocumentExampleVM,
+  DocumentSectionContentBlockVM,
 } from "@/vm/learn";
 import { Button } from "../ui/button";
 import { ExampleBlock } from "./ExampleBlock";
@@ -161,128 +161,44 @@ function DocumentHeader({
 }
 
 /**
- * Renders section content with headings and examples.
+ * Renders section content blocks from the VM.
  *
- * This is a simplified renderer that:
- * 1. Renders headings with progress checkmarks
- * 2. Renders example blocks with interactivity
- * 3. Renders prose content as plain text (for now)
+ * The VM provides pre-parsed content blocks in display order.
+ * This component simply renders them - no parsing logic here.
  */
 function SectionContent({ section }: { section: DocumentSectionVM }) {
-  // Build a map of heading VMs by ID for easy lookup
-  const headingMap = new Map(section.headings.map((h) => [h.id, h]));
-
-  // Build a map of example VMs by ID
-  const exampleMap = new Map(section.examples.map((e) => [e.id, e]));
-
-  // Parse the raw content into blocks
-  const blocks = parseContentBlocks(section.rawContent, headingMap, exampleMap);
-
   return (
     <div className="space-y-4">
-      {blocks.map((block, index) => (
-        <ContentBlock key={index} block={block} />
+      {section.contentBlocks.map((block, index) => (
+        <ContentBlock key={getBlockKey(block, index)} block={block} />
       ))}
     </div>
   );
 }
 
 /**
- * A content block in the document.
+ * Generate a stable key for a content block.
  */
-type ContentBlockType =
-  | { type: "heading"; vm: DocumentHeadingVM }
-  | { type: "example"; vm: DocumentExampleVM }
-  | { type: "prose"; content: string };
-
-/**
- * Parse raw markdown content into renderable blocks.
- */
-function parseContentBlocks(
-  rawContent: string,
-  headings: Map<string, DocumentHeadingVM>,
-  examples: Map<string, DocumentExampleVM>
-): ContentBlockType[] {
-  const blocks: ContentBlockType[] = [];
-  const lines = rawContent.split("\n");
-
-  let currentProse: string[] = [];
-  let inCodeBlock = false;
-  let codeBlockId: string | null = null;
-
-  const flushProse = () => {
-    if (currentProse.length > 0) {
-      const content = currentProse.join("\n").trim();
-      if (content) {
-        blocks.push({ type: "prose", content });
-      }
-      currentProse = [];
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Check for code fence start
-    const codeStart = line.match(/^```typeql:(\w+)\[([^\]]*)\]/);
-    if (codeStart) {
-      flushProse();
-      inCodeBlock = true;
-      // Extract id from attributes
-      const attrs = codeStart[2];
-      const idMatch = attrs.match(/id=(\S+)/);
-      codeBlockId = idMatch ? idMatch[1].replace(/[,\]].*$/, "") : null;
-      continue;
-    }
-
-    // Check for code fence end
-    if (inCodeBlock && line.startsWith("```")) {
-      inCodeBlock = false;
-      if (codeBlockId && examples.has(codeBlockId)) {
-        blocks.push({ type: "example", vm: examples.get(codeBlockId)! });
-      }
-      codeBlockId = null;
-      continue;
-    }
-
-    // Skip lines inside code blocks (they're rendered by ExampleBlock)
-    if (inCodeBlock) {
-      continue;
-    }
-
-    // Check for headings
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-      flushProse();
-      const text = headingMatch[2].trim();
-      const id = slugify(text);
-      if (headings.has(id)) {
-        blocks.push({ type: "heading", vm: headings.get(id)! });
-      } else {
-        // Heading without a VM - render as prose
-        currentProse.push(line);
-      }
-      continue;
-    }
-
-    // Regular prose line
-    currentProse.push(line);
+function getBlockKey(block: DocumentSectionContentBlockVM, index: number): string {
+  switch (block.kind) {
+    case "heading":
+      return `heading-${block.heading.id}`;
+    case "example":
+      return `example-${block.example.id}`;
+    case "prose":
+      return `prose-${index}`;
   }
-
-  flushProse();
-
-  return blocks;
 }
 
 /**
  * Renders a single content block.
  */
-function ContentBlock({ block }: { block: ContentBlockType }) {
-  switch (block.type) {
+function ContentBlock({ block }: { block: DocumentSectionContentBlockVM }) {
+  switch (block.kind) {
     case "heading":
-      return <HeadingBlock vm={block.vm} />;
+      return <HeadingBlock vm={block.heading} />;
     case "example":
-      return <ExampleBlock vm={block.vm} />;
+      return <ExampleBlock vm={block.example} />;
     case "prose":
       return <ProseBlock content={block.content} />;
   }
@@ -421,14 +337,4 @@ function formatInlineMarkdown(text: string): React.ReactNode {
   }
 
   return parts.length > 0 ? parts : text;
-}
-
-/**
- * Slugify text for heading IDs.
- */
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
 }

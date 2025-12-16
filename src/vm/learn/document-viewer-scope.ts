@@ -7,8 +7,8 @@
  * @module vm/learn/document-viewer-scope
  */
 
-import { computed } from "@livestore/livestore";
-import type { Queryable, Store } from "@livestore/livestore";
+import { computed, signal } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 
 import { events, type schema } from "../../livestore/schema";
 import {
@@ -30,6 +30,7 @@ import {
 } from "./document-viewer.vm";
 import type { ContextManager } from "../../curriculum/context-manager";
 import { constant } from "./constant";
+import { parseContentBlocks } from "./content-blocks";
 
 
 // ============================================================================
@@ -228,10 +229,15 @@ export function createDocumentViewerScope(
       const isInteractive = example.type === "example" || example.type === "invalid";
 
       // Execution state (local, not persisted)
-      let executionState: ExampleExecutionState = { type: "idle" };
-      const executionState$ = computed(
-        () => executionState,
-        { label: `example.executionState:${exampleKey}`, deps: [exampleKey] }
+      const executionState$ = signal<ExampleExecutionState>(
+        { type: "idle" },
+        { label: `example.executionState:${exampleKey}` }
+      );
+
+      // Current result (local, not persisted)
+      const currentResult$ = signal<ExampleRunResultVM | null>(
+        null,
+        { label: `example.currentResult:${exampleKey}` }
       );
 
       const wasExecuted$ = computed(
@@ -256,8 +262,9 @@ export function createDocumentViewerScope(
         }));
       };
 
-      const runAction = async (): Promise<ExampleRunResultVM> => {
-        executionState = { type: "running" };
+      const runAction = async (): Promise<void> => {
+        store.setSignal(executionState$, { type: "running" });
+        store.setSignal(currentResult$, null);
 
         try {
           const result = await replBridge.runQuery(example.query);
@@ -274,20 +281,20 @@ export function createDocumentViewerScope(
           }));
 
           if (result.success) {
-            executionState = { type: "success", resultCount: result.resultCount ?? 0 };
+            store.setSignal(executionState$, { type: "success", resultCount: result.resultCount ?? 0 });
           } else {
-            executionState = { type: "error", message: result.error ?? "Unknown error" };
+            store.setSignal(executionState$, { type: "error", message: result.error ?? "Unknown error" });
           }
 
-          return {
+          store.setSignal(currentResult$, {
             success: result.success,
             resultCount: result.resultCount,
             error: result.error,
             executionTimeMs: result.executionTimeMs,
-          };
+          });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          executionState = { type: "error", message: errorMessage };
+          store.setSignal(executionState$, { type: "error", message: errorMessage });
 
           store.commit(events.exampleExecuted({
             profileId,
@@ -299,11 +306,11 @@ export function createDocumentViewerScope(
             errorMessage,
           }));
 
-          return {
+          store.setSignal(currentResult$, {
             success: false,
             error: errorMessage,
             executionTimeMs: 0,
-          };
+          });
         }
       };
 
@@ -319,6 +326,7 @@ export function createDocumentViewerScope(
         copyToRepl: copyToReplAction,
         run: runAction,
         executionState$,
+        currentResult$,
       };
     });
 
@@ -369,12 +377,19 @@ export function createDocumentViewerScope(
       }));
     };
 
+    // Parse content blocks from raw markdown using the heading/example VMs
+    const contentBlocks = parseContentBlocks(
+      section.rawContent,
+      headingVMs,
+      exampleVMs
+    );
+
     return {
       id: section.id,
       title: section.title,
       context: section.context,
       requires: section.requires,
-      rawContent: section.rawContent,
+      contentBlocks,
       headings: headingVMs,
       examples: exampleVMs,
       progress$,

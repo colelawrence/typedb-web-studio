@@ -27,6 +27,7 @@ export type {
 export type {
   DocumentViewerVM,
   DocumentSectionVM,
+  DocumentSectionContentBlockVM,
   DocumentProgressVM,
   DocumentHeadingVM,
   DocumentExampleVM,
@@ -34,6 +35,9 @@ export type {
   ExampleRunResultVM,
   ContextSwitchPromptVM,
 } from "./document-viewer.vm";
+
+// Content block parsing utilities
+export { parseContentBlocks, slugify } from "./content-blocks";
 
 // Navigation types
 export type {
