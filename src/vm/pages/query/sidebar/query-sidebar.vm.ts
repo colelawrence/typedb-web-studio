@@ -8,6 +8,7 @@
 import type { Queryable } from "../../../types";
 import type { SchemaTreeVM } from "../../../shared/schema-tree.vm";
 import type { SavedQueriesTreeVM } from "./saved-queries.vm";
+import type { LearnSectionVM, ReferenceSectionVM } from "../../../learn/learn-sidebar.vm";
 
 /**
  * Query sidebar VM.
@@ -58,6 +59,13 @@ export interface QuerySidebarVM {
    * - Saves to localStorage on drag end (debounced)
    */
   setWidth(width: number): void;
+
+  /**
+   * Learn/documentation section (curriculum + reference).
+   * Displays first in sidebar order: Learn, Schema, Saved Queries.
+   * Optional - may be null if learn content not available.
+   */
+  learnSection: QuerySidebarLearnSectionVM | null;
 
   /**
    * Schema section containing database schema tree.
@@ -219,6 +227,63 @@ export interface QuerySidebarUrlImportsSectionVM {
    * - No confirmation (imports are still in the URL if user navigates back)
    */
   dismiss(): void;
+}
+
+/**
+ * Learn/documentation section in the query sidebar.
+ *
+ * **Layout:**
+ * ```
+ * ┌──────────────────┐
+ * │ Learn         [−]│ ← collapse toggle
+ * ├──────────────────┤
+ * │ ▼ CURRICULUM     │ ← learn section tree
+ * │   ▶ Foundations  │
+ * │   ▶ Querying     │
+ * │                  │
+ * │ ▼ REFERENCE      │ ← reference section tree
+ * │   ▶ Keywords     │
+ * │   ▶ Types        │
+ * │                  │
+ * │ [Open Learn]     │ ← link to full page
+ * └──────────────────┘
+ * ```
+ */
+export interface QuerySidebarLearnSectionVM {
+  /**
+   * Section header label.
+   * Fixed: "Learn"
+   */
+  label: string;
+
+  /**
+   * Whether this entire learn section is collapsed.
+   *
+   * **Persistence:** Collapse state saved to localStorage.
+   */
+  collapsed$: Queryable<boolean>;
+
+  /**
+   * Toggles collapsed state.
+   */
+  toggleCollapsed(): void;
+
+  /**
+   * Curriculum (learn) tree section.
+   * Reuses LearnSectionVM from the Learn page.
+   */
+  curriculum: LearnSectionVM;
+
+  /**
+   * Reference documentation tree section.
+   * Reuses ReferenceSectionVM from the Learn page.
+   */
+  reference: ReferenceSectionVM;
+
+  /**
+   * Opens the full Learn page for detailed documentation.
+   */
+  openFullLearnPage(): void;
 }
 
 // Re-export

@@ -1,29 +1,21 @@
 define
 
+# Attribute types
+attribute name value string;
+attribute age value integer;
+attribute founded-year value integer;
+attribute start-date value datetime;
+
 # Core entity types
-person sub entity,
-  owns name,
-  owns age,
+entity person owns name, owns age,
   plays friendship:friend,
   plays employment:employee;
 
-company sub entity,
-  owns name,
-  owns founded-year,
+entity company owns name, owns founded-year,
   plays employment:employer;
 
-# Attribute types
-name sub attribute, value string;
-age sub attribute, value long;
-founded-year sub attribute, value long;
-
 # Relation types
-friendship sub relation,
-  relates friend;  # Symmetric - both parties are "friend"
+relation friendship relates friend;
 
-employment sub relation,
-  relates employee,
-  relates employer,
+relation employment relates employee, relates employer,
   owns start-date;
-
-start-date sub attribute, value datetime;

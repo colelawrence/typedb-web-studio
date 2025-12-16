@@ -51,17 +51,23 @@ const config = defineConfig({
       },
       router: {
         // Router basepath must match Vite's base for GitHub Pages subdirectory
-        basepath: base,
+        basepath: base
       },
     }),
     viteReact({
       babel: {
-        plugins: ['babel-plugin-react-compiler'],
+        plugins: [
+          'babel-plugin-react-compiler',
+        ],
       },
     }),
   ],
   // Required for LiveStore web workers
   worker: { format: 'es' },
+  // Ensure single React instance for all packages
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
   optimizeDeps: {
     // Exclude packages with WASM from pre-bundling
     // These need special handling for WebAssembly modules

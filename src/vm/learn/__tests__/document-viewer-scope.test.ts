@@ -545,7 +545,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     loadContext: (name: string) => Promise<void>;
     resetContext: () => Promise<void>;
     clearContext: () => Promise<void>;
-    getStatus: () => { isReady: boolean; name: string | null; error: string | null };
+    getStatus: () => { isReady: boolean; isLoading: boolean; name: string | null; error: string | null };
     isContextLoaded: (name: string | null) => boolean;
   };
 
@@ -566,6 +566,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       },
       getStatus: () => ({
         isReady: mockContextManager.currentContext !== null,
+        isLoading: false,
         name: mockContextManager.currentContext,
         error: null,
       }),
@@ -584,9 +585,8 @@ describe("DocumentViewerScope with ContextManager", () => {
 
     const replBridge = createMockReplBridge();
 
-    const viewerVM = createDocumentViewerScope({
+    const { vm: viewerVM, service: viewerService } = createDocumentViewerScope({
       store,
-      events,
       profileId: "test-profile-ctx",
       sections: MOCK_SECTIONS,
       replBridge,
@@ -596,6 +596,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     ctx = {
       store,
       viewerVM,
+      viewerService,
       profileId: "test-profile-ctx",
       replBridge,
       cleanup: async () => {},

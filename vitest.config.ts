@@ -1,12 +1,15 @@
 import { defineConfig } from 'vitest/config'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import path from 'path'
+import { curriculumPlugin } from './src/curriculum/vite-plugin'
 
 export default defineConfig({
   plugins: [
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
+    // Parse curriculum markdown files at build time for tests
+    curriculumPlugin({ curriculumDir: 'docs/curriculum' }),
   ],
   server: {
     fs: {
@@ -21,6 +24,7 @@ export default defineConfig({
       provider: 'playwright',
       instances: [{ browser: 'chromium' }],
       headless: true,
+      screenshotFailures: false,
     },
     include: ['src/**/*.test.ts'],
     testTimeout: 30000,

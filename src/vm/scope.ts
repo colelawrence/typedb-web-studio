@@ -60,7 +60,7 @@ import type { QueryResultsVM, LogOutputVM, TableOutputVM, GraphOutputVM, RawOutp
 import type { QueryHistoryBarVM } from "./pages/query/history/query-history-bar.vm";
 import type { SchemaPageVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageVM } from "./pages/users/users-page.vm";
-import type { DisabledState, FormInputVM } from "./types";
+import type { DisabledState, FormInputVM, IconComponent } from "./types";
 import type { SchemaTreeVM, SchemaTreeGroupVM, SchemaTreeItemVM, SchemaTreeChildItemVM, SchemaTreeStatus } from "./shared/schema-tree.vm";
 import type { SavedQueriesTreeVM, SavedQueryTreeItemVM } from "./pages/query/sidebar/saved-queries.vm";
 import type { ActiveDialogVM } from "./dialogs/dialogs.vm";
@@ -77,6 +77,7 @@ import { createNavigationScope } from "./learn/navigation-scope";
 import { createReplBridge } from "../learn/repl-bridge";
 import { sections as curriculumSections, contexts as curriculumContexts } from "../curriculum/content";
 import type { ParsedSection, CurriculumMeta, SectionMeta } from "../curriculum/types";
+import { constant } from "./learn/constant";
 
 // ============================================================================
 // Service Interfaces
@@ -160,11 +161,6 @@ export interface StudioServices {
 // ============================================================================
 
 const createID = (prefix: string) => `${prefix}_${nanoid(12)}`;
-
-/** Creates a queryable that always returns the same value with explicit type */
-function constant<T>(value: NoInfer<T>, label: string): Queryable<T> {
-  return computed((): T => value, { label });
-}
 
 // ============================================================================
 // Main Scope
@@ -2159,9 +2155,9 @@ function createQueryPageVM(
     status$: computed(
       (get): TableStatus => {
         const results = get(queryResults$);
-        if (results.isRunning) return "loading";
+        if (results.isRunning) return "running";
         if (results.errorMessage) return "error";
-        if (results.tableRows.length > 0) return "ready";
+        if (results.tableRows.length > 0) return "success";
         return "idle";
       },
       { label: "table.status" }
@@ -2183,7 +2179,8 @@ function createQueryPageVM(
         return results.tableColumns.map((col) => ({
           key: col,
           label: col,
-          sortable: true,
+          isSorted$: constant(false, `table.column.${col}.isSorted`),
+          sortDirection$: constant<"asc" | "desc" | null>(null, `table.column.${col}.sortDirection`),
         }));
       },
       { label: "table.columns" }
@@ -2217,7 +2214,7 @@ function createQueryPageVM(
     status$: computed(
       (get): GraphStatus => {
         const results = get(queryResults$);
-        if (results.isRunning) return "loading";
+        if (results.isRunning) return "running";
         if (results.errorMessage) return "error";
         // Graph requires special data, currently only show idle
         return "idle";
@@ -2288,6 +2285,90 @@ function createQueryPageVM(
     raw,
   };
 
+  // Helper functions for history entry formatting
+  const formatTimeAgo = (date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const formatTimestamp = (date: Date): string => {
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const formatDuration = (ms: number | null): string | null => {
+    if (ms === null) return null;
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    const minutes = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${minutes}m ${secs}s`;
+  };
+
+  // Placeholder status icons (simple function components)
+  const SuccessIcon: IconComponent = () => null; // View will render actual icon
+  const ErrorIcon: IconComponent = () => null;
+  const RunningIcon: IconComponent = () => null;
+
+  const getStatusIcon = (status: "success" | "error" | "running"): IconComponent => {
+    switch (status) {
+      case "success": return SuccessIcon;
+      case "error": return ErrorIcon;
+      case "running": return RunningIcon;
+    }
+  };
+
+  // Helper to create HistoryEntryVM from history record
+  type QueryHistoryEntry = {
+    id: string;
+    queryText: string;
+    executedAt: Date;
+    status: string;
+    durationMs: number | null;
+    errorMessage: string | null;
+  };
+  const createHistoryEntryVM = (entry: QueryHistoryEntry): HistoryEntryVM => {
+    const date = new Date(entry.executedAt);
+    const status = entry.status as "success" | "error";
+    return {
+      key: entry.id,
+      type: "query",
+      statusIcon: getStatusIcon(status),
+      status,
+      summary: entry.queryText.slice(0, 40) + (entry.queryText.length > 40 ? "..." : ""),
+      fullQueryText: entry.queryText,
+      timeAgo$: constant(formatTimeAgo(date), `history.${entry.id}.timeAgo`),
+      timestampDisplay: formatTimestamp(date),
+      durationDisplay: formatDuration(entry.durationMs),
+      loadInEditor: () => {
+        store.commit(events.uiStateSet({
+          currentQueryText: entry.queryText,
+          hasUnsavedChanges: true,
+        }));
+        showSnackbar("success", "Query loaded into editor");
+      },
+      showErrorDetails: () => {
+        if (entry.errorMessage) {
+          showSnackbar("error", entry.errorMessage);
+        }
+      },
+      errorMessage: entry.errorMessage ?? null,
+    };
+  };
+
   // History Bar - reads from queryHistory$ table
   const historyBar: QueryHistoryBarVM = {
     isExpanded$: computed((get) => get(uiState$).historyBarExpanded, { label: "history.expanded" }),
@@ -2299,53 +2380,14 @@ function createQueryPageVM(
       (get): HistoryEntryVM | null => {
         const history = get(queryHistory$);
         if (history.length === 0) return null;
-        const entry = history[0];
-        return {
-          key: entry.id,
-          queryText: entry.queryText,
-          queryPreview: entry.queryText.slice(0, 60) + (entry.queryText.length > 60 ? "..." : ""),
-          executedAt: new Date(entry.executedAt),
-          durationMs: entry.durationMs ?? 0,
-          status: entry.status as "success" | "error",
-          rowCount: entry.rowCount ?? undefined,
-          errorMessage: entry.errorMessage ?? undefined,
-          loadInEditor: () => {
-            store.commit(events.uiStateSet({
-              currentQueryText: entry.queryText,
-              hasUnsavedChanges: true,
-            }));
-            showSnackbar("success", "Query loaded into editor");
-          },
-          showErrorDetails: entry.errorMessage ? () => {
-            showSnackbar("error", entry.errorMessage ?? "Unknown error");
-          } : undefined,
-        };
+        return createHistoryEntryVM(history[0]);
       },
       { label: "history.latest" }
     ),
     entries$: computed(
       (get): HistoryEntryVM[] => {
         const history = get(queryHistory$);
-        return history.map((entry) => ({
-          key: entry.id,
-          queryText: entry.queryText,
-          queryPreview: entry.queryText.slice(0, 60) + (entry.queryText.length > 60 ? "..." : ""),
-          executedAt: new Date(entry.executedAt),
-          durationMs: entry.durationMs ?? 0,
-          status: entry.status as "success" | "error",
-          rowCount: entry.rowCount ?? undefined,
-          errorMessage: entry.errorMessage ?? undefined,
-          loadInEditor: () => {
-            store.commit(events.uiStateSet({
-              currentQueryText: entry.queryText,
-              hasUnsavedChanges: true,
-            }));
-            showSnackbar("success", "Query loaded into editor");
-          },
-          showErrorDetails: entry.errorMessage ? () => {
-            showSnackbar("error", entry.errorMessage ?? "Unknown error");
-          } : undefined,
-        }));
+        return history.map(createHistoryEntryVM);
       },
       { label: "history.entries" }
     ),

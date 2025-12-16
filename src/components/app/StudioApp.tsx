@@ -38,6 +38,7 @@ const adapter = makePersistedAdapter({
  * Root component that provides LiveStore context.
  */
 export function StudioAppProvider({ children }: { children?: React.ReactNode }) {
+  "use client";
   return (
     <LiveStoreProvider
       schema={schema}

@@ -176,3 +176,21 @@ export const queryHistory$ = queryDb(
 export const schemaTypes$ = queryDb(tables.schemaTypes.get(), {
   label: "schemaTypes",
 });
+
+// ============================================================================
+// Query Results (Ephemeral)
+// ============================================================================
+
+/** Current query execution results */
+export const queryResults$ = queryDb(tables.queryResults.get(), {
+  label: "queryResults",
+});
+
+// ============================================================================
+// Available Databases
+// ============================================================================
+
+/** Available databases for current connection */
+export const availableDatabases$ = queryDb(tables.availableDatabases.get(), {
+  label: "availableDatabases",
+});

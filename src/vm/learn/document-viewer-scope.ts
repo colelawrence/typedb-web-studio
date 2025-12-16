@@ -29,15 +29,8 @@ import {
   type ContextSwitchPromptVM,
 } from "./document-viewer.vm";
 import type { ContextManager } from "../../curriculum/context-manager";
+import { constant } from "./constant";
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Creates a queryable that always returns the same value */
-function constant<T>(value: T, label: string): Queryable<T> {
-  return computed((): T => value, { label });
-}
 
 // ============================================================================
 // Service Interface

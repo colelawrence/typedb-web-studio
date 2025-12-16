@@ -244,6 +244,7 @@ export const tables = {
       // Sidebar state
       querySidebarWidth: Schema.Number,
       querySidebarCollapsed: Schema.Boolean,
+      querySidebarLearnCollapsed: Schema.Boolean,
       schemaCollapsed: Schema.Boolean,
       savedQueriesCollapsed: Schema.Boolean,
 
@@ -262,6 +263,19 @@ export const tables = {
 
       // Active dialog
       activeDialog: Schema.NullOr(Schema.String),
+
+      // Learn sidebar state
+      learnSectionCollapsed: Schema.Boolean,
+      referenceSectionCollapsed: Schema.Boolean,
+      learnExpandedFolders: Schema.Array(Schema.String),
+
+      // Learn viewer state
+      learnCurrentSectionId: Schema.NullOr(Schema.String),
+      learnViewerVisible: Schema.Boolean,
+
+      // Query page docs viewer state
+      queryDocsViewerVisible: Schema.Boolean,
+      queryDocsCurrentSectionId: Schema.NullOr(Schema.String),
     }),
     default: {
       id: SessionIdSymbol,
@@ -284,6 +298,7 @@ export const tables = {
         editorMode: "code",
         querySidebarWidth: 280,
         querySidebarCollapsed: false,
+        querySidebarLearnCollapsed: false,
         schemaCollapsed: false,
         savedQueriesCollapsed: false,
         schemaViewMode: "hierarchical",
@@ -294,6 +309,13 @@ export const tables = {
         resultsActiveTab: "log",
         historyBarExpanded: false,
         activeDialog: null,
+        learnSectionCollapsed: false,
+        referenceSectionCollapsed: true,
+        learnExpandedFolders: [],
+        learnCurrentSectionId: null,
+        learnViewerVisible: true,
+        queryDocsViewerVisible: false,
+        queryDocsCurrentSectionId: null,
       },
     },
   }),
@@ -358,6 +380,81 @@ export const tables = {
         entities: [],
         relations: [],
         attributes: [],
+      },
+    },
+  }),
+
+  /**
+   * Current query results (ephemeral, session-scoped).
+   * Updated after each query execution.
+   */
+  queryResults: State.SQLite.clientDocument({
+    name: "queryResults",
+    schema: Schema.Struct({
+      /** Whether a query is currently running */
+      isRunning: Schema.Boolean,
+      /** The query that was executed */
+      query: Schema.NullOr(Schema.String),
+      /** Transaction type used */
+      transactionType: Schema.NullOr(Schema.Literal("read", "write", "schema")),
+      /** Execution time in milliseconds */
+      executionTimeMs: Schema.NullOr(Schema.Number),
+      /** Timestamp when query completed */
+      completedAt: Schema.NullOr(Schema.Number),
+      /** Error message if query failed */
+      errorMessage: Schema.NullOr(Schema.String),
+      /** Result type */
+      resultType: Schema.NullOr(Schema.Literal("match", "fetch", "insert", "delete", "define", "undefine", "redefine", "aggregate")),
+      /** Number of results (rows/documents/etc) */
+      resultCount: Schema.NullOr(Schema.Number),
+      /** Raw JSON results for display */
+      rawJson: Schema.NullOr(Schema.String),
+      /** Log output lines */
+      logLines: Schema.Array(Schema.String),
+      /** Table data - columns */
+      tableColumns: Schema.Array(Schema.String),
+      /** Table data - rows (each row is JSON-encoded object) */
+      tableRows: Schema.Array(Schema.String),
+    }),
+    default: {
+      id: SessionIdSymbol,
+      value: {
+        isRunning: false,
+        query: null,
+        transactionType: null,
+        executionTimeMs: null,
+        completedAt: null,
+        errorMessage: null,
+        resultType: null,
+        resultCount: null,
+        rawJson: null,
+        logLines: [],
+        tableColumns: [],
+        tableRows: [],
+      },
+    },
+  }),
+
+  /**
+   * Available databases for the current connection.
+   * Updated when connection is established or databases are refreshed.
+   */
+  availableDatabases: State.SQLite.clientDocument({
+    name: "availableDatabases",
+    schema: Schema.Struct({
+      /** Whether database list is loading */
+      isLoading: Schema.Boolean,
+      /** List of database names */
+      databases: Schema.Array(Schema.String),
+      /** Last refreshed timestamp */
+      lastRefreshedAt: Schema.NullOr(Schema.Number),
+    }),
+    default: {
+      id: SessionIdSymbol,
+      value: {
+        isLoading: false,
+        databases: [],
+        lastRefreshedAt: null,
       },
     },
   }),
@@ -633,6 +730,8 @@ export const events = {
   uiStateSet: tables.uiState.set,
   snackbarSet: tables.snackbarNotifications.set,
   schemaTypesSet: tables.schemaTypes.set,
+  queryResultsSet: tables.queryResults.set,
+  availableDatabasesSet: tables.availableDatabases.set,
 };
 
 // ============================================================================

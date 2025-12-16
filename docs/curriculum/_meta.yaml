@@ -1,9 +1,9 @@
 # Curriculum Structure
 # This file defines the ordering and structure of the TypeQL curriculum.
-# See INTERACTIVE_LEARNING_ARCHITECTURE.md for full design documentation.
+# See INTERACTIVE_LEARNING_ARCHITECTURE.md and TYPEQL_LEARNING_DESIGN.md for design documentation.
 
 name: TypeQL Interactive Learning
-version: 0.1.0
+version: 0.2.0
 
 # Contexts available for lessons
 contexts:
@@ -11,87 +11,257 @@ contexts:
     description: A simple social network with people, friendships, and companies
     path: _contexts/social-network
 
-  - name: e-commerce
-    description: An e-commerce store with products, orders, and customers
-    path: _contexts/e-commerce
+# Learning Approaches
+# Each approach represents a different teaching style to accommodate various learning preferences.
+# Learners can choose the approach that works best for them or try multiple approaches.
 
-# Curriculum sections in order
 sections:
-  - id: foundations
-    title: Foundations
-    path: 01-foundations
+  # =============================================================================
+  # TOUR APPROACH (Go Tour style)
+  # Guided, ~50% explanation, ~50% practice with interactive examples
+  # Best for: Learners who want structured guidance with hands-on practice
+  # =============================================================================
+  - id: tour
+    title: "Tour: Guided Learning"
+    description: "Learn TypeQL step-by-step with explanations and interactive examples"
+    path: 01-tour
     lessons:
-      - id: what-is-typedb
-        title: What is TypeDB?
-        file: 01-what-is-typedb.md
-        context: null  # No DB needed for intro
+      - id: tour-welcome
+        title: Welcome to TypeQL
+        file: 01-welcome.md
+        context: null
 
-      - id: types-intro
-        title: Types and Entities
-        file: 02-types-and-entities.md
+      - id: tour-entities
+        title: Finding Entities
+        file: 02-entities.md
+        context: social-network
+        requires: [tour-welcome]
+
+      - id: tour-attributes
+        title: Filtering by Attributes
+        file: 03-attributes.md
+        context: social-network
+        requires: [tour-entities]
+
+      - id: tour-variables
+        title: Using Variables
+        file: 04-variables.md
+        context: social-network
+        requires: [tour-attributes]
+
+      - id: tour-relations
+        title: Querying Relations
+        file: 05-relations.md
+        context: social-network
+        requires: [tour-variables]
+
+  # =============================================================================
+  # KOANS APPROACH (Clojure Koans style)
+  # Challenge-based, ~90% practice, discover by doing
+  # Best for: Learners who prefer learning through puzzles and discovery
+  # =============================================================================
+  - id: koans
+    title: "Koans: Learn by Discovery"
+    description: "Master TypeQL through contemplative challenges - meditate on each query"
+    path: 02-koans
+    lessons:
+      - id: koans-matching
+        title: About Matching
+        file: 01-about-matching.md
         context: social-network
 
+      - id: koans-attributes
+        title: About Attributes
+        file: 02-about-attributes.md
+        context: social-network
+        requires: [koans-matching]
+
+      - id: koans-variables
+        title: About Variables
+        file: 03-about-variables.md
+        context: social-network
+        requires: [koans-attributes]
+
+      - id: koans-relations
+        title: About Relations
+        file: 04-about-relations.md
+        context: social-network
+        requires: [koans-variables]
+
+      - id: koans-filtering
+        title: About Filtering
+        file: 05-about-filtering.md
+        context: social-network
+        requires: [koans-relations]
+
+  # =============================================================================
+  # EXERCISES APPROACH (SQLBolt style)
+  # Task-oriented micro-scenarios with clear expectations
+  # Best for: Learners who want structured practice with clear goals
+  # =============================================================================
+  - id: exercises
+    title: "Exercises: Practice Problems"
+    description: "Complete targeted exercises with clear goals and expected results"
+    path: 03-exercises
+    lessons:
+      - id: exercises-select
+        title: "Exercise: Finding Data"
+        file: 01-select-queries.md
+        context: social-network
+
+      - id: exercises-filtering
+        title: "Exercise: Filtering"
+        file: 02-filtering-queries.md
+        context: social-network
+        requires: [exercises-select]
+
+      - id: exercises-relations
+        title: "Exercise: Relations"
+        file: 03-multi-table-queries.md
+        context: social-network
+        requires: [exercises-filtering]
+
+      - id: exercises-aggregates
+        title: "Exercise: Combining Patterns"
+        file: 04-aggregate-queries.md
+        context: social-network
+        requires: [exercises-relations]
+
+      - id: exercises-challenges
+        title: "Exercise: Challenges"
+        file: 05-challenge-queries.md
+        context: social-network
+        requires: [exercises-aggregates]
+
+  # =============================================================================
+  # PATTERNS APPROACH (Neo4j GraphAcademy style)
+  # Graph-first thinking with visual diagrams
+  # Best for: Learners who think visually and want to understand graph structures
+  # =============================================================================
+  - id: patterns
+    title: "Patterns: Graph Thinking"
+    description: "Learn to see and query data as a knowledge graph"
+    path: 04-patterns
+    lessons:
+      - id: patterns-nodes
+        title: Nodes in the Graph
+        file: 01-nodes.md
+        context: social-network
+
+      - id: patterns-edges
+        title: Edges and Relations
+        file: 02-edges.md
+        context: social-network
+        requires: [patterns-nodes]
+
+      - id: patterns-paths
+        title: Following Paths
+        file: 03-paths.md
+        context: social-network
+        requires: [patterns-edges]
+
+      - id: patterns-neighbors
+        title: Finding Neighbors
+        file: 04-neighbors.md
+        context: social-network
+        requires: [patterns-paths]
+
+      - id: patterns-advanced
+        title: Advanced Graph Patterns
+        file: 05-graph-thinking.md
+        context: social-network
+        requires: [patterns-neighbors]
+
+  # =============================================================================
+  # AGGREGATIONS (SQL-style reduce operations)
+  # Statistical summaries and grouping
+  # Best for: Learners familiar with SQL aggregations
+  # =============================================================================
+  - id: aggregations
+    title: "Aggregations: Counting & Statistics"
+    description: "Learn to summarize data with count, sum, max, min, and grouping"
+    path: 05-aggregations
+    lessons:
+      - id: agg-counting
+        title: Counting Results
+        file: 01-counting.md
+        context: social-network
+
+      - id: agg-statistics
+        title: Statistical Functions
+        file: 02-statistics.md
+        context: social-network
+        requires: [agg-counting]
+
+      - id: agg-grouping
+        title: Grouping Results
+        file: 03-grouping.md
+        context: social-network
+        requires: [agg-statistics]
+
+  # =============================================================================
+  # INFERENCE (Rules and Reasoning)
+  # TypeDB's unique capability for derived knowledge
+  # Best for: Learners interested in knowledge graphs and reasoning
+  # =============================================================================
+  - id: inference
+    title: "Inference: Rules & Reasoning"
+    description: "Learn how TypeDB derives new facts from rules"
+    path: 06-inference
+    lessons:
+      - id: inf-rules-intro
+        title: Introduction to Rules
+        file: 01-rules-intro.md
+        context: null
+
+      - id: inf-rule-patterns
+        title: Common Rule Patterns
+        file: 02-rule-patterns.md
+        context: null
+        requires: [inf-rules-intro]
+
+      - id: inf-reasoning
+        title: Reasoning in Queries
+        file: 03-reasoning.md
+        context: null
+        requires: [inf-rule-patterns]
+
+  # =============================================================================
+  # SCHEMA DESIGN (Modeling best practices)
+  # How to structure your knowledge graph
+  # Best for: Learners ready to design their own schemas
+  # =============================================================================
+  - id: schema
+    title: "Schema: Designing Your Graph"
+    description: "Learn to model domains with types, relations, and constraints"
+    path: 07-schema
+    lessons:
+      - id: schema-types
+        title: Defining Types
+        file: 01-types.md
+        context: null
+
+      - id: schema-constraints
+        title: Schema Constraints
+        file: 02-constraints.md
+        context: null
+        requires: [schema-types]
+
+      - id: schema-modeling
+        title: Schema Design Patterns
+        file: 03-modeling.md
+        context: null
+        requires: [schema-constraints]
+
+  # =============================================================================
+  # LEGACY: Foundations (original structure - to be migrated)
+  # =============================================================================
+  - id: foundations
+    title: "Foundations (Legacy)"
+    description: "Original curriculum structure"
+    path: 01-foundations
+    lessons:
       - id: first-queries
         title: Your First Queries
         file: 03-first-queries.md
         context: social-network
-        requires: [types-intro]
-
-  - id: querying
-    title: Querying Data
-    path: 02-querying
-    lessons:
-      - id: match-basics
-        title: Basic Pattern Matching
-        file: 01-match-basics.md
-        context: social-network
-        requires: [first-queries]
-
-      - id: variables
-        title: Variables and Constraints
-        file: 02-variables.md
-        context: social-network
-        requires: [match-basics]
-
-      - id: relations
-        title: Querying Relations
-        file: 03-relations.md
-        context: social-network
-        requires: [variables]
-
-  - id: writing
-    title: Writing Data
-    path: 03-writing
-    lessons:
-      - id: insert-basics
-        title: Inserting Data
-        file: 01-insert-basics.md
-        context: social-network
-        requires: [match-basics]
-
-      - id: delete-update
-        title: Deleting and Updating
-        file: 02-delete-update.md
-        context: social-network
-        requires: [insert-basics]
-
-  - id: schema
-    title: Schema Design
-    path: 04-schema
-    lessons:
-      - id: define-types
-        title: Defining Types
-        file: 01-define-types.md
-        context: null  # Fresh DB for schema lessons
-
-      - id: relations-deep
-        title: Relation Design
-        file: 02-relations-deep.md
-        context: null
-        requires: [define-types]
-
-      - id: rules
-        title: Rules and Inference
-        file: 03-rules.md
-        context: social-network
-        requires: [relations-deep]

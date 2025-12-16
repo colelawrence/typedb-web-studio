@@ -124,7 +124,7 @@ function DocumentHeader({
           <Queryable query={progress}>
             {(p) => (
               <span className="text-dense-xs text-muted-foreground">
-                {p.percent}% complete
+                {p.percent}%
               </span>
             )}
           </Queryable>
@@ -137,7 +137,7 @@ function DocumentHeader({
             variant="ghost"
             density="compact"
             onClick={onMarkAllRead}
-            className="text-dense-xs"
+            className="text-dense-xs whitespace-nowrap"
           >
             <Check className="size-3.5 mr-1" />
             Mark all read
@@ -292,10 +292,8 @@ function HeadingBlock({ vm }: { vm: DocumentHeadingVM }) {
   const HeadingTag = getHeadingTag(vm.level);
 
   return (
-    <div className="flex items-center gap-2 group" id={vm.id}>
-      <HeadingTag className={`font-semibold text-foreground ${sizeClass}`}>
-        {vm.text}
-      </HeadingTag>
+    <HeadingTag id={vm.id} className={`font-semibold text-foreground flex items-center gap-2 group ${sizeClass}`}>
+      {vm.text}
       <Queryable query={vm.isRead$}>
         {(isRead) => (
           <button
@@ -315,7 +313,7 @@ function HeadingBlock({ vm }: { vm: DocumentHeadingVM }) {
           </button>
         )}
       </Queryable>
-    </div>
+    </HeadingTag>
   );
 }
 

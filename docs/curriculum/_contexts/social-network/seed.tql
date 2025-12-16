@@ -1,26 +1,53 @@
 # Seed data for social-network context
 # This provides a small but interesting dataset for learning
+# Note: Each insert must be a separate statement in TypeQL 3
+
+insert $alice isa person, has name "Alice", has age 30;
+insert $bob isa person, has name "Bob", has age 25;
+insert $carol isa person, has name "Carol", has age 35;
+insert $dan isa person, has name "Dan", has age 28;
+
+insert $acme isa company, has name "Acme Corp", has founded-year 2010;
+insert $globex isa company, has name "Globex Inc", has founded-year 2015;
+
+# Friendships - need to match people first
+insert
+  $alice isa person, has name "Alice";
+  $bob isa person, has name "Bob";
+  (friend: $alice, friend: $bob) isa friendship;
 
 insert
+  $bob isa person, has name "Bob";
+  $carol isa person, has name "Carol";
+  (friend: $bob, friend: $carol) isa friendship;
 
-# People
-$alice isa person, has name "Alice", has age 30;
-$bob isa person, has name "Bob", has age 25;
-$carol isa person, has name "Carol", has age 35;
-$dan isa person, has name "Dan", has age 28;
+insert
+  $carol isa person, has name "Carol";
+  $dan isa person, has name "Dan";
+  (friend: $carol, friend: $dan) isa friendship;
 
-# Companies
-$acme isa company, has name "Acme Corp", has founded-year 2010;
-$globex isa company, has name "Globex Inc", has founded-year 2015;
-
-# Friendships (note: friendship is symmetric)
-(friend: $alice, friend: $bob) isa friendship;
-(friend: $bob, friend: $carol) isa friendship;
-(friend: $carol, friend: $dan) isa friendship;
-(friend: $alice, friend: $carol) isa friendship;
+insert
+  $alice isa person, has name "Alice";
+  $carol isa person, has name "Carol";
+  (friend: $alice, friend: $carol) isa friendship;
 
 # Employment
-(employee: $alice, employer: $acme) isa employment, has start-date 2020-01-15;
-(employee: $bob, employer: $acme) isa employment, has start-date 2021-06-01;
-(employee: $carol, employer: $globex) isa employment, has start-date 2019-03-20;
-(employee: $dan, employer: $globex) isa employment, has start-date 2022-09-01;
+insert
+  $alice isa person, has name "Alice";
+  $acme isa company, has name "Acme Corp";
+  (employee: $alice, employer: $acme) isa employment, has start-date 2020-01-15;
+
+insert
+  $bob isa person, has name "Bob";
+  $acme isa company, has name "Acme Corp";
+  (employee: $bob, employer: $acme) isa employment, has start-date 2021-06-01;
+
+insert
+  $carol isa person, has name "Carol";
+  $globex isa company, has name "Globex Inc";
+  (employee: $carol, employer: $globex) isa employment, has start-date 2019-03-20;
+
+insert
+  $dan isa person, has name "Dan";
+  $globex isa company, has name "Globex Inc";
+  (employee: $dan, employer: $globex) isa employment, has start-date 2022-09-01;

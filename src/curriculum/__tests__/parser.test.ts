@@ -34,7 +34,6 @@ Variables start with \`$\`.
 
 \`\`\`typeql:example[id=first-match, expect=results]
 match $p isa person;
-get $p;
 \`\`\`
 
 ## Invalid Examples
@@ -174,7 +173,7 @@ title: Special
       const firstMatch = section.examples.find((e) => e.id === 'first-match');
       expect(firstMatch).toMatchObject({
         type: 'example',
-        query: 'match $p isa person;\nget $p;',
+        query: 'match $p isa person;',
         expect: { results: true },
       });
     });
@@ -208,7 +207,6 @@ match
   $p isa person,
     has name $n,
     has age $a;
-get $p, $n, $a;
 \`\`\`
 `;
       const section = parseSection(multiline, 'test.md');
@@ -227,7 +225,6 @@ title: MinMax
 
 \`\`\`typeql:example[id=bounded, expect=results, min=1, max=5]
 match $p isa person;
-get $p;
 \`\`\`
 `;
       const section = parseSection(withMinMax, 'test.md');

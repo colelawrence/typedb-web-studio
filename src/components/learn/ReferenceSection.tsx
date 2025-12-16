@@ -21,6 +21,7 @@ export function ReferenceSection({ vm }: ReferenceSectionProps) {
       <Queryable query={vm.collapsed$}>
         {(collapsed) => (
           <button
+            type="button"
             onClick={vm.toggleCollapsed}
             className="flex items-center gap-2 w-full h-row px-2
                        text-dense-xs font-semibold uppercase tracking-wider
@@ -67,6 +68,7 @@ function ReferenceFolderItem({ vm }: { vm: ReferenceFolderVM }) {
       <Queryable query={vm.expanded$}>
         {(expanded) => (
           <button
+            type="button"
             onClick={vm.toggleExpanded}
             className="flex items-center gap-1 w-full h-row px-1 rounded-md
                        text-dense-sm font-medium text-foreground
@@ -107,6 +109,7 @@ function ReferenceItemLink({ vm }: { vm: ReferenceItemVM }) {
     <Queryable query={vm.isActive$}>
       {(isActive) => (
         <button
+          type="button"
           onClick={vm.select}
           className={`
             flex items-center gap-2 w-full h-row px-2 rounded-md text-left

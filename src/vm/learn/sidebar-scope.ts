@@ -8,10 +8,10 @@
  */
 
 import { computed } from "@livestore/livestore";
-import type { Queryable, Store } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 
-import type { schema } from "../../livestore/schema";
-import { readingProgressForProfile$ } from "../../livestore/queries";
+import { events, type schema } from "../../livestore/schema";
+import { readingProgressForProfile$, uiState$ } from "../../livestore/queries";
 import {
   buildSearchIndex,
   searchCurriculum,
@@ -33,6 +33,7 @@ import type {
   ReferenceFolderVM,
   ProgressState,
 } from "./learn-sidebar.vm";
+import { constant } from "./constant";
 
 // ============================================================================
 // Configuration
@@ -41,15 +42,6 @@ import type {
 const SIDEBAR_WIDTH_MIN = 200;
 const SIDEBAR_WIDTH_MAX = 400;
 const SIDEBAR_WIDTH_DEFAULT = 280;
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Creates a queryable that always returns the same value */
-function constant<T>(value: T, label: string): Queryable<T> {
-  return computed((): T => value, { label });
-}
 
 /**
  * Computes progress state from section read counts.
@@ -98,7 +90,7 @@ export function createLearnSidebarScope(
   options: LearnSidebarScopeOptions
 ): LearnSidebarVM {
   const {
-    store: _store, // Reserved for future use with uiState
+    store,
     profileId,
     curriculumMeta,
     sections,
@@ -308,19 +300,85 @@ export function createLearnSidebarScope(
   // Learn Section (Curriculum)
   // ---------------------------------------------------------------------------
 
-  // Collapsed state for learn section
-  let learnSectionCollapsed = false;
+  // Create folder VMs once (memoized) since curriculumMeta is static
+  const learnFolderVMs: LearnFolderVM[] = curriculumMeta.sections.map((sectionMeta): LearnFolderVM => {
+    const lessonIds = sectionMeta.lessons.map((l) => l.id);
+    const totalCount = lessonIds.length;
+
+    // Create lesson VMs once per folder
+    const lessonVMs: LearnSectionItemVM[] = sectionMeta.lessons.map((lesson): LearnSectionItemVM => ({
+      key: lesson.id,
+      title: lesson.title,
+
+      isActive$: computed(
+        () => getActiveSectionId() === lesson.id,
+        { label: `learnLesson.${lesson.id}.isActive` }
+      ),
+
+      progressState$: computed(
+        (get): ProgressState => {
+          const readIds = get(readSectionIds$);
+          return readIds.has(lesson.id) ? "completed" : "not-started";
+        },
+        { label: `learnLesson.${lesson.id}.progressState` }
+      ),
+
+      select: () => navigate(lesson.id),
+
+      context: lesson.context,
+    }));
+
+    return {
+      key: sectionMeta.id,
+      label: sectionMeta.title,
+
+      expanded$: computed(
+        (get) => get(uiState$).learnExpandedFolders.includes(sectionMeta.id),
+        { label: `learnFolder.${sectionMeta.id}.expanded` }
+      ),
+
+      toggleExpanded: () => {
+        const current = store.query(uiState$);
+        const currentExpanded = current.learnExpandedFolders;
+        const newExpanded = currentExpanded.includes(sectionMeta.id)
+          ? currentExpanded.filter((id: string) => id !== sectionMeta.id)
+          : [...currentExpanded, sectionMeta.id];
+        store.commit(events.uiStateSet({ learnExpandedFolders: newExpanded }));
+      },
+
+      progressPercent$: computed(
+        (get) => {
+          const currentReadIds = get(readSectionIds$);
+          const currentReadCount = lessonIds.filter((id) => currentReadIds.has(id)).length;
+          return computeProgressPercent(currentReadCount, totalCount);
+        },
+        { label: `learnFolder.${sectionMeta.id}.progressPercent` }
+      ),
+
+      progressState$: computed(
+        (get) => {
+          const currentReadIds = get(readSectionIds$);
+          const currentReadCount = lessonIds.filter((id) => currentReadIds.has(id)).length;
+          return computeProgressState(currentReadCount, totalCount);
+        },
+        { label: `learnFolder.${sectionMeta.id}.progressState` }
+      ),
+
+      sections$: constant(lessonVMs, `learnFolder.${sectionMeta.id}.sections`),
+    };
+  });
 
   const learnSection: LearnSectionVM = {
     label: "LEARN",
 
     collapsed$: computed(
-      () => learnSectionCollapsed,
+      (get) => get(uiState$).learnSectionCollapsed,
       { label: "learnSection.collapsed" }
     ),
 
     toggleCollapsed: () => {
-      learnSectionCollapsed = !learnSectionCollapsed;
+      const current = store.query(uiState$);
+      store.commit(events.uiStateSet({ learnSectionCollapsed: !current.learnSectionCollapsed }));
     },
 
     progressPercent$: computed(
@@ -348,93 +406,24 @@ export function createLearnSidebarScope(
       { label: "learnSection.progressDisplay" }
     ),
 
-    folders$: computed(
-      (get): LearnFolderVM[] => {
-        const readIds = get(readSectionIds$);
-
-        return curriculumMeta.sections.map((sectionMeta): LearnFolderVM => {
-          const lessonIds = sectionMeta.lessons.map((l) => l.id);
-          const readCount = lessonIds.filter((id) => readIds.has(id)).length;
-          const totalCount = lessonIds.length;
-
-          // Track folder expansion state
-          let expanded = false;
-
-          return {
-            key: sectionMeta.id,
-            label: sectionMeta.title,
-
-            expanded$: computed(
-              () => expanded,
-              { label: `learnFolder.${sectionMeta.id}.expanded` }
-            ),
-
-            toggleExpanded: () => {
-              expanded = !expanded;
-            },
-
-            progressPercent$: constant(
-              computeProgressPercent(readCount, totalCount),
-              `learnFolder.${sectionMeta.id}.progressPercent`
-            ),
-
-            progressState$: constant(
-              computeProgressState(readCount, totalCount),
-              `learnFolder.${sectionMeta.id}.progressState`
-            ),
-
-            sections$: computed(
-              (get): LearnSectionItemVM[] => {
-                const currentReadIds = get(readSectionIds$);
-
-                return sectionMeta.lessons.map((lesson): LearnSectionItemVM => {
-                  const isRead = currentReadIds.has(lesson.id);
-
-                  return {
-                    key: lesson.id,
-                    title: lesson.title,
-
-                    isActive$: computed(
-                      () => getActiveSectionId() === lesson.id,
-                      { label: `learnLesson.${lesson.id}.isActive` }
-                    ),
-
-                    progressState$: constant<ProgressState>(
-                      isRead ? "completed" : "not-started",
-                      `learnLesson.${lesson.id}.progressState`
-                    ),
-
-                    select: () => navigate(lesson.id),
-
-                    context: lesson.context,
-                  };
-                });
-              },
-              { label: `learnFolder.${sectionMeta.id}.sections` }
-            ),
-          };
-        });
-      },
-      { label: "learnSection.folders" }
-    ),
+    folders$: constant(learnFolderVMs, "learnSection.folders"),
   };
 
   // ---------------------------------------------------------------------------
   // Reference Section (placeholder - no reference docs yet)
   // ---------------------------------------------------------------------------
 
-  let referenceSectionCollapsed = true;
-
   const referenceSection: ReferenceSectionVM = {
     label: "REFERENCE",
 
     collapsed$: computed(
-      () => referenceSectionCollapsed,
+      (get) => get(uiState$).referenceSectionCollapsed,
       { label: "referenceSection.collapsed" }
     ),
 
     toggleCollapsed: () => {
-      referenceSectionCollapsed = !referenceSectionCollapsed;
+      const current = store.query(uiState$);
+      store.commit(events.uiStateSet({ referenceSectionCollapsed: !current.referenceSectionCollapsed }));
     },
 
     folders$: constant<ReferenceFolderVM[]>(

@@ -10,32 +10,37 @@ import type { QuerySidebarVM } from "./sidebar/query-sidebar.vm";
 import type { QueryEditorVM } from "./editor/query-editor.vm";
 import type { QueryResultsVM } from "./results/query-results.vm";
 import type { QueryHistoryBarVM } from "./history/query-history-bar.vm";
+import type { DocumentViewerVM } from "../../learn/document-viewer.vm";
 
 /**
  * Query page VM.
  *
- * **Layout:**
+ * **Layout (with docs pane open):**
  * ```
- * ┌──────────────┬─────────────────────────────────────┐
- * │   Sidebar    │  Query Editor                       │
- * │   (resize)   │  ┌─────────────────────────────────┐│
- * │              │  │ [code|chat] [new][save][run]    ││
- * │ ┌──────────┐ │  ├─────────────────────────────────┤│
- * │ │ Schema   │ │  │ TypeQL code editor              ││
- * │ │ (collapse)│ │  │                                 ││
- * │ └──────────┘ │  └─────────────────────────────────┘│
- * │              │  Results                            │
- * │ ┌──────────┐ │  ┌─────────────────────────────────┐│
- * │ │ Saved    │ │  │ [log|table|graph|raw]          ││
- * │ │ Queries  │ │  │                                 ││
- * │ │ (collapse)│ │  │ Output content                  ││
- * │ └──────────┘ │  └─────────────────────────────────┘│
- * │              │  History Bar (compact, expandable)  │
- * └──────────────┴─────────────────────────────────────┘
+ * ┌──────────────┬───────────────────────┬─────────────┐
+ * │   Sidebar    │  Query Editor         │  Docs Pane  │
+ * │   (resize)   │  ┌───────────────────┐│ (resizable) │
+ * │              │  │ [code] [run]      ││             │
+ * │ ┌──────────┐ │  ├───────────────────┤│ ┌─────────┐│
+ * │ │ Learn    │ │  │ TypeQL editor     ││ │ Doc     ││
+ * │ │ (collapse)│ │  │                   ││ │ content ││
+ * │ └──────────┘ │  └───────────────────┘│ └─────────┘│
+ * │              │  Results              │             │
+ * │ ┌──────────┐ │  ┌───────────────────────────────┐ │
+ * │ │ Schema   │ │  │ [log|table|graph|raw]        │ │
+ * │ │ (collapse)│ │  │ Output content               │ │
+ * │ └──────────┘ │  └───────────────────────────────┘ │
+ * │              │  History Bar                       │
+ * │ ┌──────────┐ └────────────────────────────────────┘
+ * │ │ Saved    │
+ * │ │ Queries  │
+ * │ └──────────┘
+ * └──────────────┘
  * ```
  *
  * **Resizing:**
  * - Sidebar width is resizable (drag handle on right edge)
+ * - Editor/Docs split is resizable when docs pane is open
  * - Editor/Results split is resizable (drag handle between them)
  * - Minimum widths prevent collapsing to unusable sizes
  */
@@ -59,6 +64,13 @@ export interface QueryPageVM {
    * Compact history bar at the bottom.
    */
   historyBar: QueryHistoryBarVM;
+
+  /**
+   * Documentation viewer shown in a split pane alongside the editor.
+   * Opens when user clicks Learn/Reference items in the sidebar.
+   * Stays open even when interacting with other sidebar sections.
+   */
+  docsViewer: DocumentViewerVM;
 
   /**
    * Placeholder state when page cannot function.

@@ -7,6 +7,7 @@ export type {
   QuerySidebarSchemaSectionVM,
   QuerySidebarSavedQueriesSectionVM,
   QuerySidebarUrlImportsSectionVM,
+  QuerySidebarLearnSectionVM,
 } from "./query-sidebar.vm";
 
 export type {

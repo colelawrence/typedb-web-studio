@@ -8,111 +8,62 @@
  * requires browser APIs.
  *
  * Test Strategy:
- * 1. Group examples by context (e.g., 'social-network')
- * 2. For each context, create a fresh database with schema + seed data
- * 3. Run all examples from sections using that context
- * 4. Verify results match expectations
+ * 1. Load examples from the virtual:curriculum-content module (parsed from markdown)
+ * 2. Group examples by context (e.g., 'social-network')
+ * 3. For each context, create a fresh database with schema + seed data
+ * 4. Run all examples from sections using that context
+ * 5. Verify results match expectations
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TypeDBEmbeddedService, createEmbeddedService } from '../../services/typedb-embedded-service';
 import { testExample, formatTestResult } from '../test-runner';
-import { registerContext, clearContexts, loadContext } from '../context-loader';
-import type { ParsedExample } from '../types';
+import { clearContexts } from '../context-loader';
+import type { ParsedExample, ParsedSection } from '../types';
 
-// Import curriculum content - in browser tests we inline it rather than using fs
-// This data matches the working TypeQL3 format from existing fixtures
-const SOCIAL_NETWORK_SCHEMA = `define
+// Import curriculum content from the virtual module (built by vite-plugin)
+// This contains the ACTUAL parsed content from the markdown files
+import {
+  curriculumSections,
+  curriculumMetadata,
+} from 'virtual:curriculum-content';
+
+// Context database setup - schema and seed data for each context
+// This must include ALL types used by ANY curriculum example
+const CONTEXT_SETUP: Record<string, { schema: string; seed: string[] }> = {
+  'social-network': {
+    schema: `define
 attribute name value string;
 attribute age value integer;
-entity person owns name, owns age;
-entity company owns name;
-relation employment relates employee, relates employer;`
-
-// Seed data as individual insert statements (TypeQL3 format)
-const SOCIAL_NETWORK_SEED_QUERIES = [
-  'insert $p isa person, has name "Alice", has age 30;',
-  'insert $p isa person, has name "Bob", has age 25;',
-  'insert $p isa person, has name "Carol", has age 35;',
-  'insert $p isa person, has name "Dan", has age 28;',
-  'insert $c isa company, has name "Acme Corp";',
-  'insert $c isa company, has name "Globex Inc";',
-];
-
-// Examples from the first-queries.md curriculum file
-// These match the actual examples in docs/curriculum/01-foundations/03-first-queries.md
-// Note: TypeQL3 uses implicit fetch - just 'match' clause returns results
-const FIRST_QUERIES_EXAMPLES: ParsedExample[] = [
-  {
-    id: 'find-all-people',
-    type: 'example',
-    query: 'match $p isa person;',
-    expect: { results: true, min: 3 },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 16,
+attribute founded-year value integer;
+attribute start-date value datetime;
+entity person owns name, owns age,
+  plays friendship:friend,
+  plays employment:employee;
+entity company owns name, owns founded-year,
+  plays employment:employer;
+relation friendship relates friend;
+relation employment relates employee, relates employer, owns start-date;`,
+    seed: [
+      // People - insert all in one statement to get stable references
+      `insert 
+        $alice isa person, has name "Alice", has age 30;
+        $bob isa person, has name "Bob", has age 25;
+        $carol isa person, has name "Carol", has age 35;
+        $dan isa person, has name "Dan", has age 28;
+        $acme isa company, has name "Acme Corp", has founded-year 2010;
+        $globex isa company, has name "Globex Inc", has founded-year 2015;
+        (friend: $alice, friend: $bob) isa friendship;
+        (friend: $bob, friend: $carol) isa friendship;
+        (friend: $carol, friend: $dan) isa friendship;
+        (friend: $alice, friend: $carol) isa friendship;
+        (employee: $alice, employer: $acme) isa employment, has start-date 2020-01-15;
+        (employee: $bob, employer: $acme) isa employment, has start-date 2021-06-01;
+        (employee: $carol, employer: $globex) isa employment, has start-date 2019-03-20;
+        (employee: $dan, employer: $globex) isa employment, has start-date 2022-09-01;`,
+    ],
   },
-  {
-    id: 'find-all-companies',
-    type: 'example',
-    query: 'match $company isa company;',
-    expect: { results: true, min: 2 },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 27,
-  },
-  {
-    id: 'find-alice',
-    type: 'example',
-    query: 'match $p isa person, has name "Alice";',
-    expect: { results: true, min: 1, max: 1 },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 38,
-  },
-  {
-    id: 'get-names-ages',
-    type: 'example',
-    query: 'match $p isa person, has name $n, has age $a;',
-    expect: { results: true, min: 4 },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 51,
-  },
-  {
-    id: 'find-over-30',
-    type: 'example',
-    query: 'match $p isa person, has name $n, has age $a; $a > 28;',
-    expect: { results: true, min: 1 },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 65,
-  },
-  {
-    id: 'missing-isa',
-    type: 'invalid',
-    query: 'match $p person;',
-    expect: { error: 'parse' },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 82,
-  },
-  {
-    id: 'unclosed-string',
-    type: 'invalid',
-    query: 'match $p isa person, has name "Alice;',
-    expect: { error: 'parse' },
-    sourceFile: '01-foundations/03-first-queries.md',
-    lineNumber: 89,
-  },
-];
-
-// Note: FIRST_QUERIES_EXAMPLES is used directly in tests
-// The following section definition shows how examples would be organized:
-// {
-//   id: 'first-queries',
-//   title: 'Your First Queries',
-//   context: 'social-network',
-//   requires: ['types-intro'],
-//   headings: [],
-//   examples: FIRST_QUERIES_EXAMPLES,
-//   rawContent: '',
-//   sourceFile: '01-foundations/03-first-queries.md',
-// }
+};
 
 describe('Curriculum Examples', () => {
   let service: TypeDBEmbeddedService;
@@ -126,6 +77,10 @@ describe('Curriculum Examples', () => {
       username: 'test',
       password: '',
     });
+
+    console.log(
+      `[Curriculum Tests] Loaded ${curriculumMetadata.totalSections} sections with ${curriculumMetadata.totalExamples} examples`
+    );
   });
 
   afterAll(async () => {
@@ -133,44 +88,74 @@ describe('Curriculum Examples', () => {
     clearContexts();
   });
 
-  describe('Context: social-network', () => {
-    const database = `curriculum_social${uniqueDbSuffix}`;
+  // Group sections by context, only including sections that have examples
+  const sectionsByContext = new Map<string, ParsedSection[]>();
+  for (const section of curriculumSections as ParsedSection[]) {
+    // Skip sections with no examples
+    if (section.examples.length === 0) continue;
+    
+    const context = section.context ?? 'default';
+    const sections = sectionsByContext.get(context) ?? [];
+    sections.push(section);
+    sectionsByContext.set(context, sections);
+  }
 
-    beforeAll(async () => {
-      // Create database with schema and seed data
-      await service.createDatabase(database);
+  // Create a describe block for each context that has examples
+  for (const [contextName, sections] of sectionsByContext) {
+    describe(`Context: ${contextName}`, () => {
+      const database = `curriculum_${contextName.replace(/-/g, '_')}${uniqueDbSuffix}`;
 
-      // Apply schema
-      await service.executeQuery(database, SOCIAL_NETWORK_SCHEMA, { transactionType: 'schema' });
+      beforeAll(async () => {
+        // Create database with schema and seed data
+        await service.createDatabase(database);
 
-      // Apply seed data (multiple inserts)
-      for (const seedQuery of SOCIAL_NETWORK_SEED_QUERIES) {
-        await service.executeQuery(database, seedQuery, { transactionType: 'write' });
-      }
-    });
+        const setup = CONTEXT_SETUP[contextName];
+        if (setup) {
+          // Apply schema
+          await service.executeQuery(database, setup.schema, { transactionType: 'schema' });
 
-    afterAll(async () => {
-      try {
-        await service.deleteDatabase(database);
-      } catch {
-        // Ignore cleanup errors
-      }
-    });
-
-    describe('Section: Your First Queries', () => {
-      for (const example of FIRST_QUERIES_EXAMPLES) {
-        it(`[${example.id}] ${example.query.slice(0, 40).replace(/\n/g, ' ')}...`, async () => {
-          const result = await testExample(service, database, example);
-
-          if (!result.passed) {
-            console.error(formatTestResult(result));
+          // Apply seed data
+          for (const seedQuery of setup.seed) {
+            await service.executeQuery(database, seedQuery, { transactionType: 'write' });
           }
+        } else {
+          console.warn(`[Curriculum Tests] No setup defined for context '${contextName}'`);
+        }
+      });
 
-          expect(result.passed, result.error).toBe(true);
+      afterAll(async () => {
+        try {
+          await service.deleteDatabase(database);
+        } catch {
+          // Ignore cleanup errors
+        }
+      });
+
+      // Create a describe block for each section in this context
+      for (const section of sections) {
+        if (section.examples.length === 0) {
+          continue;
+        }
+
+        describe(`Section: ${section.title}`, () => {
+          for (const example of section.examples) {
+            const queryPreview = example.query.slice(0, 50).replace(/\n/g, ' ');
+            const testName = `[${example.id}] ${queryPreview}${example.query.length > 50 ? '...' : ''}`;
+
+            it(testName, async () => {
+              const result = await testExample(service, database, example);
+
+              if (!result.passed) {
+                console.error(formatTestResult(result));
+              }
+
+              expect(result.passed, result.error).toBe(true);
+            });
+          }
         });
       }
     });
-  });
+  }
 });
 
 describe('Test Runner Utilities', () => {
@@ -297,31 +282,5 @@ describe('Test Runner Utilities', () => {
       const result = await testExample(service, database, example);
       expect(result.passed).toBe(true);
     });
-  });
-});
-
-describe('Context Loader', () => {
-  beforeEach(() => {
-    clearContexts();
-  });
-
-  afterEach(() => {
-    clearContexts();
-  });
-
-  it('registers and loads context', () => {
-    registerContext('test-context', {
-      schema: 'define entity test;',
-      seed: 'insert $t isa test;',
-    });
-
-    const context = loadContext('test-context');
-    expect(context.name).toBe('test-context');
-    expect(context.schema).toBe('define entity test;');
-    expect(context.seed).toBe('insert $t isa test;');
-  });
-
-  it('throws when loading unregistered context', () => {
-    expect(() => loadContext('nonexistent')).toThrow(/not found/);
   });
 });

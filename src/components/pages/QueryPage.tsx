@@ -7,9 +7,18 @@
 
 import type { QueryPageVM } from "@/vm";
 import { Queryable } from "@/vm/components";
-import { Database, Play, ChevronRight } from "lucide-react";
+import {
+  Database,
+  Play,
+  ChevronRight,
+  BookOpen,
+  ExternalLink,
+  X,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
+import { LearnSection, ReferenceSection, DocumentViewer } from "../learn";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 export function QueryPage({ vm }: { vm: QueryPageVM }) {
   return (
@@ -25,15 +34,23 @@ export function QueryPage({ vm }: { vm: QueryPageVM }) {
   );
 }
 
-function PlaceholderView({ placeholder }: { placeholder: NonNullable<QueryPageVM extends { placeholder$: import("@/vm").Queryable<infer T> } ? T : never> }) {
+function PlaceholderView({
+  placeholder,
+}: {
+  placeholder: NonNullable<
+    QueryPageVM extends { placeholder$: import("@/vm").Queryable<infer T> }
+      ? T
+      : never
+  >;
+}) {
   return (
     <div className="flex flex-col items-center justify-center h-full">
       <div className="text-center space-y-4">
         <Database className="size-12 mx-auto text-muted-foreground" />
-        <p className="text-dense-lg text-muted-foreground">{placeholder.message}</p>
-        <Button onClick={placeholder.action}>
-          {placeholder.actionLabel}
-        </Button>
+        <p className="text-dense-lg text-muted-foreground">
+          {placeholder.message}
+        </p>
+        <Button onClick={placeholder.action}>{placeholder.actionLabel}</Button>
       </div>
     </div>
   );
@@ -41,26 +58,121 @@ function PlaceholderView({ placeholder }: { placeholder: NonNullable<QueryPageVM
 
 function QueryPageContent({ vm }: { vm: QueryPageVM }) {
   return (
-    <div className="flex h-full">
-      {/* Sidebar - Task 4.1: 280px default width */}
-      <aside className="w-[280px] min-w-[200px] max-w-[50%] border-r border-border bg-card flex flex-col">
-        <QuerySidebar vm={vm.sidebar} />
-      </aside>
+    <PanelGroup
+      direction="horizontal"
+      autoSaveId="query-page-main"
+      className="h-full"
+    >
+      {/* Sidebar Panel - resizable width */}
+      <Panel
+        defaultSize={20}
+        minSize={15}
+        maxSize={40}
+        order={1}
+        id="sidebar-panel"
+      >
+        <aside className="h-full border-r border-border bg-card flex flex-col">
+          <QuerySidebar vm={vm.sidebar} />
+        </aside>
+      </Panel>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Editor - Task 5.1 */}
-        <div className="flex-1 flex flex-col border-b border-border">
-          <QueryEditor vm={vm.editor} />
-        </div>
+      <PanelResizeHandle className="w-1 bg-border hover:bg-accent transition-colors cursor-col-resize" />
 
-        {/* Results - Task 5.4, 5.5 */}
-        <div className="h-64 flex flex-col">
-          <QueryResults vm={vm.results} />
-        </div>
+      {/* Main Content Panel */}
+      <Panel defaultSize={80} minSize={40} order={2} id="main-content-panel">
+        <PanelGroup
+          direction="vertical"
+          autoSaveId="query-editor-results"
+          className="h-full"
+        >
+          {/* Editor + Docs area */}
+          <Panel defaultSize={65} minSize={20} order={1} id="editor-area-panel">
+            <Queryable query={vm.docsViewer.isVisible$}>
+              {(isDocsVisible) =>
+                isDocsVisible ? (
+                  <PanelGroup
+                    direction="horizontal"
+                    autoSaveId="query-editor-docs-split"
+                    className="h-full"
+                  >
+                    <Panel
+                      defaultSize={40}
+                      minSize={20}
+                      maxSize={70}
+                      order={1}
+                      id="docs-panel"
+                    >
+                      <DocsPane vm={vm.docsViewer} />
+                    </Panel>
+                    <PanelResizeHandle className="w-1 bg-border hover:bg-accent transition-colors cursor-col-resize" />
+                    <Panel
+                      defaultSize={60}
+                      minSize={30}
+                      order={2}
+                      id="editor-panel"
+                      className="flex flex-col justify-stretch"
+                    >
+                      <QueryEditor vm={vm.editor} />
+                    </Panel>
+                  </PanelGroup>
+                ) : (
+                  <QueryEditor vm={vm.editor} />
+                )
+              }
+            </Queryable>
+          </Panel>
 
-        {/* History Bar - Task 5.6 */}
-        <QueryHistoryBar vm={vm.historyBar} />
+          <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
+
+          {/* Results Panel */}
+          <Panel defaultSize={25} minSize={10} order={2} id="results-panel">
+            <QueryResults vm={vm.results} />
+          </Panel>
+
+          <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
+
+          {/* History Bar Panel - collapsible */}
+          <Panel
+            defaultSize={10}
+            minSize={3}
+            maxSize={30}
+            collapsible
+            collapsedSize={3}
+            order={3}
+            id="history-panel"
+          >
+            <QueryHistoryBar vm={vm.historyBar} />
+          </Panel>
+        </PanelGroup>
+      </Panel>
+    </PanelGroup>
+  );
+}
+
+function DocsPane({ vm }: { vm: QueryPageVM["docsViewer"] }) {
+  return (
+    <div className="flex flex-col h-full bg-card">
+      {/* Header with close button */}
+      <div className="flex items-center justify-between h-row px-3 border-b border-border shrink-0">
+        <Queryable query={vm.currentSection$}>
+          {(section) => (
+            <span className="text-dense-sm font-medium text-foreground truncate">
+              {section?.title ?? "Documentation"}
+            </span>
+          )}
+        </Queryable>
+        <button
+          onClick={vm.hide}
+          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          aria-label="Close documentation"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      {/* Document content */}
+      <div className="flex-1 overflow-auto">
+        <DocumentViewer vm={vm} />
       </div>
     </div>
   );
@@ -69,6 +181,35 @@ function QueryPageContent({ vm }: { vm: QueryPageVM }) {
 function QuerySidebar({ vm }: { vm: QueryPageVM["sidebar"] }) {
   return (
     <div className="flex-1 overflow-y-auto">
+      {/* Learn Section - First in sidebar */}
+      {vm.learnSection && (
+        <SidebarSection
+          label={vm.learnSection.label}
+          collapsed$={vm.learnSection.collapsed$}
+          onToggle={vm.learnSection.toggleCollapsed}
+          headerIcon={<BookOpen className="size-4" />}
+        >
+          <div className="px-2 py-2 space-y-1">
+            {/* Curriculum tree */}
+            <LearnSection vm={vm.learnSection.curriculum} />
+
+            {/* Reference tree */}
+            <ReferenceSection vm={vm.learnSection.reference} />
+
+            {/* Open full Learn page link */}
+            <button
+              onClick={vm.learnSection.openFullLearnPage}
+              className="flex items-center gap-1.5 w-full px-2 py-1.5 mt-2
+                         text-dense-xs text-muted-foreground hover:text-foreground
+                         transition-colors"
+            >
+              <ExternalLink className="size-3" />
+              <span>Open full Learn page</span>
+            </button>
+          </div>
+        </SidebarSection>
+      )}
+
       {/* Schema Section - Task 4.2: h-header section headers */}
       <SidebarSection
         label={vm.schemaSection.label}
@@ -76,7 +217,9 @@ function QuerySidebar({ vm }: { vm: QueryPageVM["sidebar"] }) {
         onToggle={vm.schemaSection.toggleCollapsed}
       >
         <div className="px-3 py-2">
-          <p className="text-dense-sm text-muted-foreground">Schema tree placeholder</p>
+          <p className="text-dense-sm text-muted-foreground">
+            Schema tree placeholder
+          </p>
         </div>
       </SidebarSection>
 
@@ -87,7 +230,9 @@ function QuerySidebar({ vm }: { vm: QueryPageVM["sidebar"] }) {
         onToggle={vm.savedQueriesSection.toggleCollapsed}
       >
         <div className="px-3 py-2">
-          <p className="text-dense-sm text-muted-foreground">Saved queries tree placeholder</p>
+          <p className="text-dense-sm text-muted-foreground">
+            Saved queries tree placeholder
+          </p>
         </div>
       </SidebarSection>
     </div>
@@ -100,11 +245,13 @@ function SidebarSection({
   collapsed$,
   onToggle,
   children,
+  headerIcon,
 }: {
   label: string;
   collapsed$: import("@/vm").Queryable<boolean>;
   onToggle: () => void;
   children: React.ReactNode;
+  headerIcon?: React.ReactNode;
 }) {
   return (
     <div className="border-b border-border last:border-b-0">
@@ -120,9 +267,14 @@ function SidebarSection({
                 transition-colors duration-150
               "
             >
-              <span>{label}</span>
+              <span className="flex items-center gap-2">
+                {headerIcon}
+                {label}
+              </span>
               <ChevronRight
-                className={`size-4 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+                className={`size-4 transition-transform duration-150 ${
+                  collapsed ? "" : "rotate-90"
+                }`}
               />
             </button>
             {!collapsed && (
@@ -144,7 +296,9 @@ function QueryEditor({ vm }: { vm: QueryPageVM["editor"] }) {
       <div className="flex items-center justify-between h-row px-3 gap-2 border-b border-border bg-card">
         <Queryable query={vm.header.titleDisplay$}>
           {(title) => (
-            <span className="text-dense-sm font-medium text-foreground truncate">{title}</span>
+            <span className="text-dense-sm font-medium text-foreground truncate">
+              {title}
+            </span>
           )}
         </Queryable>
 
@@ -171,7 +325,7 @@ function QueryEditor({ vm }: { vm: QueryPageVM["editor"] }) {
       </div>
 
       {/* Editor Area - Placeholder */}
-      <div className="flex-1 p-4">
+      <div className="overflow-y-auto bg-muted/30 relative grow">
         <Queryable query={vm.codeEditor.text$}>
           {(text) => (
             <textarea
@@ -179,11 +333,10 @@ function QueryEditor({ vm }: { vm: QueryPageVM["editor"] }) {
               onChange={(e) => vm.codeEditor.updateText(e.target.value)}
               placeholder="// Enter your TypeQL query here..."
               className="
-                w-full h-full p-4
-                bg-background border border-border rounded-md
+                w-full p-4 absolute inset-0 min-h-40
                 font-mono text-dense-sm
                 resize-none
-                focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
+                focus:outline-none
                 placeholder:text-muted-foreground
               "
             />
@@ -204,7 +357,10 @@ function QueryResults({ vm }: { vm: QueryPageVM["results"] }) {
           className="flex-1 flex flex-col"
         >
           {/* Tab bar - Task 5.4: h-default bar with h-compact tabs */}
-          <TabsList variant="underline" className="h-default px-2 border-b border-border">
+          <TabsList
+            variant="underline"
+            className="h-default px-2 border-b border-border"
+          >
             <TabsTrigger value="log">Log</TabsTrigger>
             <TabsTrigger value="table">Table</TabsTrigger>
             <TabsTrigger value="graph">Graph</TabsTrigger>
@@ -226,7 +382,9 @@ function QueryResults({ vm }: { vm: QueryPageVM["results"] }) {
             <TabsContent value="table" className="m-0">
               <Queryable query={vm.table.statusMessage$}>
                 {(message) => (
-                  <p className="text-dense-sm text-muted-foreground">{message}</p>
+                  <p className="text-dense-sm text-muted-foreground">
+                    {message}
+                  </p>
                 )}
               </Queryable>
             </TabsContent>
@@ -234,7 +392,9 @@ function QueryResults({ vm }: { vm: QueryPageVM["results"] }) {
             <TabsContent value="graph" className="m-0">
               <Queryable query={vm.graph.statusMessage$}>
                 {(message) => (
-                  <p className="text-dense-sm text-muted-foreground">{message}</p>
+                  <p className="text-dense-sm text-muted-foreground">
+                    {message}
+                  </p>
                 )}
               </Queryable>
             </TabsContent>
@@ -257,45 +417,44 @@ function QueryResults({ vm }: { vm: QueryPageVM["results"] }) {
 
 function QueryHistoryBar({ vm }: { vm: QueryPageVM["historyBar"] }) {
   return (
-    <Queryable query={vm.isExpanded$}>
-      {(isExpanded) => (
-        <div
-          className={`
-            border-t border-border bg-card transition-all duration-150
-            ${isExpanded ? "h-32" : "h-default"}
-          `}
-        >
-          {/* Collapsed bar - Task 5.6: h-default */}
-          <button
-            onClick={vm.toggle}
-            className="
-              flex items-center justify-between w-full h-default px-3
-              text-dense-sm text-muted-foreground hover:text-foreground
-              transition-colors
-            "
-          >
-            <span className="font-medium">History</span>
+    <div className="h-full flex flex-col border-t border-border bg-card">
+      {/* Header - always visible */}
+      <button
+        onClick={vm.toggle}
+        className="
+          flex items-center justify-between w-full h-default px-3 shrink-0
+          text-dense-sm text-muted-foreground hover:text-foreground
+          transition-colors
+        "
+      >
+        <span className="font-medium">History</span>
+        <Queryable query={vm.isExpanded$}>
+          {(isExpanded) => (
             <ChevronRight
-              className={`size-4 transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
+              className={`size-4 transition-transform duration-150 ${
+                isExpanded ? "rotate-90" : ""
+              }`}
             />
-          </button>
-
-          {/* Expanded entries - Task 5.6: h-row each */}
-          {isExpanded && (
-            <div className="px-3 pb-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 36px)" }}>
-              <Queryable query={vm.isEmpty$}>
-                {(isEmpty) =>
-                  isEmpty ? (
-                    <p className="text-dense-xs text-muted-foreground py-2">No recent queries</p>
-                  ) : (
-                    <p className="text-dense-xs text-muted-foreground py-2">Query history entries will appear here</p>
-                  )
-                }
-              </Queryable>
-            </div>
           )}
-        </div>
-      )}
-    </Queryable>
+        </Queryable>
+      </button>
+
+      {/* Scrollable content area - fills remaining space */}
+      <div className="flex-1 px-3 pb-2 overflow-y-auto min-h-0">
+        <Queryable query={vm.isEmpty$}>
+          {(isEmpty) =>
+            isEmpty ? (
+              <p className="text-dense-xs text-muted-foreground py-2">
+                No recent queries
+              </p>
+            ) : (
+              <p className="text-dense-xs text-muted-foreground py-2">
+                Query history entries will appear here
+              </p>
+            )
+          }
+        </Queryable>
+      </div>
+    </div>
   );
 }

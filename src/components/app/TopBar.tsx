@@ -5,6 +5,7 @@
  * Updated with Dense-Core tokens (Phase 2: Tasks 2.1-2.4)
  */
 
+import { cn } from "@/lib/utils";
 import type { TopBarVM } from "@/vm";
 import { Queryable } from "@/vm/components";
 import {
@@ -111,7 +112,11 @@ function DatabaseSelector({ vm }: { vm: TopBarVM["databaseSelector"] }) {
                         <Database className="size-4" />
                         <Queryable query={vm.displayText$}>
                           {(text) => (
-                            <span className={text === "Select database" ? "text-muted-foreground italic" : ""}>
+                            <span className={cn(
+                              "word-break truncate max-w-[150px]",
+                              text === "Select database" ? "text-muted-foreground italic" : "",
+                            )
+                            }>
                               {text}
                             </span>
                           )}
