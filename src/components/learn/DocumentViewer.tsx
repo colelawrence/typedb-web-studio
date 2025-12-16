@@ -294,6 +294,11 @@ function ProseBlock({ content }: { content: string }) {
             {children}
           </p>
         ),
+        pre: ({ children }) => (
+          <pre className="bg-muted rounded-md p-3 overflow-x-auto font-mono whitespace-pre-wrap">
+            {children}
+          </pre>
+        ),
         code: ({ children }) => (
           <code className="px-1 py-0.5 rounded bg-muted text-dense-xs font-mono">
             {children}

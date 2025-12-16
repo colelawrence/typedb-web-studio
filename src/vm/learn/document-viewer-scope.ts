@@ -291,6 +291,8 @@ export function createDocumentViewerScope(
             resultCount: result.resultCount,
             error: result.error,
             executionTimeMs: result.executionTimeMs,
+            resultRows: result.resultRows,
+            logLines: result.logLines,
           });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
@@ -334,7 +336,8 @@ export function createDocumentViewerScope(
     const progress$ = computed(
       (get): DocumentProgressVM => {
         const progress = get(progressQuery$);
-        const readCount = progress.filter(p => p.markedRead).length;
+        // Only count headings (not root entry where headingId is null)
+        const readCount = progress.filter(p => p.markedRead && p.headingId !== null).length;
         const totalCount = section.headings.length || 1; // At least 1 for the root section
         const percent = totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0;
 

@@ -317,8 +317,26 @@ export function createLearnSidebarScope(
 
       progressState$: computed(
         (get): ProgressState => {
-          const readIds = get(readSectionIds$);
-          return readIds.has(lesson.id) ? "completed" : "not-started";
+          // Get the parsed section to know the total heading count
+          const parsedSection = sections[lesson.id];
+          if (!parsedSection) {
+            return "not-started";
+          }
+
+          const totalCount = parsedSection.headings.length;
+          if (totalCount === 0) {
+            // No headings - use binary completed/not-started based on any read entry
+            const readIds = get(readSectionIds$);
+            return readIds.has(lesson.id) ? "completed" : "not-started";
+          }
+
+          // Count read headings for this section (excluding root entry with null headingId)
+          const allProgress = get(readingProgress$);
+          const readCount = allProgress.filter(
+            p => p.sectionId === lesson.id && p.headingId !== null && p.markedRead
+          ).length;
+
+          return computeProgressState(readCount, totalCount);
         },
         { label: `learnLesson.${lesson.id}.progressState`, deps: [lesson.id] }
       ),
@@ -348,18 +366,44 @@ export function createLearnSidebarScope(
 
       progressPercent$: computed(
         (get) => {
-          const currentReadIds = get(readSectionIds$);
-          const currentReadCount = lessonIds.filter((id) => currentReadIds.has(id)).length;
-          return computeProgressPercent(currentReadCount, totalCount);
+          // Count actual heading progress across all sections in this folder
+          const allProgress = get(readingProgress$);
+          let totalHeadings = 0;
+          let readHeadings = 0;
+
+          for (const lessonId of lessonIds) {
+            const parsedSection = sections[lessonId];
+            if (parsedSection) {
+              totalHeadings += parsedSection.headings.length;
+              readHeadings += allProgress.filter(
+                p => p.sectionId === lessonId && p.headingId !== null && p.markedRead
+              ).length;
+            }
+          }
+
+          return computeProgressPercent(readHeadings, totalHeadings);
         },
         { label: `learnFolder.${sectionMeta.id}.progressPercent`, deps: [sectionMeta.id] }
       ),
 
       progressState$: computed(
         (get) => {
-          const currentReadIds = get(readSectionIds$);
-          const currentReadCount = lessonIds.filter((id) => currentReadIds.has(id)).length;
-          return computeProgressState(currentReadCount, totalCount);
+          // Count actual heading progress across all sections in this folder
+          const allProgress = get(readingProgress$);
+          let totalHeadings = 0;
+          let readHeadings = 0;
+
+          for (const lessonId of lessonIds) {
+            const parsedSection = sections[lessonId];
+            if (parsedSection) {
+              totalHeadings += parsedSection.headings.length;
+              readHeadings += allProgress.filter(
+                p => p.sectionId === lessonId && p.headingId !== null && p.markedRead
+              ).length;
+            }
+          }
+
+          return computeProgressState(readHeadings, totalHeadings);
         },
         { label: `learnFolder.${sectionMeta.id}.progressState`, deps: [sectionMeta.id] }
       ),
@@ -383,24 +427,48 @@ export function createLearnSidebarScope(
 
     progressPercent$: computed(
       (get) => {
-        const readIds = get(readSectionIds$);
-        const totalLessons = curriculumMeta.sections.reduce(
-          (acc, s) => acc + s.lessons.length,
-          0
-        );
-        return computeProgressPercent(readIds.size, totalLessons);
+        // Count actual heading progress across ALL sections
+        const allProgress = get(readingProgress$);
+        let totalHeadings = 0;
+        let readHeadings = 0;
+
+        for (const sectionMeta of curriculumMeta.sections) {
+          for (const lesson of sectionMeta.lessons) {
+            const parsedSection = sections[lesson.id];
+            if (parsedSection) {
+              totalHeadings += parsedSection.headings.length;
+              readHeadings += allProgress.filter(
+                p => p.sectionId === lesson.id && p.headingId !== null && p.markedRead
+              ).length;
+            }
+          }
+        }
+
+        return computeProgressPercent(readHeadings, totalHeadings);
       },
       { label: "learnSection.progressPercent" }
     ),
 
     progressDisplay$: computed(
       (get) => {
-        const readIds = get(readSectionIds$);
-        const totalLessons = curriculumMeta.sections.reduce(
-          (acc, s) => acc + s.lessons.length,
-          0
-        );
-        const percent = computeProgressPercent(readIds.size, totalLessons);
+        // Count actual heading progress across ALL sections
+        const allProgress = get(readingProgress$);
+        let totalHeadings = 0;
+        let readHeadings = 0;
+
+        for (const sectionMeta of curriculumMeta.sections) {
+          for (const lesson of sectionMeta.lessons) {
+            const parsedSection = sections[lesson.id];
+            if (parsedSection) {
+              totalHeadings += parsedSection.headings.length;
+              readHeadings += allProgress.filter(
+                p => p.sectionId === lesson.id && p.headingId !== null && p.markedRead
+              ).length;
+            }
+          }
+        }
+
+        const percent = computeProgressPercent(readHeadings, totalHeadings);
         return `${percent}%`;
       },
       { label: "learnSection.progressDisplay" }

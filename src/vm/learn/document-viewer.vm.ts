@@ -325,6 +325,18 @@ export interface ExampleRunResultVM {
    * Execution time in milliseconds.
    */
   executionTimeMs: number;
+
+  /**
+   * Result rows for display (formatted as strings).
+   * Each entry is a JSON-stringified row/document.
+   * Empty for non-data queries (define, insert, delete).
+   */
+  resultRows?: string[];
+
+  /**
+   * Log lines for display (human-readable output).
+   */
+  logLines?: string[];
 }
 
 /**

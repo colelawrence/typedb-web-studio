@@ -74,6 +74,16 @@ export interface ReplQueryResult {
    * Execution time in milliseconds.
    */
   executionTimeMs: number;
+
+  /**
+   * Result rows formatted as JSON strings (for display).
+   */
+  resultRows?: string[];
+
+  /**
+   * Log lines for human-readable output.
+   */
+  logLines?: string[];
 }
 
 /**
@@ -92,6 +102,8 @@ export interface ReplBridgeOptions {
     resultCount?: number;
     error?: string;
     executionTimeMs: number;
+    resultRows?: string[];
+    logLines?: string[];
   }>;
   /** Show a snackbar notification */
   showSnackbar: (type: "success" | "warning" | "error", message: string) => void;
