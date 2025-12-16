@@ -9,7 +9,7 @@ import type { Store } from "@livestore/livestore";
 import type { QueryResponse } from "../../services";
 import { getService, detectQueryType } from "../../services";
 import { events, type schema } from "../../livestore/schema";
-import { uiState$, queryResults$ } from "../../livestore/queries";
+import { connectionSession$ } from "../../livestore/queries";
 
 /**
  * Creates an ID with the given prefix.
@@ -138,8 +138,8 @@ export async function executeQueryAndUpdateResults(
   options: ExecuteQueryOptions
 ): Promise<void> {
   const { store, showSnackbar, createHistoryId } = options;
-  const ui = store.query(uiState$);
-  const database = ui.activeDatabase;
+  const session = store.query(connectionSession$);
+  const database = session.activeDatabase;
 
   if (!database) {
     showSnackbar("error", "No database selected");
@@ -183,7 +183,7 @@ export async function executeQueryAndUpdateResults(
     // Add to history
     store.commit(events.historyEntryAdded({
       id: createHistoryId(),
-      connectionId: ui.activeConnectionId,
+      connectionId: session.savedConnectionId,
       databaseName: database,
       queryText,
       executedAt: new Date(),
@@ -222,7 +222,7 @@ export async function executeQueryAndUpdateResults(
     // Add failed entry to history
     store.commit(events.historyEntryAdded({
       id: createHistoryId(),
-      connectionId: ui.activeConnectionId,
+      connectionId: session.savedConnectionId,
       databaseName: database,
       queryText,
       executedAt: new Date(),

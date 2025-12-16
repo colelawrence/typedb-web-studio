@@ -198,8 +198,12 @@ export interface LocalServersSectionVM {
    * 3. Create WASM server instance
    * 4. Save to LiveStore
    * 5. Navigate to /query with new server active
+   *
+   * **Returns:** The new server's `key` for finding it in `items$`.
+   * UI components should call this as `() => void vm.createNew()` (fire-and-forget).
+   * Tests can await to get the key for assertions.
    */
-  createNew(): void;
+  createNew(): Promise<{ key: string }>;
 
   /**
    * Disabled state for create button.
@@ -256,8 +260,11 @@ export interface LocalServerItemVM {
 
   /**
    * Connects to this server and navigates to query page.
+   *
+   * UI components should call this as `() => void vm.connect()` (fire-and-forget).
+   * Tests can await to ensure connection is complete before proceeding.
    */
-  connect(): void;
+  connect(): Promise<void>;
 
   /**
    * Exports this server's data as a snapshot file.
