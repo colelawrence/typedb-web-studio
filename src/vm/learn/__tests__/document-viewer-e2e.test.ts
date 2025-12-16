@@ -1,72 +1,93 @@
 /**
  * Document Viewer End-to-End Tests
  *
- * Tests the full document viewer flow from root VM through REPL to TypeDB WASM:
+ * Tests the full document viewer flow from scope through REPL to TypeDB WASM:
  * 1. Start with no database (fresh state)
- * 2. Create TypeDB WASM service and load curriculum context
- * 3. Open a curriculum section via the root VM
- * 4. Find example via contentBlocks (the refactored VM pattern)
- * 5. Run the example through REPL bridge to TypeDB
- * 6. Verify execution state and results
+ * 2. Create TypeDB WASM service and set up database with schema + seed
+ * 3. Create document viewer scope with real REPL bridge wired to TypeDB
+ * 4. Open a curriculum section
+ * 5. Find example via contentBlocks (the refactored VM pattern)
+ * 6. Run the example through REPL bridge to TypeDB
+ * 7. Verify execution state and results
  *
  * This validates that the contentBlocks refactor correctly wires example VMs
  * to the execution infrastructure.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { createStore, provideOtel } from "@livestore/livestore";
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { Effect } from "effect";
 
-import { createStudioScope } from "../../scope";
+import { createDocumentViewerScope } from "../document-viewer-scope";
 import { events, schema } from "../../../livestore/schema";
 import { uiState$, executedExampleIds$ } from "../../../livestore/queries";
 import { TypeDBEmbeddedService, createEmbeddedService } from "../../../services/typedb-embedded-service";
-import { createContextManager, type ContextManager, type ContextDatabaseOps } from "../../../curriculum/context-manager";
-import type { LoadedContext } from "../../../curriculum/types";
-import type { LearnPageVM } from "../../pages/learn/learn-page.vm";
+import { createReplBridge } from "../../../learn/repl-bridge";
+import type { ParsedSection } from "../../../curriculum/types";
 import type { DocumentSectionContentBlockVM } from "../document-viewer.vm";
 
 // ============================================================================
-// Test Fixtures - Social Network Context
+// Test Fixtures - Social Network Schema/Seed
 // ============================================================================
 
 const SOCIAL_NETWORK_SCHEMA = `define
 attribute name value string;
 attribute age value integer;
-attribute founded-year value integer;
-attribute start-date value datetime;
-entity person owns name, owns age,
-  plays friendship:friend,
-  plays employment:employee;
-entity company owns name, owns founded-year,
-  plays employment:employer;
-relation friendship relates friend;
-relation employment relates employee, relates employer, owns start-date;`;
+entity person owns name, owns age;`;
 
 const SOCIAL_NETWORK_SEED = `insert
   $alice isa person, has name "Alice", has age 30;
   $bob isa person, has name "Bob", has age 25;
-  $carol isa person, has name "Carol", has age 35;
-  $dan isa person, has name "Dan", has age 28;
-  $acme isa company, has name "Acme Corp", has founded-year 2010;
-  $globex isa company, has name "Globex Inc", has founded-year 2015;
-  (friend: $alice, friend: $bob) isa friendship;
-  (friend: $bob, friend: $carol) isa friendship;
-  (friend: $carol, friend: $dan) isa friendship;
-  (friend: $alice, friend: $carol) isa friendship;
-  (employee: $alice, employer: $acme) isa employment, has start-date 2020-01-15;
-  (employee: $bob, employer: $acme) isa employment, has start-date 2021-06-01;
-  (employee: $carol, employer: $globex) isa employment, has start-date 2019-03-20;
-  (employee: $dan, employer: $globex) isa employment, has start-date 2022-09-01;`;
+  $carol isa person, has name "Carol", has age 35;`;
 
-const LOADED_CONTEXTS: Record<string, LoadedContext> = {
-  "social-network": {
-    name: "social-network",
-    description: "Social network example with people, companies, and relationships",
-    schema: SOCIAL_NETWORK_SCHEMA,
-    seed: SOCIAL_NETWORK_SEED,
-  },
+// Mock curriculum section with examples that match the schema
+const TEST_SECTION: ParsedSection = {
+  id: "e2e-test-section",
+  title: "End-to-End Test Section",
+  context: "social-network",
+  requires: [],
+  headings: [
+    { id: "finding-people", text: "Finding People", level: 2, line: 5 },
+  ],
+  examples: [
+    {
+      id: "e2e-find-all-people",
+      type: "example",
+      query: "match $p isa person;",
+      expect: { results: true, min: 1 },
+      sourceFile: "e2e-test.md",
+      lineNumber: 10,
+    },
+    {
+      id: "e2e-find-alice",
+      type: "example",
+      query: 'match $p isa person, has name "Alice";',
+      expect: { results: true, min: 1, max: 1 },
+      sourceFile: "e2e-test.md",
+      lineNumber: 15,
+    },
+  ],
+  rawContent: `
+# End-to-End Test Section
+
+Let's test the document viewer end-to-end.
+
+## Finding People
+
+\`\`\`typeql:example[id=e2e-find-all-people, expect=results, min=1]
+match $p isa person;
+\`\`\`
+
+\`\`\`typeql:example[id=e2e-find-alice, expect=results, min=1, max=1]
+match $p isa person, has name "Alice";
+\`\`\`
+`,
+  sourceFile: "docs/e2e-test.md",
+};
+
+const TEST_SECTIONS: Record<string, ParsedSection> = {
+  "e2e-test-section": TEST_SECTION,
 };
 
 // ============================================================================
@@ -89,46 +110,47 @@ async function createTestStore() {
   );
 }
 
-interface E2ETestContext {
-  store: Awaited<ReturnType<typeof createTestStore>>;
-  service: TypeDBEmbeddedService;
-  navigate: ReturnType<typeof import("vitest").vi.fn>;
-  vm: ReturnType<typeof createStudioScope>["vm"];
-  contextManager: ContextManager;
-  databaseName: string;
-  profileId: string;
-  cleanup: () => Promise<void>;
-}
-
 // ============================================================================
 // Tests
 // ============================================================================
 
 describe("Document Viewer End-to-End", () => {
   let service: TypeDBEmbeddedService;
+  const testDbName = `e2e_test_${Date.now()}`;
 
   beforeAll(async () => {
+    // Create and connect to TypeDB WASM
     service = createEmbeddedService();
     await service.connect({
       address: "embedded://local",
       username: "test",
       password: "",
     });
+
+    // Create database with schema and seed data
+    await service.createDatabase(testDbName);
+    await service.executeQuery(testDbName, SOCIAL_NETWORK_SCHEMA, { transactionType: "schema" });
+    await service.executeQuery(testDbName, SOCIAL_NETWORK_SEED, { transactionType: "write" });
+
+    console.log(`[E2E Test] Created database: ${testDbName}`);
   });
 
   afterAll(async () => {
+    try {
+      await service.deleteDatabase(testDbName);
+    } catch {
+      // Ignore cleanup errors
+    }
     await service.disconnect();
   });
 
-  async function createE2EContext(): Promise<E2ETestContext> {
+  it("runs example from contentBlocks through real TypeDB WASM", async () => {
     const store = await createTestStore();
-    const navigate = await import("vitest").then((v) => v.vi.fn());
-
-    // Create unique database name for this test
-    const databaseName = `learn_e2e_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const navigate = vi.fn();
+    const showSnackbar = vi.fn();
     const profileId = `test-profile-${Date.now()}`;
 
-    // Create test profile in store
+    // Create test profile
     store.commit(
       events.profileCreated({
         id: profileId,
@@ -138,295 +160,298 @@ describe("Document Viewer End-to-End", () => {
       })
     );
 
-    // Create database operations for context manager
-    const dbOps: ContextDatabaseOps = {
-      async createDatabase(name: string) {
-        try {
-          await service.deleteDatabase(name);
-        } catch {
-          // Ignore if doesn't exist
-        }
-        await service.createDatabase(name);
-      },
-      async executeSchema(database: string, schemaQuery: string) {
-        await service.executeQuery(database, schemaQuery, { transactionType: "schema" });
-      },
-      async executeWrite(database: string, query: string) {
-        await service.executeQuery(database, query, { transactionType: "write" });
-      },
-      getActiveDatabase() {
-        return store.query(uiState$).activeDatabase ?? null;
-      },
-      setActiveDatabase(name: string) {
-        store.commit(events.uiStateSet({ activeDatabase: name }));
-      },
-    };
+    // Set connected state with our test database
+    store.commit(
+      events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: testDbName,
+      })
+    );
 
-    // Create context manager with test contexts
-    const contextManager = createContextManager({
-      contexts: LOADED_CONTEXTS,
-      dbOps,
+    // Create a real REPL bridge that executes against TypeDB WASM
+    const replBridge = createReplBridge({
+      store,
+      events,
+      navigate,
+      showSnackbar,
+      executeQuery: async (query: string) => {
+        const startTime = Date.now();
+        try {
+          const response = await service.executeQuery(testDbName, query, {
+            transactionType: "read",
+          });
+
+          let resultCount = 0;
+          if (response.data.type === "match") {
+            resultCount = response.data.answers.length;
+          }
+
+          return {
+            success: true,
+            resultCount,
+            executionTimeMs: Date.now() - startTime,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+            executionTimeMs: Date.now() - startTime,
+          };
+        }
+      },
     });
 
-    // Create the full studio VM scope
-    const { vm } = createStudioScope(store, navigate);
-
-    return {
+    // Create document viewer scope with real sections and REPL bridge
+    const { vm: viewer, service: viewerService } = createDocumentViewerScope({
       store,
-      service,
-      navigate,
-      vm,
-      contextManager,
-      databaseName,
       profileId,
-      cleanup: async () => {
+      sections: TEST_SECTIONS,
+      replBridge,
+    });
+
+    // -----------------------------------------------------------------------
+    // 1. Verify initial state - no section open (note: isVisible defaults to true)
+    // -----------------------------------------------------------------------
+    expect(store.query(viewer.currentSection$)).toBeNull();
+
+    // -----------------------------------------------------------------------
+    // 2. Open section and verify contentBlocks are populated
+    // -----------------------------------------------------------------------
+    viewer.openSection("e2e-test-section");
+
+    const section = store.query(viewer.currentSection$);
+    expect(section).not.toBeNull();
+    expect(section!.id).toBe("e2e-test-section");
+    expect(section!.title).toBe("End-to-End Test Section");
+
+    // -----------------------------------------------------------------------
+    // 3. Verify contentBlocks contain heading and examples (the refactored pattern)
+    // -----------------------------------------------------------------------
+    expect(section!.contentBlocks.length).toBeGreaterThan(0);
+
+    const headingBlocks = section!.contentBlocks.filter((b) => b.kind === "heading");
+    const exampleBlocks = section!.contentBlocks.filter((b) => b.kind === "example");
+    const proseBlocks = section!.contentBlocks.filter((b) => b.kind === "prose");
+
+    expect(headingBlocks.length).toBe(1);
+    expect(exampleBlocks.length).toBe(2);
+    expect(proseBlocks.length).toBeGreaterThan(0);
+
+    console.log(`[E2E Test] contentBlocks: ${headingBlocks.length} headings, ${exampleBlocks.length} examples, ${proseBlocks.length} prose`);
+
+    // -----------------------------------------------------------------------
+    // 4. Get first example from contentBlocks
+    // -----------------------------------------------------------------------
+    const firstExampleBlock = exampleBlocks[0] as Extract<DocumentSectionContentBlockVM, { kind: "example" }>;
+    const exampleVM = firstExampleBlock.example;
+
+    expect(exampleVM.id).toBe("e2e-find-all-people");
+    expect(exampleVM.query).toBe("match $p isa person;");
+    expect(exampleVM.isInteractive).toBe(true);
+
+    // -----------------------------------------------------------------------
+    // 5. Verify initial execution state
+    // -----------------------------------------------------------------------
+    const initialState = store.query(exampleVM.executionState$);
+    expect(initialState.type).toBe("idle");
+    expect(store.query(exampleVM.wasExecuted$)).toBe(false);
+
+    // -----------------------------------------------------------------------
+    // 6. Run the example through REPL bridge → TypeDB WASM
+    // -----------------------------------------------------------------------
+    console.log(`[E2E Test] Running query: ${exampleVM.query}`);
+    await exampleVM.run();
+
+    // Get result from currentResult$ queryable
+    const result = store.query(exampleVM.currentResult$);
+    console.log(`[E2E Test] Result: success=${result?.success}, resultCount=${result?.resultCount}`);
+
+    // -----------------------------------------------------------------------
+    // 7. Verify execution succeeded
+    // -----------------------------------------------------------------------
+    expect(result).not.toBeNull();
+    expect(result!.success).toBe(true);
+    expect(result!.resultCount).toBe(3); // Alice, Bob, Carol
+
+    const finalState = store.query(exampleVM.executionState$);
+    expect(finalState.type).toBe("success");
+    if (finalState.type === "success") {
+      expect(finalState.resultCount).toBe(3);
+    }
+
+    // -----------------------------------------------------------------------
+    // 8. Verify wasExecuted$ is now true
+    // -----------------------------------------------------------------------
+    expect(store.query(exampleVM.wasExecuted$)).toBe(true);
+
+    // -----------------------------------------------------------------------
+    // 9. Verify execution was recorded in LiveStore
+    // -----------------------------------------------------------------------
+    const executions = store.query(executedExampleIds$(profileId));
+    const thisExecution = executions.find((e) => e.exampleId === "e2e-find-all-people");
+
+    expect(thisExecution).toBeDefined();
+    expect(thisExecution!.source).toBe("docs-run");
+    expect(thisExecution!.succeeded).toBe(true);
+
+    // -----------------------------------------------------------------------
+    // 10. Verify REPL bridge side effects
+    // -----------------------------------------------------------------------
+    // Query should be copied to editor
+    const uiState = store.query(uiState$);
+    expect(uiState.currentQueryText).toBe("match $p isa person;");
+
+    // Navigation should be called
+    expect(navigate).toHaveBeenCalledWith("/query");
+
+    // Snackbar should show success
+    expect(showSnackbar).toHaveBeenCalledWith("success", expect.stringContaining("3 results"));
+  });
+
+  it("runs second example (find Alice) and gets exactly 1 result", async () => {
+    const store = await createTestStore();
+    const navigate = vi.fn();
+    const showSnackbar = vi.fn();
+    const profileId = `test-profile-${Date.now()}`;
+
+    store.commit(
+      events.profileCreated({
+        id: profileId,
+        displayName: "Test User",
+        createdAt: new Date(),
+        lastActiveAt: new Date(),
+      })
+    );
+
+    store.commit(
+      events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: testDbName,
+      })
+    );
+
+    const replBridge = createReplBridge({
+      store,
+      events,
+      navigate,
+      showSnackbar,
+      executeQuery: async (query: string) => {
+        const startTime = Date.now();
         try {
-          // Clean up any databases created
-          const databases = await service.getDatabases();
-          for (const db of databases) {
-            if (db.startsWith("learn_e2e_") || db.startsWith("learn_social")) {
-              await service.deleteDatabase(db);
-            }
+          const response = await service.executeQuery(testDbName, query, {
+            transactionType: "read",
+          });
+
+          let resultCount = 0;
+          if (response.data.type === "match") {
+            resultCount = response.data.answers.length;
           }
-        } catch {
-          // Ignore cleanup errors
+
+          return {
+            success: true,
+            resultCount,
+            executionTimeMs: Date.now() - startTime,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+            executionTimeMs: Date.now() - startTime,
+          };
         }
       },
-    };
-  }
+    });
 
-  it("creates database, loads curriculum context, opens section, and runs example via REPL", async () => {
-    const ctx = await createE2EContext();
+    const { vm: viewer } = createDocumentViewerScope({
+      store,
+      profileId,
+      sections: TEST_SECTIONS,
+      replBridge,
+    });
 
-    try {
-      // -----------------------------------------------------------------------
-      // 1. Start with no database - verify initial state
-      // -----------------------------------------------------------------------
-      const initialUiState = ctx.store.query(uiState$);
-      expect(initialUiState.connectionStatus).toBe("disconnected");
-      expect(initialUiState.activeDatabase).toBeNull();
+    viewer.openSection("e2e-test-section");
+    const section = store.query(viewer.currentSection$);
+    expect(section).not.toBeNull();
 
-      // -----------------------------------------------------------------------
-      // 2. Load the social-network context (creates DB with schema + seed)
-      // -----------------------------------------------------------------------
-      await ctx.contextManager.loadContext("social-network");
+    // Get second example (find Alice)
+    const exampleBlocks = section!.contentBlocks.filter((b) => b.kind === "example");
+    const secondExampleBlock = exampleBlocks[1] as Extract<DocumentSectionContentBlockVM, { kind: "example" }>;
+    const exampleVM = secondExampleBlock.example;
 
-      // Verify context loaded successfully
-      expect(ctx.contextManager.currentContext).toBe("social-network");
-      expect(ctx.contextManager.getStatus().isReady).toBe(true);
+    expect(exampleVM.id).toBe("e2e-find-alice");
+    expect(exampleVM.query).toContain("Alice");
 
-      // The context manager sets the active database
-      const dbName = ctx.store.query(uiState$).activeDatabase;
-      expect(dbName).toBe("learn_social_network");
+    // Run and verify
+    await exampleVM.run();
 
-      // -----------------------------------------------------------------------
-      // 3. Set connected state in the store
-      // -----------------------------------------------------------------------
-      ctx.store.commit(
-        events.uiStateSet({
-          connectionStatus: "connected",
-          currentPage: "learn",
-        })
-      );
+    const result = store.query(exampleVM.currentResult$);
+    expect(result).not.toBeNull();
+    expect(result!.success).toBe(true);
+    expect(result!.resultCount).toBe(1); // Only Alice
 
-      // -----------------------------------------------------------------------
-      // 4. Get the LearnPageVM from the root VM and open a section
-      // -----------------------------------------------------------------------
-      const pageState = ctx.store.query(ctx.vm.currentPage$);
-      expect(pageState.page).toBe("learn");
-
-      const learnPageVM = pageState.vm as LearnPageVM;
-      const viewer = learnPageVM.viewer;
-
-      // Viewer should initially have no section open
-      expect(ctx.store.query(viewer.currentSection$)).toBeNull();
-
-      // Open a curriculum section that exists
-      // First, let's find a section that uses social-network context
-      viewer.show();
-      expect(ctx.store.query(viewer.isVisible$)).toBe(true);
-
-      // Try to open the first-queries section (or similar)
-      // We'll need to find what sections actually exist
-      viewer.openSection("first-queries");
-
-      const section = ctx.store.query(viewer.currentSection$);
-
-      // If section doesn't exist in real curriculum, this test documents that
-      if (!section) {
-        console.log("[E2E Test] Section 'first-queries' not found in curriculum");
-        console.log("[E2E Test] This test requires a curriculum section with id='first-queries'");
-        return; // Skip rest of test gracefully
-      }
-
-      expect(section.id).toBe("first-queries");
-      expect(section.title).toBeTruthy();
-
-      // -----------------------------------------------------------------------
-      // 5. Verify contentBlocks are present and wired (the refactored pattern)
-      // -----------------------------------------------------------------------
-      expect(section.contentBlocks.length).toBeGreaterThan(0);
-
-      // Find the first example block from contentBlocks
-      const exampleBlock = section.contentBlocks.find(
-        (b): b is Extract<DocumentSectionContentBlockVM, { kind: "example" }> =>
-          b.kind === "example"
-      );
-
-      if (!exampleBlock) {
-        console.log("[E2E Test] No example blocks found in section");
-        console.log("[E2E Test] contentBlocks:", section.contentBlocks.map((b) => b.kind));
-        return; // Skip gracefully
-      }
-
-      const exampleVM = exampleBlock.example;
-      expect(exampleVM.id).toBeTruthy();
-      expect(exampleVM.query).toBeTruthy();
-      expect(exampleVM.isInteractive).toBe(true);
-
-      console.log(`[E2E Test] Found example: ${exampleVM.id}`);
-      console.log(`[E2E Test] Query: ${exampleVM.query.slice(0, 50)}...`);
-
-      // -----------------------------------------------------------------------
-      // 6. Run the example through the REPL bridge
-      // -----------------------------------------------------------------------
-      const initialState = ctx.store.query(exampleVM.executionState$);
-      expect(initialState.type).toBe("idle");
-
-      // The example should not have been executed yet
-      expect(ctx.store.query(exampleVM.wasExecuted$)).toBe(false);
-
-      // Run the example
-      const result = await exampleVM.run();
-
-      console.log(`[E2E Test] Execution result: success=${result.success}, resultCount=${result.resultCount}`);
-
-      // -----------------------------------------------------------------------
-      // 7. Verify execution succeeded
-      // -----------------------------------------------------------------------
-      expect(result.success).toBe(true);
-
-      const finalState = ctx.store.query(exampleVM.executionState$);
-      expect(finalState.type).toBe("success");
-
-      if (finalState.type === "success") {
-        expect(finalState.resultCount).toBeGreaterThanOrEqual(0);
-      }
-
-      // Example should now be marked as executed
-      expect(ctx.store.query(exampleVM.wasExecuted$)).toBe(true);
-
-      // -----------------------------------------------------------------------
-      // 8. Verify REPL bridge side effects
-      // -----------------------------------------------------------------------
-      // The query should have been copied to the editor
-      const uiState = ctx.store.query(uiState$);
-      expect(uiState.currentQueryText).toBe(exampleVM.query);
-
-      // Navigation should have been called to go to query page
-      expect(ctx.navigate).toHaveBeenCalledWith("/query");
-    } finally {
-      await ctx.cleanup();
+    const finalState = store.query(exampleVM.executionState$);
+    expect(finalState.type).toBe("success");
+    if (finalState.type === "success") {
+      expect(finalState.resultCount).toBe(1);
     }
   });
 
-  it("verifies contentBlocks have stable VM references across queries", async () => {
-    const ctx = await createE2EContext();
+  it("verifies contentBlocks VM references are stable", async () => {
+    const store = await createTestStore();
+    const navigate = vi.fn();
+    const showSnackbar = vi.fn();
+    const profileId = `test-profile-${Date.now()}`;
 
-    try {
-      // Load context
-      await ctx.contextManager.loadContext("social-network");
+    store.commit(
+      events.profileCreated({
+        id: profileId,
+        displayName: "Test User",
+        createdAt: new Date(),
+        lastActiveAt: new Date(),
+      })
+    );
 
-      ctx.store.commit(
-        events.uiStateSet({
-          connectionStatus: "connected",
-          currentPage: "learn",
-        })
-      );
+    store.commit(
+      events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: testDbName,
+      })
+    );
 
-      const pageState = ctx.store.query(ctx.vm.currentPage$);
-      const learnPageVM = pageState.vm as LearnPageVM;
-      const viewer = learnPageVM.viewer;
+    const replBridge = createReplBridge({
+      store,
+      events,
+      navigate,
+      showSnackbar,
+      executeQuery: async () => ({ success: true, resultCount: 0, executionTimeMs: 0 }),
+    });
 
-      viewer.openSection("first-queries");
-      const section = ctx.store.query(viewer.currentSection$);
+    const { vm: viewer } = createDocumentViewerScope({
+      store,
+      profileId,
+      sections: TEST_SECTIONS,
+      replBridge,
+    });
 
-      if (!section) return;
+    viewer.openSection("e2e-test-section");
 
-      // Query contentBlocks multiple times - should get same VM instances
-      const blocks1 = section.contentBlocks;
-      const blocks2 = section.contentBlocks;
+    // Query section multiple times
+    const section1 = store.query(viewer.currentSection$);
+    const section2 = store.query(viewer.currentSection$);
 
-      expect(blocks1).toBe(blocks2); // Same array reference
+    // Should be same cached VM instance
+    expect(section1).toBe(section2);
 
-      // Find example blocks
-      const example1 = blocks1.find((b) => b.kind === "example");
-      const example2 = blocks2.find((b) => b.kind === "example");
+    // contentBlocks should be same array
+    expect(section1!.contentBlocks).toBe(section2!.contentBlocks);
 
-      if (example1 && example2 && example1.kind === "example" && example2.kind === "example") {
-        // Same VM instance, so same reference
-        expect(example1.example).toBe(example2.example);
-        expect(example1.example.run).toBe(example2.example.run);
-      }
-    } finally {
-      await ctx.cleanup();
-    }
-  });
+    // Example VMs should be same instances
+    const example1 = section1!.contentBlocks.find((b) => b.kind === "example");
+    const example2 = section2!.contentBlocks.find((b) => b.kind === "example");
 
-  it("tracks execution in executedExampleIds$ after running example", async () => {
-    const ctx = await createE2EContext();
-
-    try {
-      await ctx.contextManager.loadContext("social-network");
-
-      ctx.store.commit(
-        events.uiStateSet({
-          connectionStatus: "connected",
-          currentPage: "learn",
-        })
-      );
-
-      const pageState = ctx.store.query(ctx.vm.currentPage$);
-      const learnPageVM = pageState.vm as LearnPageVM;
-      const viewer = learnPageVM.viewer;
-
-      viewer.openSection("first-queries");
-      const section = ctx.store.query(viewer.currentSection$);
-
-      if (!section) return;
-
-      const exampleBlock = section.contentBlocks.find(
-        (b): b is Extract<DocumentSectionContentBlockVM, { kind: "example" }> =>
-          b.kind === "example"
-      );
-
-      if (!exampleBlock) return;
-
-      const exampleVM = exampleBlock.example;
-
-      // Get profile ID from uiState
-      const uiState = ctx.store.query(uiState$);
-      const profileId = uiState.activeProfileId ?? ctx.profileId;
-
-      // Check no executions recorded yet for this example
-      const beforeExecutions = ctx.store.query(executedExampleIds$(profileId));
-      const beforeCount = beforeExecutions.filter((e) => e.exampleId === exampleVM.id).length;
-
-      // Run the example
-      await exampleVM.run();
-
-      // Check execution was recorded
-      const afterExecutions = ctx.store.query(executedExampleIds$(profileId));
-      const afterCount = afterExecutions.filter((e) => e.exampleId === exampleVM.id).length;
-
-      expect(afterCount).toBe(beforeCount + 1);
-
-      // Verify the execution record has correct source
-      const execution = afterExecutions.find((e) => e.exampleId === exampleVM.id);
-      expect(execution).toBeDefined();
-      expect(execution?.source).toBe("docs-run");
-    } finally {
-      await ctx.cleanup();
+    if (example1?.kind === "example" && example2?.kind === "example") {
+      expect(example1.example).toBe(example2.example);
+      expect(example1.example.run).toBe(example2.example.run);
     }
   });
 });
