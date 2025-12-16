@@ -18,9 +18,11 @@
  * - Error: Shows error message
  */
 
-import { Play, Copy, Loader2, Check, AlertCircle, Clock } from "lucide-react";
+import { Play, Copy, Loader2 } from "lucide-react";
 import { Queryable } from "@/vm/components";
-import type { DocumentExampleVM, ExampleExecutionState, ExampleRunResultVM } from "@/vm/learn";
+import type { DocumentExampleVM, ExampleExecutionState } from "@/vm/learn";
+import { mapExampleResultToDisplayVM } from "@/vm/query-results.adapters";
+import { QueryResultsDisplay } from "../query/QueryResultsDisplay";
 import { Button } from "../ui/button";
 
 export interface ExampleBlockProps {
@@ -79,7 +81,12 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
       <Queryable query={vm.executionState$}>
         {(state) => (
           <Queryable query={vm.currentResult$}>
-            {(result) => <ExecutionResultPanel state={state} result={result} />}
+            {(result) => (
+              <QueryResultsDisplay
+                mode="compact"
+                result={mapExampleResultToDisplayVM(state, result)}
+              />
+            )}
           </Queryable>
         )}
       </Queryable>
@@ -115,90 +122,6 @@ function RunButton({
       )}
     </Button>
   );
-}
-
-/**
- * Execution result panel showing full details.
- */
-function ExecutionResultPanel({
-  state,
-  result,
-}: {
-  state: ExampleExecutionState;
-  result: ExampleRunResultVM | null;
-}) {
-  if (state.type === "idle") {
-    return null;
-  }
-
-  if (state.type === "running") {
-    return (
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-muted/50 border-t text-dense-xs text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" />
-        <span>Running query...</span>
-      </div>
-    );
-  }
-
-  if (state.type === "success" && result) {
-    return (
-      <div className="border-t border-beacon-ok/20 bg-beacon-ok/5">
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-1.5 text-dense-xs text-beacon-ok">
-            <Check className="size-3.5" />
-            <span className="font-medium">
-              {result.resultCount === 0 || result.resultCount === undefined
-                ? "Query executed successfully"
-                : `${result.resultCount} result${result.resultCount === 1 ? "" : "s"}`}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 text-dense-xs text-muted-foreground">
-            <Clock className="size-3" />
-            <span>{formatExecutionTime(result.executionTimeMs)}</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (state.type === "error" && result) {
-    return (
-      <div className="border-t border-beacon-error/20 bg-beacon-error/5">
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-1.5 text-dense-xs text-beacon-error">
-            <AlertCircle className="size-3.5 shrink-0" />
-            <span className="font-medium">Query failed</span>
-          </div>
-          {result.executionTimeMs > 0 && (
-            <div className="flex items-center gap-1 text-dense-xs text-muted-foreground">
-              <Clock className="size-3" />
-              <span>{formatExecutionTime(result.executionTimeMs)}</span>
-            </div>
-          )}
-        </div>
-        <div className="px-3 pb-2">
-          <pre className="text-dense-xs text-beacon-error/90 whitespace-pre-wrap break-words font-mono bg-beacon-error/10 rounded px-2 py-1.5">
-            {result.error}
-          </pre>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-/**
- * Format execution time for display.
- */
-function formatExecutionTime(ms: number): string {
-  if (ms < 1) {
-    return "<1ms";
-  }
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
-  }
-  return `${(ms / 1000).toFixed(2)}s`;
 }
 
 /**
