@@ -11,7 +11,7 @@
  * - Better error handling with typed errors
  */
 
-import { Database } from '@typedb/embedded'
+import { Database, schemaFromDatabase, type SchemaBundle } from '@typedb/embedded'
 import type {
   TypeDBService,
   ConnectionParams,
@@ -152,6 +152,15 @@ export class TypeDBEmbeddedService implements TypeDBService {
       relationTypes: [],
       attributeTypes: [],
     }
+  }
+
+  /**
+   * Get full schema introspection for a database using TypeQL queries.
+   * This provides complete schema information including ownership, roles, etc.
+   */
+  async getSchemaBundle(database: string): Promise<SchemaBundle> {
+    const db = this.getDatabase(database)
+    return schemaFromDatabase(db, { sampleForValueTypes: true, metaGraphPrefix: false })
   }
 
   // ---------------------------------------------------------------------------
