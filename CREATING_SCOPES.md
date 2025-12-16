@@ -300,6 +300,55 @@ import type { DisabledState, IconComponent } from "./types";
 import type { TableStatus, TableColumnVM } from "./pages/query/results/query-results.vm";
 ```
 
+## Service Subscriptions and Teardown
+
+When a scope subscribes to external service events, return a `teardown` function:
+
+```typescript
+export function createStudioScope(
+  store: Store<typeof schema>,
+  navigate: (path: string) => void
+): { vm: VM; services: Services; teardown: () => void } {
+  // Subscribe to service events
+  const unsubscribeStatus = subscribeToStatusChange((status) => {
+    // Handle status change, commit to LiveStore
+    store.commit(events.connectionSessionSet({ status }));
+  });
+
+  const unsubscribeMode = subscribeToModeChange((mode) => {
+    // Handle mode change
+    store.commit(events.connectionSessionSet({ mode }));
+  });
+
+  // ... scope implementation ...
+
+  const teardown = () => {
+    console.log("[scope] Teardown: unsubscribing from service events");
+    unsubscribeStatus();
+    unsubscribeMode();
+  };
+
+  return { vm, services, teardown };
+}
+```
+
+**Usage in tests:**
+```typescript
+afterEach(async () => {
+  ctx.teardown?.();  // Clean up subscriptions
+  await ctx.cleanup();
+});
+```
+
+**Usage at HMR boundaries:**
+```typescript
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    currentScope?.teardown();
+  });
+}
+```
+
 ## Quick Reference
 
 | Issue | Wrong | Correct |
@@ -310,3 +359,4 @@ import type { TableStatus, TableColumnVM } from "./pages/query/results/query-res
 | Optional method | `fn: condition ? () => {} : undefined` | `fn: () => { if (condition) {...} }` |
 | Queryable static | `value: false` | `value$: constant(false, "label")` |
 | Return type | `createScope(): VM` | `createScope(): { vm: VM; service: Service }` |
+| Missing teardown | No cleanup for subscriptions | Return `teardown` function |
