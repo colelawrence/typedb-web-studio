@@ -293,8 +293,8 @@ describe("ReplBridge", () => {
 
   describe("isReady", () => {
     it("returns false when not connected", () => {
-      ctx.store.commit(events.uiStateSet({
-        connectionStatus: "disconnected",
+      ctx.store.commit(events.connectionSessionSet({
+        status: "disconnected",
         activeDatabase: "test-db",
       }));
 
@@ -310,8 +310,8 @@ describe("ReplBridge", () => {
     });
 
     it("returns false when no database selected", () => {
-      ctx.store.commit(events.uiStateSet({
-        connectionStatus: "connected",
+      ctx.store.commit(events.connectionSessionSet({
+        status: "connected",
         activeDatabase: null,
       }));
 
@@ -327,8 +327,8 @@ describe("ReplBridge", () => {
     });
 
     it("returns true when connected with database", () => {
-      ctx.store.commit(events.uiStateSet({
-        connectionStatus: "connected",
+      ctx.store.commit(events.connectionSessionSet({
+        status: "connected",
         activeDatabase: "test-db",
       }));
 

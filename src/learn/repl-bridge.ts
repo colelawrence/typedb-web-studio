@@ -9,7 +9,7 @@
 
 import type { Store } from "@livestore/livestore";
 import type { schema, events } from "../livestore/schema";
-import { uiState$ } from "../livestore/queries";
+import { connectionSession$, uiState$ } from "../livestore/queries";
 
 /**
  * REPL Bridge interface for document-to-REPL communication.
@@ -154,8 +154,8 @@ export function createReplBridge(options: ReplBridgeOptions): ReplBridge {
   };
 
   const isReady = (): boolean => {
-    const uiState = store.query(uiState$);
-    return uiState.connectionStatus === "connected" && uiState.activeDatabase !== null;
+    const session = store.query(connectionSession$);
+    return session.status === "connected" && session.activeDatabase !== null;
   };
 
   return {
