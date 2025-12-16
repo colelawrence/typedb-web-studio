@@ -1,5 +1,48 @@
 Interesting artifacts and learnings must be written back to this document.
 
+---
+
+## Implementation Notes & Learnings (Updated after Phases I–IV)
+
+### Schema Design Decisions
+
+**`connectionSession` as clientDocument (not table):**
+- We implemented `connectionSession` as a `State.SQLite.clientDocument` rather than a normalized table.
+- This is appropriate because there's exactly one active session per browser tab.
+- Contains: `mode`, `address`, `username`, `status`, `activeDatabase`, timestamps.
+
+**`sessionDatabases` as clientDocument (not per-row table):**
+- Originally planned as `{ sessionId, name, lastSeenAt, isStale }` rows.
+- Actually implemented as a single clientDocument blob:
+  ```ts
+  { isLoading, isStale, databases: { name, lastSeenAt }[], lastRefreshedAt, fetchedForConnectionAt, lastError,
+    lastRefreshAttemptAt, refreshRetryCount, nextAllowedRefreshAt }
+  ```
+- Trade-off: Simpler mutations, but no per-database queryability.
+- Acceptable for current scope; reconsider if multi-session support is needed.
+- **Phase IV addition**: Added backoff fields for exponential retry on failures.
+
+### Bugs Fixed in Phase IV
+
+1. ✅ **`activeDatabase` not cleared on disconnect**: Fixed in `handleServiceDisconnected()` helper which now clears `activeDatabase: null` on all disconnect paths.
+
+2. ✅ **Legacy `uiState` coupling**: Migrated `homePageVM.connectionSummary$` and `connectionStatusVM.displayText$` to read from `connectionSession` instead of `uiState.connectionFormAddress`.
+
+3. ✅ **Service subscriptions never cleaned up**: Added `teardown()` function to `StudioScopeResult` that calls both unsubscribe handlers.
+
+4. ✅ **QueryExecutionService.execute not guarded**: Added connection status check (`status !== "connected"`) before database check.
+
+### Patterns Established
+
+- **Service event → LiveStore commit**: All TypeDB service status/mode changes flow through `subscribeToStatusChange`/`subscribeToModeChange` handlers that commit to `connectionSession`.
+- **Staleness on disconnect**: When status becomes `"disconnected"`, we mark `sessionDatabases.isStale = true` and clear `schemaTypes`.
+- **Refresh on selector open**: `databaseSelectorVM.toggle()` triggers `refreshDatabaseList()` if catalog is stale or empty.
+- **Disconnect handler consolidation**: `handleServiceDisconnected(store)` centralizes all disconnect state updates to enforce invariants.
+- **Backoff on refresh failures**: `refreshDatabaseList()` respects exponential backoff (1s, 2s, 4s... up to 30s) on failures; manual retry bypasses backoff once.
+- **Scope teardown pattern**: Scopes that subscribe to external events return `{ vm, services, teardown }` for cleanup in tests/HMR.
+
+---
+
 ## Phase 1 – Rationalize LiveStore Connection State
 
 ### Objectives, Scope, Dependencies
@@ -91,20 +134,150 @@ Acceptance criteria: curriculum sections can load/reset contexts reliably, REPL 
 - **Scope:** Error handling, snackbar messaging, telemetry logging, and documentation updates (including this plan).
 - **Dependencies:** Phases 1–3 completed to avoid conflicting migrations.
 
-### Tasks & Acceptance Criteria
-1. **Resilience enhancements**
-   - Add automatic stale-state detection when `onStatusChange` reports `disconnected`; selector and REPL surfaces communicate the loss gracefully.
-   - Provide retry hooks for refreshing database/schema caches with exponential backoff metadata stored per session.
-2. **Observability**
-   - Emit structured logs or analytics events whenever session/database state changes, capturing whether the data was derived from TypeDB or local bookkeeping.
-   - Surface these insights via developer tooling (e.g., a debug pane fed by the new tables).
-3. **Cleanup & documentation**
-   - Remove legacy fields/methods replaced in earlier phases.
-   - Update `CREATING_SCOPES.md`, `docs/INTERACTIVE_LEARNING_ARCHITECTURE.md`, and this plan with learnings gathered during implementation.
+---
 
-Acceptance criteria: the app remains usable through transient disconnects, developers can inspect state provenance, and no dead code references the old `uiState` connection fields.
+### Detailed Tasks & Prioritized Refactoring
+
+Based on Oracle review of Phases I–II implementation, the following concrete work items are organized by priority:
+
+#### 4.1 Bug Fixes (High Priority – Must Do)
+
+1. **Clear `activeDatabase` on disconnect** (S)
+   - **Location:** `src/vm/scope.ts` – `subscribeToStatusChange` handler
+   - **Issue:** Handler sets `lastDisconnectedAt` but doesn't clear `activeDatabase`, violating Phase I invariant
+   - **Fix:** Add `activeDatabase: null` to the `connectionSessionSet` commit when `status === "disconnected"`
+   - **Invariant to enforce:** `status !== "connected"` ⟹ `activeDatabase === null`
+
+2. **Migrate `connectionSummary$` off legacy `uiState`** (S)
+   - **Location:** `src/vm/scope.ts` – `homePageVM.connectionSummary$`
+   - **Issue:** Reads `uiState.connectionFormAddress` instead of `connectionSession.address`
+   - **Fix:** Replace with `connectionSession$.address` / `connectionSession$.mode` lookup
+
+3. **Guard `QueryExecutionService.execute` with connection check** (S)
+   - **Location:** `src/vm/scope.ts` – `queryExecutionService`
+   - **Issue:** `execute()` only checks `activeDatabase`, not `status === "connected"`
+   - **Fix:** Update `isReady()` to check both; early-return from `execute()` if `!isReady()`
+
+#### 4.2 Resilience Enhancements (Medium Priority)
+
+4. **Extract disconnect handler into named helper** (S)
+   - **Location:** `src/vm/scope.ts`
+   - **Purpose:** Consolidate session clearing, catalog staleness, and schema cache clearing
+   - **Pattern:**
+     ```ts
+     function handleServiceDisconnected(store: Store<typeof schema>) {
+       const now = Date.now();
+       store.commit(events.connectionSessionSet({
+         status: "disconnected",
+         activeDatabase: null,
+         lastStatusChange: now,
+         lastDisconnectedAt: now,
+       }));
+       store.commit(events.sessionDatabasesSet({ isStale: true, lastError: null }));
+       store.commit(events.schemaTypesSet({ entities: [], relations: [], attributes: [] }));
+     }
+     ```
+   - **Benefit:** Single place to enforce disconnect invariants; easier to test
+
+5. **Add backoff metadata to `sessionDatabases`** (M)
+   - **Location:** `src/livestore/schema.ts` – `sessionDatabases` clientDocument
+   - **New fields:**
+     ```ts
+     lastRefreshAttemptAt: Schema.NullOr(Schema.Number),
+     refreshRetryCount: Schema.Number,  // resets to 0 on success
+     nextAllowedRefreshAt: Schema.NullOr(Schema.Number),
+     ```
+   - **Helper:** Create `refreshDatabasesWithBackoff()` that:
+     - Checks if `now >= nextAllowedRefreshAt` before refreshing
+     - On success: reset `refreshRetryCount = 0`, clear `nextAllowedRefreshAt`
+     - On failure: increment count, compute `backoffMs = 1000 * 2^retryCount` (capped at 30s), set `nextAllowedRefreshAt`
+   - **UI:** "Retry now" button in selector bypasses backoff once (manual override)
+
+6. **Add teardown path for service subscriptions** (S)
+   - **Location:** `src/vm/scope.ts` – `createStudioScope` return value
+   - **Change:** Return `{ vm, services, teardown: () => { ... } }` that calls unsubscribe functions
+   - **Usage:** Call in test cleanup and HMR boundary
+
+#### 4.3 Observability (Medium Priority – Optional for MVP)
+
+7. **Introduce diagnostics table** (M)
+   - **Location:** `src/livestore/schema.ts`
+   - **Schema:**
+     ```ts
+     diagnosticsEvents: State.SQLite.table({
+       name: "diagnosticsEvents",
+       columns: {
+         id: State.SQLite.text({ primaryKey: true }),
+         timestamp: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+         type: State.SQLite.text(),   // "connection" | "database" | "schema" | "query"
+         event: State.SQLite.text(),  // e.g., "statusChanged", "dbListRefreshFailed"
+         source: State.SQLite.text(), // "service" | "user" | "curriculum"
+         payload: State.SQLite.text({ nullable: true }), // JSON.stringify of details
+       },
+     })
+     ```
+   - **Helper:** `logDiagnostics(type, event, source, payload?)` that inserts and prunes old entries (keep last 200)
+
+8. **Replace console.log with diagnostics calls** (S per site)
+   - **Locations:** `onStatusChange`, `onModeChange`, `refreshDatabaseList`, `refreshSchemaForDatabase`
+   - **Pattern:** Keep console.log for dev, but also call `logDiagnostics()` for persistent trace
+
+9. **Debug pane VM (optional)** (M)
+   - **Location:** New `src/vm/debug/debug-pane.vm.ts`
+   - **Purpose:** Lists last N diagnostics events for developer builds
+   - **Gate:** Only show in dev mode via `import.meta.env.DEV`
+
+#### 4.4 Cleanup (Low Priority – Polish)
+
+10. **Remove unused `uiState` connection fields** (S)
+    - **Location:** `src/livestore/schema.ts` – `uiState` clientDocument
+    - **Fields to remove (if no longer referenced):**
+      - `connectionFormAddress` (if fully migrated to `connectionSession.address`)
+      - Any other connection-specific fields that moved to `connectionSession`
+    - **Verification:** `grep -r "connectionFormAddress" src/` should return only form-input usages
+
+11. **Document schema discrepancies** (S)
+    - **Location:** This document
+    - **Done:** See "Implementation Notes" section at top of this document
+
+12. **Update related docs** (S)
+    - `CREATING_SCOPES.md` – Add note about service subscriptions and teardown pattern
+    - `docs/INTERACTIVE_LEARNING_ARCHITECTURE.md` – Reference new `connectionSession` as source of truth
+
+---
+
+### Acceptance Criteria
+
+1. **Invariants enforced:** After any disconnect (user-initiated or service-initiated), `connectionSession.activeDatabase === null` and `sessionDatabases.isStale === true`
+2. **Query execution guarded:** `QueryExecutionService.execute()` returns error if `!isReady()` (not connected or no database)
+3. **Backoff works:** Repeated refresh failures increase delay; manual retry bypasses once
+4. **No dead code:** No remaining references to removed `uiState` fields
+5. **Diagnostics logged:** Key state transitions appear in `diagnosticsEvents` table with provenance
 
 ### Verification
-- **Test Scenarios:** fault-injection tests for disconnect/reconnect loops (`src/vm/__tests__/connection-resilience.test.ts`), logging/telemetry unit tests ensuring payloads include provenance fields (`src/services/__tests__/diagnostics-logger.test.ts`), and documentation lint/check tasks verifying plan updates (`docs/__tests__/documentation-regression.test.ts` if applicable).
-- **Coverage Requirements:** Include both graceful recovery and failure notification paths, ensuring retries back off and state flags become stale when expected.
-- **Pass/Fail Criteria:** Tests fail if disconnects leave stale “connected” indicators, if retries never mark caches stale, or if documentation automation detects missing updates. All verification artifacts must be maintained in-repo and rerunnable.
+
+- **Test Scenarios:**
+  - `src/vm/__tests__/connection-resilience.test.ts` – Disconnect/reconnect loops verify invariants
+  - `src/vm/__tests__/query-execution-guard.test.ts` – Execute fails gracefully when not connected
+  - `src/services/__tests__/database-refresh-backoff.test.ts` – Retry logic with exponential delay
+  
+- **Coverage Requirements:**
+  - All disconnect paths clear `activeDatabase`
+  - Backoff respects `nextAllowedRefreshAt`
+  - Diagnostics include `source` field distinguishing service vs user actions
+
+- **Pass/Fail Criteria:**
+  - Tests fail if disconnect leaves `activeDatabase` non-null
+  - Tests fail if `execute()` attempts service call when `status !== "connected"`
+  - Tests fail if backoff doesn't increase delay on repeated failures
+
+### Effort Estimate
+
+| Task | Size | Notes |
+|------|------|-------|
+| 4.1 Bug fixes (items 1-3) | S | ~1 hour |
+| 4.2 Extract handler + backoff (items 4-6) | M | ~2-3 hours |
+| 4.3 Diagnostics table + logging (items 7-8) | M | ~2-3 hours |
+| 4.3 Debug pane (item 9) | M | Optional, ~2 hours |
+| 4.4 Cleanup (items 10-12) | S | ~1 hour |
+| **Total** | | **~6-10 hours** |
