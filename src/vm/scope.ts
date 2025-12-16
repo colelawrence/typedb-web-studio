@@ -706,24 +706,24 @@ export function createStudioScope(
 
       // For WASM/embedded mode, use the schema introspection API
       if (service instanceof TypeDBEmbeddedService) {
-        const schemaBundle = await service.getSchemaBundle(databaseName);
+        const schema = await service.getMetaGraphSchema(databaseName);
         store.commit(
           events.schemaTypesSet({
-            entities: schemaBundle.entities.map((e) => ({
+            entities: schema.entities.map((e: { typeName: string; attributes: string[] }) => ({
               label: e.typeName,
               isAbstract: false,
               supertype: null,
               ownedAttributes: e.attributes,
               playedRoles: [],
             })),
-            relations: schemaBundle.relations.map((r) => ({
+            relations: schema.relations.map((r: { typeName: string; roles: { roleName: string }[] }) => ({
               label: r.typeName,
               isAbstract: false,
               supertype: null,
               ownedAttributes: [],
-              relatedRoles: r.roles.map((role) => role.roleName),
+              relatedRoles: r.roles.map((role: { roleName: string }) => role.roleName),
             })),
-            attributes: schemaBundle.attributes.map((a) => ({
+            attributes: schema.attributes.map((a: { typeName: string; kind: string }) => ({
               label: a.typeName,
               valueType: a.kind === "unknown" ? null : a.kind,
             })),

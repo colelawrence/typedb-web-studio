@@ -1455,7 +1455,7 @@ packages:
       '@testing-library/dom': '>=7.21.4'
 
   '@typedb/embedded@file:vendor/typedb-embedded-0.1.0.tgz':
-    resolution: {integrity: sha512-v7yNJlCsB1RjcSBm0yzyndjpi0hAkYRk2g9OibpCc+Ky+JoL0zByOW5gcXd4lDdx4jyjiNEvAd7cPHCki3g4Cg==, tarball: file:vendor/typedb-embedded-0.1.0.tgz}
+    resolution: {integrity: sha512-34v7iXEF/GxmKk39or5y52oH0tsIjS3mC5LwzpNnnWfj/TIUyOqgtweE4+LfKJgEbYPXVi5BAAj8Ngu3edJiPQ==, tarball: file:vendor/typedb-embedded-0.1.0.tgz}
     version: 0.1.0
 
   '@types/aria-query@5.0.4':
