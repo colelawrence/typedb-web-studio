@@ -178,7 +178,7 @@ export function createDocumentViewerScope(
           const progress = get(progressQuery$);
           return progress.some(p => p.headingId === heading.id && p.markedRead);
         },
-        { label: `heading.isRead:${headingKey}` }
+        { label: `heading.isRead:${headingKey}`, deps: [headingKey] }
       );
 
       const markRead = () => {
@@ -231,7 +231,7 @@ export function createDocumentViewerScope(
       let executionState: ExampleExecutionState = { type: "idle" };
       const executionState$ = computed(
         () => executionState,
-        { label: `example.executionState:${exampleKey}` }
+        { label: `example.executionState:${exampleKey}`, deps: [exampleKey] }
       );
 
       const wasExecuted$ = computed(
@@ -239,7 +239,7 @@ export function createDocumentViewerScope(
           const executed = get(executedQuery$);
           return executed.some(e => e.exampleId === example.id);
         },
-        { label: `example.wasExecuted:${exampleKey}` }
+        { label: `example.wasExecuted:${exampleKey}`, deps: [exampleKey] }
       );
 
       const copyToReplAction = () => {

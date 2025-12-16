@@ -312,7 +312,7 @@ export function createLearnSidebarScope(
 
       isActive$: computed(
         () => getActiveSectionId() === lesson.id,
-        { label: `learnLesson.${lesson.id}.isActive` }
+        { label: `learnLesson.${lesson.id}.isActive`, deps: [lesson.id] }
       ),
 
       progressState$: computed(
@@ -320,7 +320,7 @@ export function createLearnSidebarScope(
           const readIds = get(readSectionIds$);
           return readIds.has(lesson.id) ? "completed" : "not-started";
         },
-        { label: `learnLesson.${lesson.id}.progressState` }
+        { label: `learnLesson.${lesson.id}.progressState`, deps: [lesson.id] }
       ),
 
       select: () => navigate(lesson.id),
@@ -334,7 +334,7 @@ export function createLearnSidebarScope(
 
       expanded$: computed(
         (get) => get(uiState$).learnExpandedFolders.includes(sectionMeta.id),
-        { label: `learnFolder.${sectionMeta.id}.expanded` }
+        { label: `learnFolder.${sectionMeta.id}.expanded`, deps: [sectionMeta.id] }
       ),
 
       toggleExpanded: () => {
@@ -352,7 +352,7 @@ export function createLearnSidebarScope(
           const currentReadCount = lessonIds.filter((id) => currentReadIds.has(id)).length;
           return computeProgressPercent(currentReadCount, totalCount);
         },
-        { label: `learnFolder.${sectionMeta.id}.progressPercent` }
+        { label: `learnFolder.${sectionMeta.id}.progressPercent`, deps: [sectionMeta.id] }
       ),
 
       progressState$: computed(
@@ -361,7 +361,7 @@ export function createLearnSidebarScope(
           const currentReadCount = lessonIds.filter((id) => currentReadIds.has(id)).length;
           return computeProgressState(currentReadCount, totalCount);
         },
-        { label: `learnFolder.${sectionMeta.id}.progressState` }
+        { label: `learnFolder.${sectionMeta.id}.progressState`, deps: [sectionMeta.id] }
       ),
 
       sections$: constant(lessonVMs, `learnFolder.${sectionMeta.id}.sections`),

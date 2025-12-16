@@ -584,7 +584,7 @@ export function createStudioScope(
           icon: item.icon,
           isActive$: computed(
             (get) => get(currentPage$) === item.key,
-            { label: `nav.${item.key}.isActive` }
+            { label: `nav.${item.key}.isActive`, deps: [item.key] }
           ),
           click: () => {
             store.commit(events.uiStateSet({ currentPage: item.key as typeof page }));
@@ -885,7 +885,7 @@ export function createStudioScope(
               const ui = get(uiState$);
               return ui.connectionStatus === "connected" && ui.activeDatabase === demo.id;
             },
-            { label: `demo.${demo.id}.isActive` }
+            { label: `demo.${demo.id}.isActive`, deps: [demo.id] }
           ),
           load: async () => {
             // Check if already active
@@ -959,7 +959,7 @@ export function createStudioScope(
           lastUsedDisplay: formatRelativeTime(server.lastUsedAt),
           isActive$: computed(
             (get) => get(uiState$).activeLocalServerId === server.id,
-            { label: `server.${server.id}.isActive` }
+            { label: `server.${server.id}.isActive`, deps: [server.id] }
           ),
           connect: async () => {
             try {

@@ -24,7 +24,12 @@
 
 import { X, Check, Circle, BookOpen } from "lucide-react";
 import { Queryable } from "@/vm/components";
-import type { DocumentViewerVM, DocumentSectionVM, DocumentHeadingVM, DocumentExampleVM } from "@/vm/learn";
+import type {
+  DocumentViewerVM,
+  DocumentSectionVM,
+  DocumentHeadingVM,
+  DocumentExampleVM,
+} from "@/vm/learn";
 import { Button } from "../ui/button";
 import { ExampleBlock } from "./ExampleBlock";
 
@@ -40,10 +45,7 @@ export function DocumentViewer({ vm }: DocumentViewerProps) {
           <Queryable query={vm.currentSection$}>
             {(section) =>
               section ? (
-                <DocumentContent
-                  section={section}
-                  onClose={vm.hide}
-                />
+                <DocumentContent section={section} onClose={vm.hide} />
               ) : (
                 <EmptyState onClose={vm.hide} />
               )
@@ -58,7 +60,7 @@ export function DocumentViewer({ vm }: DocumentViewerProps) {
 /**
  * Empty state when no section is selected.
  */
-function EmptyState({ onClose }: { onClose: () => void }) {
+function EmptyState({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex flex-col h-full bg-card border-l border-border">
       <DocumentHeader title="Documentation" onClose={onClose} />
@@ -110,7 +112,7 @@ function DocumentHeader({
   onMarkAllRead,
 }: {
   title: string;
-  onClose: () => void;
+  onClose?: () => void;
   progress?: DocumentSectionVM["progress$"];
   onMarkAllRead?: () => void;
 }) {
@@ -143,14 +145,16 @@ function DocumentHeader({
             Mark all read
           </Button>
         )}
-        <Button
-          variant="ghost"
-          density="compact"
-          onClick={onClose}
-          title="Close documentation"
-        >
-          <X className="size-4" />
-        </Button>
+        {onClose && (
+          <Button
+            variant="ghost"
+            density="compact"
+            onClick={onClose}
+            title="Close documentation"
+          >
+            <X className="size-4" />
+          </Button>
+        )}
       </div>
     </header>
   );
@@ -166,10 +170,10 @@ function DocumentHeader({
  */
 function SectionContent({ section }: { section: DocumentSectionVM }) {
   // Build a map of heading VMs by ID for easy lookup
-  const headingMap = new Map(section.headings.map(h => [h.id, h]));
+  const headingMap = new Map(section.headings.map((h) => [h.id, h]));
 
   // Build a map of example VMs by ID
-  const exampleMap = new Map(section.examples.map(e => [e.id, e]));
+  const exampleMap = new Map(section.examples.map((e) => [e.id, e]));
 
   // Parse the raw content into blocks
   const blocks = parseContentBlocks(section.rawContent, headingMap, exampleMap);
@@ -292,7 +296,10 @@ function HeadingBlock({ vm }: { vm: DocumentHeadingVM }) {
   const HeadingTag = getHeadingTag(vm.level);
 
   return (
-    <HeadingTag id={vm.id} className={`font-semibold text-foreground flex items-center gap-2 group ${sizeClass}`}>
+    <HeadingTag
+      id={vm.id}
+      className={`font-semibold text-foreground flex items-center gap-2 group ${sizeClass}`}
+    >
       {vm.text}
       <Queryable query={vm.isRead$}>
         {(isRead) => (
@@ -340,13 +347,20 @@ function getHeadingSizeClass(level: number): string {
  */
 function getHeadingTag(level: number): "h1" | "h2" | "h3" | "h4" | "h5" | "h6" {
   switch (level) {
-    case 1: return "h1";
-    case 2: return "h2";
-    case 3: return "h3";
-    case 4: return "h4";
-    case 5: return "h5";
-    case 6: return "h6";
-    default: return "h3";
+    case 1:
+      return "h1";
+    case 2:
+      return "h2";
+    case 3:
+      return "h3";
+    case 4:
+      return "h4";
+    case 5:
+      return "h5";
+    case 6:
+      return "h6";
+    default:
+      return "h3";
   }
 }
 
@@ -360,7 +374,7 @@ function ProseBlock({ content }: { content: string }) {
   // Simple inline formatting
   const formatted = content
     .split("\n\n")
-    .filter(p => p.trim())
+    .filter((p) => p.trim())
     .map((paragraph, i) => (
       <p key={i} className="text-dense-sm text-foreground leading-relaxed">
         {formatInlineMarkdown(paragraph)}

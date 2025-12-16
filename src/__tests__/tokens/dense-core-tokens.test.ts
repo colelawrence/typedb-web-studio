@@ -2,116 +2,178 @@
  * Dense-Core Token Tests (Phase 1)
  *
  * Verifies that all Dense-Core design tokens are properly defined
- * in src/styles.css and accessible via CSS custom properties.
+ * and accessible via Tailwind utilities.
+ *
+ * Note: Tokens defined in @theme inline are compile-time values for
+ * Tailwind utility generation - they're not runtime CSS variables.
+ * These tests verify the utilities work correctly.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import '../../styles.css'
 
 describe('Dense-Core Tokens', () => {
-  let rootStyles: CSSStyleDeclaration
+  let testContainer: HTMLDivElement
 
   beforeAll(() => {
-    // Get computed styles from document root
-    rootStyles = getComputedStyle(document.documentElement)
+    testContainer = document.createElement('div')
+    testContainer.id = 'dense-core-test-container'
+    document.body.appendChild(testContainer)
   })
 
+  afterAll(() => {
+    testContainer.remove()
+  })
+
+  function createTestElement(className: string): HTMLDivElement {
+    const el = document.createElement('div')
+    el.className = className
+    testContainer.appendChild(el)
+    return el
+  }
+
+  function getComputedValue(el: HTMLElement, property: string): string {
+    return getComputedStyle(el).getPropertyValue(property).trim()
+  }
+
   describe('Spacing Tokens (Task 1.1)', () => {
-    const spacingTokens = [
-      ['--spacing-0', '0px'],
-      ['--spacing-0-5', '2px'],
-      ['--spacing-1', '4px'],
-      ['--spacing-1-5', '6px'],
-      ['--spacing-2', '8px'],
-      ['--spacing-3', '12px'],
-      ['--spacing-4', '16px'],
-      ['--spacing-6', '24px'],
-      ['--spacing-8', '32px'],
+    const spacingTests = [
+      { token: '--spacing-0', utilityClass: 'gap-0', cssProperty: 'gap', expected: '0px' },
+      { token: '--spacing-0-5', utilityClass: 'gap-0-5', cssProperty: 'gap', expected: '2px' },
+      { token: '--spacing-1', utilityClass: 'gap-1', cssProperty: 'gap', expected: '4px' },
+      { token: '--spacing-1-5', utilityClass: 'gap-1-5', cssProperty: 'gap', expected: '6px' },
+      { token: '--spacing-2', utilityClass: 'gap-2', cssProperty: 'gap', expected: '8px' },
+      { token: '--spacing-3', utilityClass: 'gap-3', cssProperty: 'gap', expected: '12px' },
+      { token: '--spacing-4', utilityClass: 'gap-4', cssProperty: 'gap', expected: '16px' },
+      { token: '--spacing-6', utilityClass: 'gap-6', cssProperty: 'gap', expected: '24px' },
+      { token: '--spacing-8', utilityClass: 'gap-8', cssProperty: 'gap', expected: '32px' },
     ]
 
-    it.each(spacingTokens)('defines %s spacing token', (token, _expected) => {
-      const value = rootStyles.getPropertyValue(token).trim()
-      // Check that the token is defined (not empty)
-      expect(value).toBeTruthy()
-    })
+    it.each(spacingTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass, cssProperty, expected }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, cssProperty)
+        expect(value).toBe(expected)
+        el.remove()
+      }
+    )
   })
 
   describe('Typography Tokens (Task 1.2)', () => {
-    const typographyTokens = [
-      '--font-size-dense-xs', // 11px
-      '--font-size-dense-sm', // 13px
-      '--font-size-dense-base', // 15px
-      '--font-size-dense-lg', // 17px
-      '--font-size-dense-xl', // 20px
-      '--font-size-dense-2xl', // 24px
-      '--font-size-dense-3xl', // 30px
+    const typographyTests = [
+      { token: '--font-size-dense-xs', utilityClass: 'text-dense-xs', expected: '11px' },
+      { token: '--font-size-dense-sm', utilityClass: 'text-dense-sm', expected: '13px' },
+      { token: '--font-size-dense-base', utilityClass: 'text-dense-base', expected: '15px' },
+      { token: '--font-size-dense-lg', utilityClass: 'text-dense-lg', expected: '17px' },
+      { token: '--font-size-dense-xl', utilityClass: 'text-dense-xl', expected: '20px' },
+      { token: '--font-size-dense-2xl', utilityClass: 'text-dense-2xl', expected: '24px' },
+      { token: '--font-size-dense-3xl', utilityClass: 'text-dense-3xl', expected: '30px' },
     ]
 
-    it.each(typographyTokens)('defines %s typography token', (token) => {
-      const value = rootStyles.getPropertyValue(token).trim()
-      expect(value).toBeTruthy()
-    })
+    it.each(typographyTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass, expected }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, 'font-size')
+        expect(value).toBe(expected)
+        el.remove()
+      }
+    )
   })
 
   describe('Height Tokens (Task 1.3)', () => {
-    const heightTokens = [
-      ['--height-compact', '28px'],
-      ['--height-default', '36px'],
-      ['--height-row', '40px'],
-      ['--height-header', '48px'],
+    const heightTests = [
+      { token: '--height-compact', utilityClass: 'h-compact', expected: '28px' },
+      { token: '--height-default', utilityClass: 'h-default', expected: '36px' },
+      { token: '--height-row', utilityClass: 'h-row', expected: '40px' },
+      { token: '--height-header', utilityClass: 'h-header', expected: '48px' },
     ]
 
-    it.each(heightTokens)('defines %s height token', (token, _expected) => {
-      const value = rootStyles.getPropertyValue(token).trim()
-      expect(value).toBeTruthy()
-    })
+    it.each(heightTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass, expected }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, 'height')
+        expect(value).toBe(expected)
+        el.remove()
+      }
+    )
   })
 
   describe('Beacon Colors (Task 1.4)', () => {
-    const beaconTokens = [
-      '--color-beacon-error',
-      '--color-beacon-warn',
-      '--color-beacon-ok',
+    const beaconTests = [
+      { token: '--color-beacon-error', utilityClass: 'bg-beacon-error' },
+      { token: '--color-beacon-warn', utilityClass: 'bg-beacon-warn' },
+      { token: '--color-beacon-ok', utilityClass: 'bg-beacon-ok' },
     ]
 
-    it.each(beaconTokens)('defines %s beacon color', (token) => {
-      const value = rootStyles.getPropertyValue(token).trim()
-      expect(value).toBeTruthy()
-    })
+    it.each(beaconTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, 'background-color')
+        // Should have a non-transparent background color
+        expect(value).not.toBe('')
+        expect(value).not.toBe('rgba(0, 0, 0, 0)')
+        expect(value).not.toBe('transparent')
+        el.remove()
+      }
+    )
   })
 
   describe('Graph Node Colors (Task 1.5)', () => {
-    const graphTokens = [
-      '--color-graph-entity',
-      '--color-graph-relation',
-      '--color-graph-attribute',
+    const graphTests = [
+      { token: '--color-graph-entity', utilityClass: 'bg-graph-entity' },
+      { token: '--color-graph-relation', utilityClass: 'bg-graph-relation' },
+      { token: '--color-graph-attribute', utilityClass: 'bg-graph-attribute' },
     ]
 
-    it.each(graphTokens)('defines %s graph color', (token) => {
-      const value = rootStyles.getPropertyValue(token).trim()
-      expect(value).toBeTruthy()
-      // Verify it's an OKLCH color
-      expect(value).toMatch(/oklch\(/)
-    })
+    it.each(graphTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, 'background-color')
+        // Should have a non-transparent background color
+        expect(value).not.toBe('')
+        expect(value).not.toBe('rgba(0, 0, 0, 0)')
+        expect(value).not.toBe('transparent')
+        el.remove()
+      }
+    )
   })
 
   describe('Operation Colors (Task 1.6)', () => {
-    const opTokens = [
-      '--color-op-read',
-      '--color-op-write',
-      '--color-op-schema',
-      '--color-op-commit',
-      '--color-op-rollback',
+    const opTests = [
+      { token: '--color-op-read', utilityClass: 'bg-op-read' },
+      { token: '--color-op-write', utilityClass: 'bg-op-write' },
+      { token: '--color-op-schema', utilityClass: 'bg-op-schema' },
+      { token: '--color-op-commit', utilityClass: 'bg-op-commit' },
+      { token: '--color-op-rollback', utilityClass: 'bg-op-rollback' },
     ]
 
-    it.each(opTokens)('defines %s operation color', (token) => {
-      const value = rootStyles.getPropertyValue(token).trim()
-      expect(value).toBeTruthy()
-      // Verify it's an OKLCH color
-      expect(value).toMatch(/oklch\(/)
-    })
+    it.each(opTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, 'background-color')
+        // Should have a non-transparent background color
+        expect(value).not.toBe('')
+        expect(value).not.toBe('rgba(0, 0, 0, 0)')
+        expect(value).not.toBe('transparent')
+        el.remove()
+      }
+    )
   })
 
   describe('Syntax Highlighting Colors (Task 1.7)', () => {
+    // Syntax tokens are defined in :root, so we can test them as CSS variables
+    let rootStyles: CSSStyleDeclaration
+
+    beforeAll(() => {
+      rootStyles = getComputedStyle(document.documentElement)
+    })
+
     const syntaxTokens = [
       '--syntax-keyword-read',
       '--syntax-keyword-write',
@@ -132,7 +194,6 @@ describe('Dense-Core Tokens', () => {
     })
 
     it('has dark mode variants for syntax colors', () => {
-      // Add dark class to check dark mode values
       document.documentElement.classList.add('dark')
       const darkStyles = getComputedStyle(document.documentElement)
 
@@ -141,8 +202,33 @@ describe('Dense-Core Tokens', () => {
         expect(value).toBeTruthy()
       })
 
-      // Clean up
       document.documentElement.classList.remove('dark')
     })
+
+    // Also test the utility classes
+    const syntaxUtilityTests = [
+      { token: '--syntax-keyword-read', utilityClass: 'text-syntax-keyword-read' },
+      { token: '--syntax-keyword-write', utilityClass: 'text-syntax-keyword-write' },
+      { token: '--syntax-keyword-schema', utilityClass: 'text-syntax-keyword-schema' },
+      { token: '--syntax-keyword-struct', utilityClass: 'text-syntax-keyword-struct' },
+      { token: '--syntax-keyword-modifier', utilityClass: 'text-syntax-keyword-modifier' },
+      { token: '--syntax-type', utilityClass: 'text-syntax-type' },
+      { token: '--syntax-variable', utilityClass: 'text-syntax-variable' },
+      { token: '--syntax-string', utilityClass: 'text-syntax-string' },
+      { token: '--syntax-number', utilityClass: 'text-syntax-number' },
+      { token: '--syntax-comment', utilityClass: 'text-syntax-comment' },
+      { token: '--syntax-punctuation', utilityClass: 'text-syntax-punctuation' },
+    ]
+
+    it.each(syntaxUtilityTests)(
+      'applies $token via $utilityClass utility',
+      ({ utilityClass }) => {
+        const el = createTestElement(utilityClass)
+        const value = getComputedValue(el, 'color')
+        // Should have a non-default color
+        expect(value).not.toBe('')
+        el.remove()
+      }
+    )
   })
 })

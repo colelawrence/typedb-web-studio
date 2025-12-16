@@ -81,67 +81,69 @@ function QueryPageContent({ vm }: { vm: QueryPageVM }) {
       {/* Main Content Panel */}
       <Panel defaultSize={80} minSize={40} order={2} id="main-content-panel">
         <PanelGroup
-          direction="vertical"
-          autoSaveId="query-editor-results"
+          direction="horizontal"
+          autoSaveId="query-editor-docs-split"
           className="h-full"
         >
-          {/* Editor + Docs area */}
-          <Panel defaultSize={65} minSize={20} order={1} id="editor-area-panel">
-            <Queryable query={vm.docsViewer.isVisible$}>
-              {(isDocsVisible) =>
-                isDocsVisible ? (
-                  <PanelGroup
-                    direction="horizontal"
-                    autoSaveId="query-editor-docs-split"
-                    className="h-full"
+          {/* Docs Panel (optional, left side) */}
+          <Queryable query={vm.docsViewer.isVisible$}>
+            {(isDocsVisible) =>
+              isDocsVisible ? (
+                <>
+                  <Panel
+                    defaultSize={40}
+                    minSize={20}
+                    maxSize={70}
+                    order={1}
+                    id="docs-panel"
                   >
-                    <Panel
-                      defaultSize={40}
-                      minSize={20}
-                      maxSize={70}
-                      order={1}
-                      id="docs-panel"
-                    >
-                      <DocsPane vm={vm.docsViewer} />
-                    </Panel>
-                    <PanelResizeHandle className="w-1 bg-border hover:bg-accent transition-colors cursor-col-resize" />
-                    <Panel
-                      defaultSize={60}
-                      minSize={30}
-                      order={2}
-                      id="editor-panel"
-                      className="flex flex-col justify-stretch"
-                    >
-                      <QueryEditor vm={vm.editor} />
-                    </Panel>
-                  </PanelGroup>
-                ) : (
-                  <QueryEditor vm={vm.editor} />
-                )
-              }
-            </Queryable>
-          </Panel>
+                    <DocsPane vm={vm.docsViewer} />
+                  </Panel>
+                  <PanelResizeHandle className="w-1 bg-border hover:bg-accent transition-colors cursor-col-resize" />
+                </>
+              ) : null
+            }
+          </Queryable>
 
-          <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
-
-          {/* Results Panel */}
-          <Panel defaultSize={25} minSize={10} order={2} id="results-panel">
-            <QueryResults vm={vm.results} />
-          </Panel>
-
-          <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
-
-          {/* History Bar Panel - collapsible */}
+          {/* Query Editor Panel with Results and History */}
           <Panel
-            defaultSize={10}
-            minSize={3}
-            maxSize={30}
-            collapsible
-            collapsedSize={3}
-            order={3}
-            id="history-panel"
+            defaultSize={60}
+            minSize={30}
+            order={2}
+            id="editor-panel"
           >
-            <QueryHistoryBar vm={vm.historyBar} />
+            <PanelGroup
+              direction="vertical"
+              autoSaveId="query-editor-results"
+              className="h-full"
+            >
+              {/* Editor */}
+              <Panel defaultSize={65} minSize={20} order={1} id="editor-area-panel" className="flex flex-col justify-stretch">
+                <QueryEditor vm={vm.editor} />
+              </Panel>
+
+              <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
+
+              {/* Results Panel */}
+              <Panel defaultSize={25} minSize={10} order={2} id="results-panel">
+                <QueryResults vm={vm.results} />
+              </Panel>
+
+              <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
+
+              {/* History Bar Panel - collapsible */}
+              <Panel
+                defaultSize={10}
+                minSize={3}
+                maxSize={30}
+                collapsible
+                collapsedSize={3}
+                order={3}
+                id="history-panel"
+              >
+                <QueryHistoryBar vm={vm.historyBar} />
+              </Panel>
+            </PanelGroup>
           </Panel>
         </PanelGroup>
       </Panel>
@@ -152,24 +154,6 @@ function QueryPageContent({ vm }: { vm: QueryPageVM }) {
 function DocsPane({ vm }: { vm: QueryPageVM["docsViewer"] }) {
   return (
     <div className="flex flex-col h-full bg-card">
-      {/* Header with close button */}
-      <div className="flex items-center justify-between h-row px-3 border-b border-border shrink-0">
-        <Queryable query={vm.currentSection$}>
-          {(section) => (
-            <span className="text-dense-sm font-medium text-foreground truncate">
-              {section?.title ?? "Documentation"}
-            </span>
-          )}
-        </Queryable>
-        <button
-          onClick={vm.hide}
-          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          aria-label="Close documentation"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-
       {/* Document content */}
       <div className="flex-1 overflow-auto">
         <DocumentViewer vm={vm} />
@@ -324,7 +308,7 @@ function QueryEditor({ vm }: { vm: QueryPageVM["editor"] }) {
         </div>
       </div>
 
-      {/* Editor Area - Placeholder */}
+      {/* Editor Area */}
       <div className="overflow-y-auto bg-muted/30 relative grow">
         <Queryable query={vm.codeEditor.text$}>
           {(text) => (
