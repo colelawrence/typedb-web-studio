@@ -90,24 +90,34 @@ Skip tests for:
 
 ### Key Files
 
-- `src/test/vm-test-utils.ts` - Test context creation with LiveStore
+- `src/test/bootstrap-studio.ts` - Full app bootstrap for E2E tests
+- `src/test/vm-test-helpers.ts` - Stateless helpers (`waitFor`, `clickNavItem`, etc.)
+- `src/test/vm-test-utils.ts` - Test context creation, re-exports above
 - `src/vm/__tests__/` - VM integration tests
 - `src/services/__tests__/` - Service-level tests
 
-### Creating Test Context
+### Creating Test Context (E2E Style)
+
+For full app E2E tests, use `bootstrapStudioForTest`:
 
 ```typescript
-import { createVMTestContext } from '../../test/vm-test-utils'
+import { bootstrapStudioForTest } from '../../test/bootstrap-studio'
+import { waitForPage, clickNavItem } from '../../test/vm-test-helpers'
 
-test('your test', async () => {
-  const ctx = await createVMTestContext()
+test('full user flow', async () => {
+  const { app, query, navigate, cleanup } = await bootstrapStudioForTest()
   try {
-    // ctx.vm - root application VM
-    // ctx.store - LiveStore instance
-    // ctx.navigate - mock navigation function
-    // ctx.service - TypeDB embedded service
+    // Navigate via VM methods only
+    clickNavItem(app, query, "Connect")
+    const connectState = await waitForPage(app, query, "connect")
+    
+    // Create resources via VM
+    const { key } = await connectState.vm.localServers.createNew()
+    
+    // Verify navigation was called
+    expect(navigate).toHaveBeenCalledWith("/query")
   } finally {
-    await ctx.cleanup()
+    await cleanup()
   }
 })
 ```
@@ -173,7 +183,5 @@ src/
 
 ## Detailed Documentation
 
-See [TESTING-PLAN.md](./TESTING-PLAN.md) for:
-- Full testing philosophy and rationale
-- Working code patterns with examples
-- Migration path and status
+- **[docs/VM-TESTING.md](./docs/VM-TESTING.md)** - Practical VM testing guide with patterns
+- **[TESTING-PLAN.md](./TESTING-PLAN.md)** - Full testing philosophy and migration status

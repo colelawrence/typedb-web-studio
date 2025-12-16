@@ -3,6 +3,15 @@
  *
  * Provides utilities for testing View Models with real TypeDB WASM.
  * This is the primary testing approach for the application.
+ *
+ * ## Layer Overview
+ *
+ * - **bootstrap-studio.ts** - Full app bootstrap for E2E tests (use `bootstrapStudioForTest`)
+ * - **vm-test-helpers.ts** - Stateless helpers like `waitFor`, `clickNavItem`
+ * - **vm-test-utils.ts** (this file) - Test context creation and database fixtures
+ *
+ * For most E2E tests, use `bootstrapStudioForTest` from bootstrap-studio.ts.
+ * This file provides lower-level utilities for isolated scope testing.
  */
 
 import { vi, expect } from 'vitest'
@@ -14,8 +23,17 @@ import { createStudioScope } from '../vm/scope'
 import type { TypeDBStudioAppVM } from '../vm/app.vm'
 import { TypeDBEmbeddedService } from '../services/typedb-embedded-service'
 
+// Re-export E2E bootstrap for convenience
+export { bootstrapStudioForTest, type TestStudio } from './bootstrap-studio'
+
+// Re-export helpers for convenience
+export * from './vm-test-helpers'
+
 /**
  * Test context containing everything needed to test VMs.
+ *
+ * @deprecated Prefer `bootstrapStudioForTest()` for new E2E tests.
+ * Use this only for legacy tests or when you need direct store access.
  */
 export interface VMTestContext {
   /** The root application VM */
@@ -142,9 +160,16 @@ export async function setupConnectedState(
 
   // Update store to reflect connected state
   ctx.store.commit(
-    events.uiStateSet({
-      connectionStatus: 'connected',
+    events.connectionSessionSet({
+      status: 'connected',
+      mode: 'wasm',
+      address: 'wasm://local',
+      username: 'test',
       activeDatabase: databaseName,
+      connectedAt: Date.now(),
+      lastStatusChange: Date.now(),
+    }),
+    events.uiStateSet({
       connectionFormAddress: 'wasm://local',
       connectionFormUsername: 'test',
     })
