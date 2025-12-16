@@ -11,7 +11,7 @@
  * - Better error handling with typed errors
  */
 
-import { Database, schemaFromDatabase, type SchemaBundle } from '@typedb/embedded'
+import { Database, introspectMetaGraphSchema, type MetaGraphSchema } from '@typedb/embedded'
 import type {
   TypeDBService,
   ConnectionParams,
@@ -155,12 +155,12 @@ export class TypeDBEmbeddedService implements TypeDBService {
   }
 
   /**
-   * Get full schema introspection for a database using TypeQL queries.
+   * Get full schema introspection for a database.
    * This provides complete schema information including ownership, roles, etc.
    */
-  async getSchemaBundle(database: string): Promise<SchemaBundle> {
+  async getMetaGraphSchema(database: string): Promise<MetaGraphSchema> {
     const db = this.getDatabase(database)
-    return schemaFromDatabase(db, { sampleForValueTypes: true, metaGraphPrefix: false })
+    return introspectMetaGraphSchema(db, { filterToMetaGraphTypes: false })
   }
 
   // ---------------------------------------------------------------------------
