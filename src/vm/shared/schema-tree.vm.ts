@@ -175,18 +175,21 @@ export interface SchemaTreeItemVM {
   showPlayOnHover: boolean;
 
   /**
-   * Generates a fetch query for this type and copies to clipboard.
+   * Generates and immediately executes a fetch query for this type.
    *
    * **Generated queries:**
    * - Entity: `match $x isa {type}; fetch $x: *;`
    * - Relation: `match $r ({type}:$x) isa {type}; fetch $r: *;`
    * - Attribute: `match $x has {type} $a; fetch $a;`
    *
-   * **Feedback:** Toast shows "Query copied to clipboard"
+   * **Behavior:**
+   * 1. Generates the appropriate fetch query
+   * 2. Loads it into the query editor
+   * 3. Immediately executes it (read-only, safe to auto-run)
    *
-   * **In query page:** Also pastes to editor.
+   * **Feedback:** Toast shows execution result
    */
-  generateFetchQuery(): void;
+  runFetchQuery(): void;
 }
 
 /**

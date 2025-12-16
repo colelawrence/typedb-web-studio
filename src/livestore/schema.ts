@@ -5,7 +5,13 @@
  * Based on the domain model in studio/docs/DATA-STRUCTURES.md
  */
 
-import { Events, Schema, SessionIdSymbol, State, makeSchema } from "@livestore/livestore";
+import {
+  Events,
+  Schema,
+  SessionIdSymbol,
+  State,
+  makeSchema,
+} from "@livestore/livestore";
 
 // ============================================================================
 // Tables (State)
@@ -45,8 +51,14 @@ export const tables = {
       headingId: State.SQLite.text({ nullable: true }),
       /** Whether explicitly marked as read by user */
       markedRead: State.SQLite.boolean({ default: false }),
-      firstViewedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
-      lastViewedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      firstViewedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
+      lastViewedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
     },
   }),
 
@@ -110,7 +122,10 @@ export const tables = {
       username: State.SQLite.text({ default: "" }),
       database: State.SQLite.text({ nullable: true }),
       isStartupConnection: State.SQLite.boolean({ default: false }),
-      lastUsedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      lastUsedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
       createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
   }),
@@ -132,7 +147,10 @@ export const tables = {
       sortOrder: State.SQLite.integer({ default: 0 }),
       createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
       updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-      deletedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      deletedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
     },
   }),
 
@@ -149,10 +167,16 @@ export const tables = {
       description: State.SQLite.text({ nullable: true }),
       importKey: State.SQLite.text({ nullable: true }),
       sortOrder: State.SQLite.integer({ default: 0 }),
-      lastRunAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      lastRunAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
       createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
       updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-      deletedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      deletedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
     },
   }),
 
@@ -199,7 +223,10 @@ export const tables = {
       /** Demo identifier if isDemo=true (e.g., "social-network") */
       demoId: State.SQLite.text({ nullable: true }),
       /** Last time this server was used/connected */
-      lastUsedAt: State.SQLite.integer({ nullable: true, schema: Schema.DateFromNumber }),
+      lastUsedAt: State.SQLite.integer({
+        nullable: true,
+        schema: Schema.DateFromNumber,
+      }),
       /** When this server was created */
       createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
     },
@@ -227,7 +254,12 @@ export const tables = {
       savedLocalServerId: Schema.NullOr(Schema.String),
 
       // Connection status (mirrors service provider state)
-      status: Schema.Literal("disconnected", "connecting", "connected", "reconnecting"),
+      status: Schema.Literal(
+        "disconnected",
+        "connecting",
+        "connected",
+        "reconnecting"
+      ),
 
       // Active database within the session
       activeDatabase: Schema.NullOr(Schema.String),
@@ -266,7 +298,14 @@ export const tables = {
     name: "uiState",
     schema: Schema.Struct({
       // Current page
-      currentPage: Schema.Literal("home", "connect", "learn", "query", "schema", "users"),
+      currentPage: Schema.Literal(
+        "home",
+        "connect",
+        "learn",
+        "query",
+        "schema",
+        "users"
+      ),
 
       // Connection form state (form inputs only, not connection status)
       connectionFormMode: Schema.Literal("url", "credentials"),
@@ -298,6 +337,9 @@ export const tables = {
       schemaShowOwns: Schema.Boolean,
       schemaShowPlays: Schema.Boolean,
       schemaShowRelates: Schema.Boolean,
+      schemaEntitiesCollapsed: Schema.Boolean,
+      schemaRelationsCollapsed: Schema.Boolean,
+      schemaAttributesCollapsed: Schema.Boolean,
 
       // Results tab
       resultsActiveTab: Schema.Literal("log", "table", "graph", "raw"),
@@ -320,6 +362,9 @@ export const tables = {
       // Query page docs viewer state
       queryDocsViewerVisible: Schema.Boolean,
       queryDocsCurrentSectionId: Schema.NullOr(Schema.String),
+
+      // Query page schema graph panel state
+      querySchemaViewerVisible: Schema.Boolean,
     }),
     default: {
       id: SessionIdSymbol,
@@ -346,6 +391,9 @@ export const tables = {
         schemaShowOwns: true,
         schemaShowPlays: true,
         schemaShowRelates: true,
+        schemaEntitiesCollapsed: false,
+        schemaRelationsCollapsed: false,
+        schemaAttributesCollapsed: false,
         resultsActiveTab: "log",
         historyBarExpanded: false,
         activeDialog: null,
@@ -356,6 +404,7 @@ export const tables = {
         learnViewerVisible: true,
         queryDocsViewerVisible: false,
         queryDocsCurrentSectionId: null,
+        querySchemaViewerVisible: false,
       },
     },
   }),
@@ -444,7 +493,18 @@ export const tables = {
       /** Error message if query failed */
       errorMessage: Schema.NullOr(Schema.String),
       /** Result type */
-      resultType: Schema.NullOr(Schema.Literal("match", "fetch", "insert", "delete", "define", "undefine", "redefine", "aggregate")),
+      resultType: Schema.NullOr(
+        Schema.Literal(
+          "match",
+          "fetch",
+          "insert",
+          "delete",
+          "define",
+          "undefine",
+          "redefine",
+          "aggregate"
+        )
+      ),
       /** Number of results (rows/documents/etc) */
       resultCount: Schema.NullOr(Schema.Number),
       /** Raw JSON results for display */
@@ -825,8 +885,14 @@ const materializers = State.SQLite.materializers(events, {
 
   // Reading progress materializers
   // Using delete + insert pattern since LiveStore doesn't have upsert
-  "v1.ReadingProgressMarked": ({ profileId, sectionId, headingId, markedRead, viewedAt }) => {
+  "v1.ReadingProgressMarked": (
+    { profileId, sectionId, headingId, markedRead, viewedAt },
+    ctx
+  ) => {
     const id = `${profileId}:${sectionId}:${headingId ?? "root"}`;
+    const existing = ctx.query(
+      tables.readingProgress.where({ id }).first({ behaviour: "undefined" })
+    );
     return [
       tables.readingProgress.delete().where({ id }),
       tables.readingProgress.insert({
@@ -835,7 +901,7 @@ const materializers = State.SQLite.materializers(events, {
         sectionId,
         headingId,
         markedRead,
-        firstViewedAt: viewedAt,
+        firstViewedAt: existing?.firstViewedAt ?? viewedAt,
         lastViewedAt: viewedAt,
       }),
     ];
@@ -849,7 +915,15 @@ const materializers = State.SQLite.materializers(events, {
   },
 
   // Example execution materializers
-  "v1.ExampleExecuted": ({ profileId, exampleId, succeeded, source, executedAt, durationMs, errorMessage }) => {
+  "v1.ExampleExecuted": ({
+    profileId,
+    exampleId,
+    succeeded,
+    source,
+    executedAt,
+    durationMs,
+    errorMessage,
+  }) => {
     // Generate a unique ID for each execution
     const id = `${profileId}:${exampleId}:${executedAt.getTime()}`;
     return tables.exampleExecutions.insert({
@@ -865,7 +939,14 @@ const materializers = State.SQLite.materializers(events, {
   },
 
   // Annotation materializers
-  "v1.AnnotationCreated": ({ id, profileId, sectionId, headingId, content, createdAt }) =>
+  "v1.AnnotationCreated": ({
+    id,
+    profileId,
+    sectionId,
+    headingId,
+    content,
+    createdAt,
+  }) =>
     tables.annotations.insert({
       id,
       profileId,
@@ -879,11 +960,17 @@ const materializers = State.SQLite.materializers(events, {
   "v1.AnnotationUpdated": ({ id, content, updatedAt }) =>
     tables.annotations.update({ content, updatedAt }).where({ id }),
 
-  "v1.AnnotationDeleted": ({ id }) =>
-    tables.annotations.delete().where({ id }),
+  "v1.AnnotationDeleted": ({ id }) => tables.annotations.delete().where({ id }),
 
   // Connection materializers
-  "v1.ConnectionCreated": ({ id, name, address, username, database, createdAt }) =>
+  "v1.ConnectionCreated": ({
+    id,
+    name,
+    address,
+    username,
+    database,
+    createdAt,
+  }) =>
     tables.connections.insert({
       id,
       name,
@@ -898,8 +985,7 @@ const materializers = State.SQLite.materializers(events, {
   "v1.ConnectionUpdated": ({ id, ...updates }) =>
     tables.connections.update(updates).where({ id }),
 
-  "v1.ConnectionDeleted": ({ id }) =>
-    tables.connections.delete().where({ id }),
+  "v1.ConnectionDeleted": ({ id }) => tables.connections.delete().where({ id }),
 
   // Local server materializers
   "v1.LocalServerCreated": ({ id, name, isDemo, demoId, createdAt }) =>
@@ -938,7 +1024,15 @@ const materializers = State.SQLite.materializers(events, {
     tables.savedQueryFolders.update({ deletedAt }).where({ id }),
 
   // Query materializers
-  "v1.QueryCreated": ({ id, folderId, name, queryText, description, sortOrder, createdAt }) =>
+  "v1.QueryCreated": ({
+    id,
+    folderId,
+    name,
+    queryText,
+    description,
+    sortOrder,
+    createdAt,
+  }) =>
     tables.savedQueries.insert({
       id,
       folderId,
@@ -960,17 +1054,42 @@ const materializers = State.SQLite.materializers(events, {
     tables.savedQueries.update({ deletedAt }).where({ id }),
 
   // History materializers
-  "v1.HistoryEntryAdded": (entry) =>
-    tables.queryHistory.insert(entry),
+  "v1.HistoryEntryAdded": (entry) => tables.queryHistory.insert(entry),
 
-  "v1.HistoryCleared": () =>
-    tables.queryHistory.delete().where({}),
+  "v1.HistoryCleared": () => tables.queryHistory.delete().where({}),
 });
 
 // ============================================================================
 // Schema Export
 // ============================================================================
 
-const state = State.SQLite.makeState({ tables, materializers });
+const state = State.SQLite.makeState({
+  tables,
+  materializers: objMap(materializers, (name, fn) => (...args: any[]) => {
+    console.group(`%c${name} (materializing)`, "background: yellow; color: black; padding: 2px 4px; border-radius: 2px", ...args);
+    try {
+      return (fn as any)(...args) as any;
+    } finally {
+      console.groupEnd();
+    }
+  }) as typeof materializers,
+});
 
 export const schema = makeSchema({ events, state });
+
+function objMap<T extends Record<string, any>, U>(
+  template: T,
+  eachKey: <P extends Extract<keyof T, string>>(name: P, value: T[P]) => U
+): {
+  [P in Extract<keyof T, string>]: U;
+} {
+  // @ts-ignore
+  return Object.fromEntries(
+    Object.entries(template)
+      .filter(([name]) => typeof name === "string")
+      .map(([name, value]) => {
+        // @ts-ignore
+        return [name, eachKey(name, value)];
+      })
+  );
+}

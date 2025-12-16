@@ -11,36 +11,44 @@ import type { QueryEditorVM } from "./editor/query-editor.vm";
 import type { QueryResultsVM } from "./results/query-results.vm";
 import type { QueryHistoryBarVM } from "./history/query-history-bar.vm";
 import type { DocumentViewerVM } from "../../learn/document-viewer.vm";
+import type { SchemaGraphPanelVM } from "../../shared/schema-graph-panel.vm";
 
 /**
  * Query page VM.
  *
- * **Layout (with docs pane open):**
+ * **Layout (with reference panels open):**
  * ```
  * ┌──────────────┬───────────────────────┬─────────────┐
- * │   Sidebar    │  Query Editor         │  Docs Pane  │
- * │   (resize)   │  ┌───────────────────┐│ (resizable) │
- * │              │  │ [code] [run]      ││             │
- * │ ┌──────────┐ │  ├───────────────────┤│ ┌─────────┐│
- * │ │ Learn    │ │  │ TypeQL editor     ││ │ Doc     ││
- * │ │ (collapse)│ │  │                   ││ │ content ││
- * │ └──────────┘ │  └───────────────────┘│ └─────────┘│
- * │              │  Results              │             │
- * │ ┌──────────┐ │  ┌───────────────────────────────┐ │
- * │ │ Schema   │ │  │ [log|table|graph|raw]        │ │
- * │ │ (collapse)│ │  │ Output content               │ │
- * │ └──────────┘ │  └───────────────────────────────┘ │
- * │              │  History Bar                       │
- * │ ┌──────────┐ └────────────────────────────────────┘
- * │ │ Saved    │
- * │ │ Queries  │
+ * │   Sidebar    │  Query Editor         │  Reference  │
+ * │   (resize)   │  ┌───────────────────┐│   Panel     │
+ * │              │  │ [code] [run]      ││ ┌─────────┐ │
+ * │ ┌──────────┐ │  ├───────────────────┤│ │ Schema  │ │
+ * │ │ Schema   │ │  │ TypeQL editor     ││ │ Graph   │ │
+ * │ │ (collapse)│ │  │                   ││ ├─────────┤ │
+ * │ └──────────┘ │  └───────────────────┘│ │ Docs    │ │
+ * │              │  Results              │ │ Viewer  │ │
+ * │ ┌──────────┐ │  ┌───────────────────┐│ └─────────┘ │
+ * │ │ Saved    │ │  │ [log|table|graph] ││             │
+ * │ │ Queries  │ │  │ Output content    ││             │
+ * │ └──────────┘ │  └───────────────────┘│             │
+ * │              │  History Bar          │             │
+ * │ ┌──────────┐ └───────────────────────┴─────────────┘
+ * │ │ Learn    │
+ * │ │ (collapse)│
  * │ └──────────┘
  * └──────────────┘
  * ```
  *
+ * **Reference Panel Logic:**
+ * - Schema only → schema takes full reference panel space
+ * - Docs only → docs takes full reference panel space
+ * - Both → vertical split (schema above docs)
+ * - Neither → reference panel hidden, editor takes full width
+ *
  * **Resizing:**
  * - Sidebar width is resizable (drag handle on right edge)
- * - Editor/Docs split is resizable when docs pane is open
+ * - Editor/Reference panel split is resizable when either panel is open
+ * - Schema/Docs vertical split is resizable when both are open
  * - Editor/Results split is resizable (drag handle between them)
  * - Minimum widths prevent collapsing to unusable sizes
  */
@@ -71,6 +79,12 @@ export interface QueryPageVM {
    * Stays open even when interacting with other sidebar sections.
    */
   docsViewer: DocumentViewerVM;
+
+  /**
+   * Schema graph panel shown above docs viewer in the reference panel.
+   * Toggled from sidebar schema section header or editor toolbar.
+   */
+  schemaViewer: SchemaGraphPanelVM;
 
   /**
    * Placeholder state when page cannot function.

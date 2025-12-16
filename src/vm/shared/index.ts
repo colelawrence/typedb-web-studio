@@ -9,3 +9,10 @@ export type {
   SchemaTreeItemVM,
   SchemaTreeChildItemVM,
 } from "./schema-tree.vm";
+
+export type {
+  SchemaGraphPanelVM,
+  SchemaGraphVisualizationVM,
+  SchemaGraphStatus,
+  SchemaGraphNodeVM,
+} from "./schema-graph-panel.vm";

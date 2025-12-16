@@ -24,7 +24,6 @@ const HomePage = lazy(() => import("../pages/HomePage").then(m => ({ default: m.
 const ConnectPage = lazy(() => import("../pages/ConnectPage").then(m => ({ default: m.ConnectPage })));
 const LearnPage = lazy(() => import("../pages/LearnPage").then(m => ({ default: m.LearnPage })));
 const QueryPage = lazy(() => import("../pages/QueryPage").then(m => ({ default: m.QueryPage })));
-const SchemaPage = lazy(() => import("../pages/SchemaPage").then(m => ({ default: m.SchemaPage })));
 const UsersPage = lazy(() => import("../pages/UsersPage").then(m => ({ default: m.UsersPage })));
 
 // Create LiveStore adapter for web worker
@@ -104,8 +103,6 @@ function StudioAppContent() {
                     return <LearnPage vm={pageState.vm} />;
                   case "query":
                     return <QueryPage vm={pageState.vm} />;
-                  case "schema":
-                    return <SchemaPage vm={pageState.vm} />;
                   case "users":
                     return <UsersPage vm={pageState.vm} />;
                 }

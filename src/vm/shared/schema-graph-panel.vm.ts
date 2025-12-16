@@ -1,117 +1,43 @@
 /**
- * Schema page view model.
+ * Schema graph panel view model.
  *
- * Displays the database schema as both a tree view and a graph visualization.
+ * A panel that displays the database schema as a graph visualization.
+ * Can be shown alongside the docs viewer in the Query page.
  */
 
-import type { Queryable } from "../../types";
-import type { SchemaTreeVM } from "../../shared/schema-tree.vm";
+import type { Queryable } from "../types";
 
 /**
- * Schema page VM.
+ * Schema graph panel VM.
  *
- * **Layout:**
- * ```
- * ┌──────────────┬─────────────────────────────────────────┐
- * │  Schema      │                                         │
- * │  Tree        │        Graph Visualization              │
- * │  (resize)    │        (force-directed layout)          │
- * │              │                                         │
- * │  [controls]  │        - Entities as rectangles         │
- * │  [tree]      │        - Relations as diamonds          │
- * │              │        - Attributes as ovals            │
- * │              │        - Lines showing relationships    │
- * │              │                                         │
- * └──────────────┴─────────────────────────────────────────┘
- * ```
+ * Provides visibility control and graph visualization for the schema panel
+ * in the Query page. This panel appears above the docs viewer when visible.
  */
-export interface SchemaPageVM {
+export interface SchemaGraphPanelVM {
   /**
-   * Left sidebar containing schema tree.
+   * Whether the panel is currently visible.
    */
-  sidebar: SchemaSidebarVM;
+  isVisible$: Queryable<boolean>;
 
   /**
-   * Main content area with graph visualization.
+   * Show the schema graph panel.
+   */
+  show(): void;
+
+  /**
+   * Hide the schema graph panel.
+   */
+  hide(): void;
+
+  /**
+   * Toggle the schema graph panel visibility.
+   */
+  toggle(): void;
+
+  /**
+   * The graph visualization VM.
    */
   graph: SchemaGraphVisualizationVM;
-
-  /**
-   * Placeholder state when page cannot function.
-   *
-   * **Placeholder types:**
-   * - `"noServer"`: Not connected to any server
-   * - `"noDatabase"`: Connected but no database selected
-   */
-  placeholder$: Queryable<SchemaPagePlaceholder | null>;
-}
-
-/**
- * Placeholder state for the schema page.
- */
-export type SchemaPagePlaceholder =
-  | { type: "noServer"; message: string; actionLabel: string; action: () => void }
-  | { type: "noDatabase"; message: string; actionLabel: string; action: () => void };
-
-/**
- * Schema sidebar containing tree view and controls.
- */
-export interface SchemaSidebarVM {
-  /**
-   * Current sidebar width in pixels.
-   *
-   * **Constraints:**
-   * - Minimum: 200px
-   * - Maximum: 50% of viewport width
-   * - Default: 280px
-   */
-  width$: Queryable<number>;
-
-  /**
-   * Updates sidebar width during drag resize.
-   */
-  setWidth(width: number): void;
-
-  /**
-   * View mode for the schema tree.
-   *
-   * **Modes:**
-   * - `"flat"`: All types at same level, alphabetically sorted
-   * - `"hierarchical"`: Types nested under their supertypes
-   */
-  viewMode$: Queryable<"flat" | "hierarchical">;
-
-  /**
-   * Changes the view mode.
-   */
-  setViewMode(mode: "flat" | "hierarchical"): void;
-
-  /**
-   * Link visibility toggles.
-   * Control which relationships are shown in tree and graph.
-   */
-  linksVisibility: {
-    /** Show subtype relationships */
-    sub$: Queryable<boolean>;
-    toggleSub(): void;
-
-    /** Show ownership relationships */
-    owns$: Queryable<boolean>;
-    toggleOwns(): void;
-
-    /** Show role playing relationships */
-    plays$: Queryable<boolean>;
-    togglePlays(): void;
-
-    /** Show relation role relationships */
-    relates$: Queryable<boolean>;
-    toggleRelates(): void;
-  };
-
-  /**
-   * Schema tree shared with query sidebar.
-   */
-  tree: SchemaTreeVM;
 }
 
 /**
@@ -259,6 +185,3 @@ export interface SchemaGraphNodeVM {
    */
   highlight(): void;
 }
-
-// Re-export
-export type { SchemaTreeVM } from "../../shared/schema-tree.vm";

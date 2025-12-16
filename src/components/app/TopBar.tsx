@@ -114,7 +114,7 @@ function DatabaseSelector({ vm }: { vm: TopBarVM["databaseSelector"] }) {
                           {(text) => (
                             <span className={cn(
                               "word-break truncate max-w-[150px]",
-                              text === "Select database" ? "text-muted-foreground italic" : "",
+                              text === "Select database..." ? "text-muted-foreground italic" : "",
                             )
                             }>
                               {text}

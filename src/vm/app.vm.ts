@@ -15,7 +15,6 @@ import type { SnackbarVM } from "./snackbar.vm";
 import type { HomePageVM } from "./pages/home/home-page.vm";
 import type { ConnectPageVM } from "./pages/connect/connect-page.vm";
 import type { QueryPageVM } from "./pages/query/query-page.vm";
-import type { SchemaPageVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageVM } from "./pages/users/users-page.vm";
 import type { LearnPageVM } from "./pages/learn/learn-page.vm";
 import type { DialogsVM } from "./dialogs/dialogs.vm";
@@ -83,11 +82,13 @@ export interface TypeDBStudioAppVM {
 /**
  * Discriminated union of all possible page states.
  * Each page has its own VM type containing all page-specific state and actions.
+ *
+ * Note: Schema page has been removed - schema is now shown as a panel
+ * in the Query page reference panel.
  */
 export type CurrentPageState =
   | { page: "home"; vm: HomePageVM }
   | { page: "connect"; vm: ConnectPageVM }
   | { page: "query"; vm: QueryPageVM }
-  | { page: "schema"; vm: SchemaPageVM }
   | { page: "users"; vm: UsersPageVM }
   | { page: "learn"; vm: LearnPageVM };

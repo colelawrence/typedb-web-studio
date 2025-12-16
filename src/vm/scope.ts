@@ -96,7 +96,6 @@ import type {
   RawOutputVM,
 } from "./pages/query/results/query-results.vm";
 import type { QueryHistoryBarVM } from "./pages/query/history/query-history-bar.vm";
-import type { SchemaPageVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageVM } from "./pages/users/users-page.vm";
 import type { DisabledState, FormInputVM, IconComponent } from "./types";
 import type {
@@ -125,9 +124,10 @@ import type {
 import type { HistoryEntryVM } from "./pages/query/history/query-history-bar.vm";
 import type { QuerySidebarUrlImportsSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
 import type {
+  SchemaGraphPanelVM,
   SchemaGraphStatus,
   SchemaGraphNodeVM,
-} from "./pages/schema/schema-page.vm";
+} from "./shared/schema-graph-panel.vm";
 import type {
   UsersPageStatus,
   UsersPagePlaceholder,
@@ -239,6 +239,299 @@ export interface StudioServices {
 // ============================================================================
 
 const createID = (prefix: string) => `${prefix}_${nanoid(12)}`;
+
+// ============================================================================
+// Query Execution Types and Helpers
+// ============================================================================
+
+/**
+ * Result type for query execution with results panel update.
+ */
+type QueryExecutionResult = {
+  success: boolean;
+  resultCount?: number;
+  error?: string;
+  executionTimeMs: number;
+  /** Result rows formatted as JSON strings (for display in examples) */
+  resultRows?: string[];
+  /** Log lines for human-readable output */
+  logLines?: string[];
+};
+
+/**
+ * Process query response into display-friendly formats.
+ * Module-level helper for reuse across scopes.
+ */
+function processQueryResults(
+  response: QueryResponse
+): {
+  logLines: string[];
+  tableColumns: string[];
+  tableRows: string[];
+  resultCount: number;
+} {
+  const logLines: string[] = [];
+  const tableColumns: string[] = [];
+  const tableRows: string[] = [];
+  let resultCount = 0;
+
+  logLines.push(`Query: ${response.query}`);
+  logLines.push(`Transaction: ${response.transactionType}`);
+  logLines.push(`Time: ${response.executionTimeMs}ms`);
+  logLines.push("");
+
+  switch (response.data.type) {
+    case "match": {
+      const answers = response.data.answers;
+      resultCount = answers.length;
+      logLines.push(
+        `Results: ${resultCount} row${resultCount !== 1 ? "s" : ""}`
+      );
+      logLines.push("");
+
+      // Extract columns from first result
+      if (answers.length > 0) {
+        const firstRow = answers[0];
+        tableColumns.push(...Object.keys(firstRow));
+      }
+
+      // Format each row
+      for (const answer of answers) {
+        const row: Record<string, unknown> = {};
+        for (const [key, concept] of Object.entries(answer)) {
+          if (concept.value !== undefined) {
+            row[key] = concept.value;
+          } else if (concept.iid) {
+            row[key] = `${concept.type}:${concept.iid.slice(0, 8)}`;
+          } else {
+            row[key] = concept.type;
+          }
+        }
+        tableRows.push(JSON.stringify(row));
+        logLines.push(JSON.stringify(row));
+      }
+      break;
+    }
+
+    case "fetch": {
+      const documents = response.data.documents;
+      resultCount = documents.length;
+      logLines.push(
+        `Results: ${resultCount} document${resultCount !== 1 ? "s" : ""}`
+      );
+      logLines.push("");
+
+      // Extract columns from first document
+      if (documents.length > 0) {
+        tableColumns.push(...Object.keys(documents[0]));
+      }
+
+      // Format each document
+      for (const doc of documents) {
+        tableRows.push(JSON.stringify(doc));
+        logLines.push(JSON.stringify(doc, null, 2));
+      }
+      break;
+    }
+
+    case "insert": {
+      const inserted = response.data.inserted;
+      resultCount = inserted.length;
+      logLines.push(
+        `Inserted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`
+      );
+      break;
+    }
+
+    case "delete": {
+      resultCount = response.data.deletedCount;
+      logLines.push(
+        `Deleted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`
+      );
+      break;
+    }
+
+    case "define":
+    case "undefine":
+    case "redefine": {
+      resultCount = response.data.success ? 1 : 0;
+      logLines.push(
+        response.data.success
+          ? "Schema updated successfully"
+          : "Schema update failed"
+      );
+      break;
+    }
+
+    case "aggregate": {
+      resultCount = 1;
+      logLines.push(`Result: ${response.data.value}`);
+      tableColumns.push("value");
+      tableRows.push(JSON.stringify({ value: response.data.value }));
+      break;
+    }
+  }
+
+  return { logLines, tableColumns, tableRows, resultCount };
+}
+
+/**
+ * Factory to create a shared query execution function that:
+ * 1. Executes queries against TypeDB
+ * 2. Updates the results panel (queryResults state)
+ * 3. Records query history
+ * 4. Shows snackbar notifications
+ *
+ * This is used by both Learn page and Query page to ensure consistent behavior.
+ */
+function createExecuteQueryAndUpdateResults(
+  store: Store<typeof schema>,
+  showSnackbar: (type: "success" | "warning" | "error", message: string) => void,
+  refreshSchemaForDatabase: (database: string) => Promise<void>
+): (queryText: string) => Promise<QueryExecutionResult> {
+  return async function executeQueryAndUpdateResults(
+    queryText: string
+  ): Promise<QueryExecutionResult> {
+    const session = store.query(connectionSession$);
+    const database = session.activeDatabase;
+
+    if (!database) {
+      showSnackbar("error", "No database selected");
+      return { success: false, error: "No database selected", executionTimeMs: 0 };
+    }
+
+    // Set running state
+    store.commit(
+      events.queryResultsSet({
+        isRunning: true,
+        query: queryText,
+        errorMessage: null,
+      })
+    );
+
+    const startTime = Date.now();
+
+    try {
+      const service = getService();
+      const detection = detectQueryType(queryText);
+      const response = await service.executeQuery(database, queryText, {
+        transactionType: detection.transactionType,
+      });
+
+      // Process results and update state
+      const { logLines, tableColumns, tableRows, resultCount } =
+        processQueryResults(response);
+
+      store.commit(
+        events.queryResultsSet({
+          isRunning: false,
+          query: queryText,
+          transactionType: response.transactionType,
+          executionTimeMs: response.executionTimeMs,
+          completedAt: Date.now(),
+          errorMessage: null,
+          resultType: response.data.type,
+          resultCount,
+          rawJson: JSON.stringify(response.data, null, 2),
+          logLines,
+          tableColumns,
+          tableRows,
+        })
+      );
+
+      // Add to history
+      store.commit(
+        events.historyEntryAdded({
+          id: createID("hist"),
+          connectionId: session.savedConnectionId,
+          databaseName: database,
+          queryText,
+          executedAt: new Date(),
+          status: "success",
+          durationMs: response.executionTimeMs,
+          rowCount: resultCount,
+          errorMessage: null,
+        })
+      );
+
+      // Refresh schema after schema changes
+      if (
+        (response.data.type === "define" ||
+          response.data.type === "undefine" ||
+          response.data.type === "redefine") &&
+        response.data.success
+      ) {
+        refreshSchemaForDatabase(database);
+      }
+
+      // Show success notification
+      const typeLabel =
+        response.data.type === "define"
+          ? "Schema updated"
+          : response.data.type === "insert"
+          ? "Data inserted"
+          : response.data.type === "delete"
+          ? "Data deleted"
+          : `${resultCount} result${resultCount !== 1 ? "s" : ""}`;
+      showSnackbar("success", `${typeLabel} (${response.executionTimeMs}ms)`);
+
+      return {
+        success: true,
+        resultCount,
+        executionTimeMs: response.executionTimeMs,
+        resultRows: tableRows,
+        logLines,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : (error as { message?: string })?.message || String(error);
+
+      store.commit(
+        events.queryResultsSet({
+          isRunning: false,
+          query: queryText,
+          transactionType: null,
+          executionTimeMs: Date.now() - startTime,
+          completedAt: Date.now(),
+          errorMessage,
+          resultType: null,
+          resultCount: null,
+          rawJson: null,
+          logLines: [`Error: ${errorMessage}`],
+          tableColumns: [],
+          tableRows: [],
+        })
+      );
+
+      // Add failed entry to history
+      store.commit(
+        events.historyEntryAdded({
+          id: createID("hist"),
+          connectionId: session.savedConnectionId,
+          databaseName: database,
+          queryText,
+          executedAt: new Date(),
+          status: "error",
+          durationMs: Date.now() - startTime,
+          rowCount: null,
+          errorMessage,
+        })
+      );
+
+      showSnackbar("error", `Query failed: ${errorMessage}`);
+
+      return {
+        success: false,
+        error: errorMessage,
+        executionTimeMs: Date.now() - startTime,
+        resultRows: [],
+        logLines: [`Error: ${errorMessage}`],
+      };
+    }
+  };
+}
 
 // ============================================================================
 // Result type for createStudioScope
@@ -832,15 +1125,14 @@ export function createStudioScope(
       (get) => {
         const catalog = get(sessionDatabases$);
         const databases = catalog.databases;
-        const currentDb = get(activeDatabase$);
 
         return databases.map(
           (entry): DatabaseOptionVM => ({
             key: entry.name,
             label: entry.name,
-            isSelected$: constant(
-              currentDb === entry.name,
-              `database.${entry.name}.isSelected`
+            isSelected$: computed(
+              (get) => get(activeDatabase$) === entry.name,
+              { label: `database.${entry.name}.isSelected`, deps: [entry.name] }
             ),
             select: () => {
               store.commit(
@@ -923,13 +1215,13 @@ export function createStudioScope(
       path: "/query",
       requiresConnection: true,
     },
-    {
-      key: "schema",
-      label: "Schema",
-      icon: GitBranch,
-      path: "/schema",
-      requiresConnection: true,
-    },
+    // {
+    //   key: "schema",
+    //   label: "Schema",
+    //   icon: GitBranch,
+    //   path: "/schema",
+    //   requiresConnection: true,
+    // },
     {
       key: "users",
       label: "Users",
@@ -1042,8 +1334,12 @@ export function createStudioScope(
             ),
             click: () => {
               if (!store.query(isConnected$)) return;
-              store.commit(events.uiStateSet({ currentPage: "schema" }));
-              navigate("/schema");
+              // Navigate to query page and open schema panel
+              store.commit(events.uiStateSet({
+                currentPage: "query",
+                querySchemaViewerVisible: true,
+              }));
+              navigate("/query");
             },
           },
         ];
@@ -1236,6 +1532,10 @@ export function createStudioScope(
           case "undefine":
           case "redefine":
             resultCount = response.data.success ? 1 : 0;
+            // Refresh schema after schema changes
+            if (response.data.success) {
+              refreshSchemaForDatabase(database);
+            }
             break;
         }
 
@@ -1785,6 +2085,17 @@ export function createStudioScope(
   const sharedProfileId = getProfileId();
 
   // ---------------------------------------------------------------------------
+  // Shared Query Execution Helper
+  // ---------------------------------------------------------------------------
+
+  // Create shared execute function that updates results panel + history
+  const executeQueryAndUpdateResults = createExecuteQueryAndUpdateResults(
+    store,
+    showSnackbar,
+    refreshSchemaForDatabase
+  );
+
+  // ---------------------------------------------------------------------------
   // Learn Page (created first so we can share VMs with Query Page)
   // ---------------------------------------------------------------------------
 
@@ -1794,7 +2105,7 @@ export function createStudioScope(
     showSnackbar,
     curriculumSectionsData,
     sharedProfileId,
-    queryExecutionService
+    executeQueryAndUpdateResults
   );
 
   // ---------------------------------------------------------------------------
@@ -1846,17 +2157,8 @@ export function createStudioScope(
     curriculumSectionsData,
     sharedProfileId,
     sharedCurriculumMeta,
-    queryExecutionService
-  );
-
-  // ---------------------------------------------------------------------------
-  // Schema Page (Placeholder)
-  // ---------------------------------------------------------------------------
-
-  const schemaPageVM: SchemaPageVM = createSchemaPageVM(
-    store,
-    connectionStatus$,
-    activeDatabase$
+    executeQueryAndUpdateResults,
+    refreshSchemaForDatabase
   );
 
   // ---------------------------------------------------------------------------
@@ -1896,10 +2198,11 @@ export function createStudioScope(
           return { page: "learn", vm: learnPageVM };
         case "query":
           return { page: "query", vm: queryPageVM };
-        case "schema":
-          return { page: "schema", vm: schemaPageVM };
         case "users":
           return { page: "users", vm: usersPageVM };
+        case "schema":
+          // Schema page has been removed - redirect to query page
+          return { page: "query", vm: queryPageVM };
       }
     },
     { label: "currentPageState" }
@@ -1961,7 +2264,8 @@ function createQueryPageVM(
   curriculumSectionsData: Record<string, ParsedSection>,
   profileId: string,
   curriculumMeta: CurriculumMeta,
-  queryExecutionService: QueryExecutionService
+  executeQueryAndUpdateResults: (query: string) => Promise<QueryExecutionResult>,
+  refreshSchemaForDatabase: (database: string) => Promise<void>
 ): QueryPageVM {
   // Helper to create schema tree item VMs
   const emptyChildren: SchemaTreeChildItemVM[] = [];
@@ -2011,16 +2315,17 @@ function createQueryPageVM(
       `entity.${entity.label}.children`
     ),
     showPlayOnHover: true,
-    generateFetchQuery: () => {
+    runFetchQuery: async () => {
       const query = generateFetchQuery({
         label: entity.label,
         kind: "entity",
         ownedAttributes: entity.ownedAttributes,
       });
       store.commit(
-        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true })
+        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: false })
       );
-      showSnackbar("success", `Generated fetch query for ${entity.label}`);
+      // Execute and update results panel
+      await executeQueryAndUpdateResults(query);
     },
   });
 
@@ -2093,7 +2398,7 @@ function createQueryPageVM(
       `relation.${relation.label}.children`
     ),
     showPlayOnHover: true,
-    generateFetchQuery: () => {
+    runFetchQuery: async () => {
       const query = generateFetchQuery({
         label: relation.label,
         kind: "relation",
@@ -2101,9 +2406,10 @@ function createQueryPageVM(
         relatedRoles: relation.relatedRoles,
       });
       store.commit(
-        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true })
+        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: false })
       );
-      showSnackbar("success", `Generated fetch query for ${relation.label}`);
+      // Execute and update results panel
+      await executeQueryAndUpdateResults(query);
     },
   });
 
@@ -2125,15 +2431,16 @@ function createQueryPageVM(
     toggleExpanded: () => {},
     children$: constant(emptyChildren, `attribute.${attribute.label}.children`),
     showPlayOnHover: true,
-    generateFetchQuery: () => {
+    runFetchQuery: async () => {
       const query = generateFetchQuery({
         label: attribute.label,
         kind: "attribute",
       });
       store.commit(
-        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true })
+        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: false })
       );
-      showSnackbar("success", `Generated fetch query for ${attribute.label}`);
+      // Execute and update results panel
+      await executeQueryAndUpdateResults(query);
     },
   });
 
@@ -2143,8 +2450,13 @@ function createQueryPageVM(
     count$: computed((get) => get(schemaTypes$)?.entities?.length ?? 0, {
       label: "schemaTree.entities.count",
     }),
-    collapsed$: constant(false, "schemaTree.entities.collapsed"),
-    toggleCollapsed: () => {},
+    collapsed$: computed((get) => get(uiState$).schemaEntitiesCollapsed, {
+      label: "schemaTree.entities.collapsed",
+    }),
+    toggleCollapsed: () => {
+      const collapsed = store.query(uiState$).schemaEntitiesCollapsed;
+      store.commit(events.uiStateSet({ schemaEntitiesCollapsed: !collapsed }));
+    },
     items$: computed(
       (get) => get(schemaTypes$)?.entities?.map(createEntityItem) ?? [],
       { label: "schemaTree.entities.items" }
@@ -2156,8 +2468,13 @@ function createQueryPageVM(
     count$: computed((get) => get(schemaTypes$)?.relations?.length ?? 0, {
       label: "schemaTree.relations.count",
     }),
-    collapsed$: constant(false, "schemaTree.relations.collapsed"),
-    toggleCollapsed: () => {},
+    collapsed$: computed((get) => get(uiState$).schemaRelationsCollapsed, {
+      label: "schemaTree.relations.collapsed",
+    }),
+    toggleCollapsed: () => {
+      const collapsed = store.query(uiState$).schemaRelationsCollapsed;
+      store.commit(events.uiStateSet({ schemaRelationsCollapsed: !collapsed }));
+    },
     items$: computed(
       (get) => get(schemaTypes$)?.relations?.map(createRelationItem) ?? [],
       { label: "schemaTree.relations.items" }
@@ -2169,8 +2486,13 @@ function createQueryPageVM(
     count$: computed((get) => get(schemaTypes$)?.attributes?.length ?? 0, {
       label: "schemaTree.attributes.count",
     }),
-    collapsed$: constant(false, "schemaTree.attributes.collapsed"),
-    toggleCollapsed: () => {},
+    collapsed$: computed((get) => get(uiState$).schemaAttributesCollapsed, {
+      label: "schemaTree.attributes.collapsed",
+    }),
+    toggleCollapsed: () => {
+      const collapsed = store.query(uiState$).schemaAttributesCollapsed;
+      store.commit(events.uiStateSet({ schemaAttributesCollapsed: !collapsed }));
+    },
     items$: computed(
       (get) => get(schemaTypes$)?.attributes?.map(createAttributeItem) ?? [],
       { label: "schemaTree.attributes.items" }
@@ -2305,7 +2627,7 @@ function createQueryPageVM(
     store,
     events,
     navigate,
-    executeQuery: queryExecutionService.execute,
+    executeQuery: executeQueryAndUpdateResults,
     showSnackbar,
   });
 
@@ -2321,6 +2643,90 @@ function createQueryPageVM(
         labelPrefix: "queryDocsViewer",
       },
     });
+
+  // Schema Graph Panel VM
+  const schemaViewerVM: SchemaGraphPanelVM = {
+    isVisible$: computed((get) => get(uiState$).querySchemaViewerVisible, {
+      label: "schemaViewer.isVisible",
+    }),
+    show: () =>
+      store.commit(events.uiStateSet({ querySchemaViewerVisible: true })),
+    hide: () =>
+      store.commit(events.uiStateSet({ querySchemaViewerVisible: false })),
+    toggle: () => {
+      const visible = store.query(uiState$).querySchemaViewerVisible;
+      store.commit(events.uiStateSet({ querySchemaViewerVisible: !visible }));
+    },
+    graph: {
+      status$: computed(
+        (get): SchemaGraphStatus => {
+          const session = get(connectionSession$);
+          if (session.status !== "connected") return "loading";
+          if (!session.activeDatabase) return "loading";
+          const types = get(schemaTypes$);
+          if (
+            types.entities.length === 0 &&
+            types.relations.length === 0 &&
+            types.attributes.length === 0
+          ) {
+            return "empty";
+          }
+          return "ready";
+        },
+        { label: "schemaViewer.graph.status" }
+      ),
+      statusMessage$: computed(
+        (get): string | null => {
+          const session = get(connectionSession$);
+          if (session.status !== "connected") {
+            return "Connect to a server to view schema";
+          }
+          if (!session.activeDatabase) {
+            return "Select a database to view schema";
+          }
+          const types = get(schemaTypes$);
+          if (
+            types.entities.length === 0 &&
+            types.relations.length === 0 &&
+            types.attributes.length === 0
+          ) {
+            return "No schema types defined. Use 'define' queries to create types.";
+          }
+          return null;
+        },
+        { label: "schemaViewer.graph.statusMessage" }
+      ),
+      retry: () => {
+        // Trigger schema refresh
+        const session = store.query(connectionSession$);
+        if (session.status === "connected" && session.activeDatabase) {
+          refreshSchemaForDatabase(session.activeDatabase);
+        }
+      },
+      setCanvasRef: () => {
+        // Graph rendering not yet implemented
+      },
+      zoom: {
+        level$: constant(1, "schemaViewer.graph.zoom.level"),
+        zoomIn: () => {},
+        zoomOut: () => {},
+        reset: () => {},
+      },
+      selectedNode$: constant<SchemaGraphNodeVM | null>(
+        null,
+        "schemaViewer.graph.selectedNode"
+      ),
+      hoveredNode$: constant<SchemaGraphNodeVM | null>(
+        null,
+        "schemaViewer.graph.hoveredNode"
+      ),
+      highlightFilter$: constant<string | null>(
+        null,
+        "schemaViewer.graph.highlightFilter"
+      ),
+      setHighlightFilter: () => {},
+    },
+  };
 
   // Create Learn Sidebar for Query Page (with navigation to docs viewer)
   const queryLearnSidebar = createLearnSidebarScope({
@@ -2445,247 +2851,8 @@ function createQueryPageVM(
     isGenerating$: constant(false, "chat.isGenerating"),
   };
 
-  // ---------------------------------------------------------------------------
-  // Query Execution Helper
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Executes a query and updates the results state.
-   * This is the core function that handles query execution, result processing,
-   * and history recording.
-   */
-  const executeQueryAndUpdateResults = async (
-    queryText: string
-  ): Promise<void> => {
-    const session = store.query(connectionSession$);
-    const database = session.activeDatabase;
-
-    if (!database) {
-      showSnackbar("error", "No database selected");
-      return;
-    }
-
-    // Set running state
-    store.commit(
-      events.queryResultsSet({
-        isRunning: true,
-        query: queryText,
-        errorMessage: null,
-      })
-    );
-
-    const startTime = Date.now();
-
-    try {
-      const service = getService();
-      const detection = detectQueryType(queryText);
-      const response = await service.executeQuery(database, queryText, {
-        transactionType: detection.transactionType,
-      });
-
-      // Process results and update state
-      const { logLines, tableColumns, tableRows, resultCount } =
-        processQueryResults(response);
-
-      store.commit(
-        events.queryResultsSet({
-          isRunning: false,
-          query: queryText,
-          transactionType: response.transactionType,
-          executionTimeMs: response.executionTimeMs,
-          completedAt: Date.now(),
-          errorMessage: null,
-          resultType: response.data.type,
-          resultCount,
-          rawJson: JSON.stringify(response.data, null, 2),
-          logLines,
-          tableColumns,
-          tableRows,
-        })
-      );
-
-      // Add to history
-      store.commit(
-        events.historyEntryAdded({
-          id: createID("hist"),
-          connectionId: session.savedConnectionId,
-          databaseName: database,
-          queryText,
-          executedAt: new Date(),
-          status: "success",
-          durationMs: response.executionTimeMs,
-          rowCount: resultCount,
-          errorMessage: null,
-        })
-      );
-
-      // Show success notification
-      const typeLabel =
-        response.data.type === "define"
-          ? "Schema updated"
-          : response.data.type === "insert"
-          ? "Data inserted"
-          : response.data.type === "delete"
-          ? "Data deleted"
-          : `${resultCount} result${resultCount !== 1 ? "s" : ""}`;
-      showSnackbar("success", `${typeLabel} (${response.executionTimeMs}ms)`);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : (error as { message?: string })?.message || String(error);
-
-      store.commit(
-        events.queryResultsSet({
-          isRunning: false,
-          query: queryText,
-          transactionType: null,
-          executionTimeMs: Date.now() - startTime,
-          completedAt: Date.now(),
-          errorMessage,
-          resultType: null,
-          resultCount: null,
-          rawJson: null,
-          logLines: [`Error: ${errorMessage}`],
-          tableColumns: [],
-          tableRows: [],
-        })
-      );
-
-      // Add failed entry to history
-      store.commit(
-        events.historyEntryAdded({
-          id: createID("hist"),
-          connectionId: session.savedConnectionId,
-          databaseName: database,
-          queryText,
-          executedAt: new Date(),
-          status: "error",
-          durationMs: Date.now() - startTime,
-          rowCount: null,
-          errorMessage,
-        })
-      );
-
-      showSnackbar("error", `Query failed: ${errorMessage}`);
-    }
-  };
-
-  /**
-   * Process query response into display-friendly formats.
-   */
-  const processQueryResults = (
-    response: QueryResponse
-  ): {
-    logLines: string[];
-    tableColumns: string[];
-    tableRows: string[];
-    resultCount: number;
-  } => {
-    const logLines: string[] = [];
-    const tableColumns: string[] = [];
-    const tableRows: string[] = [];
-    let resultCount = 0;
-
-    logLines.push(`Query: ${response.query}`);
-    logLines.push(`Transaction: ${response.transactionType}`);
-    logLines.push(`Time: ${response.executionTimeMs}ms`);
-    logLines.push("");
-
-    switch (response.data.type) {
-      case "match": {
-        const answers = response.data.answers;
-        resultCount = answers.length;
-        logLines.push(
-          `Results: ${resultCount} row${resultCount !== 1 ? "s" : ""}`
-        );
-        logLines.push("");
-
-        // Extract columns from first result
-        if (answers.length > 0) {
-          const firstRow = answers[0];
-          tableColumns.push(...Object.keys(firstRow));
-        }
-
-        // Format each row
-        for (const answer of answers) {
-          const row: Record<string, unknown> = {};
-          for (const [key, concept] of Object.entries(answer)) {
-            if (concept.value !== undefined) {
-              row[key] = concept.value;
-            } else if (concept.iid) {
-              row[key] = `${concept.type}:${concept.iid.slice(0, 8)}`;
-            } else {
-              row[key] = concept.type;
-            }
-          }
-          tableRows.push(JSON.stringify(row));
-          logLines.push(JSON.stringify(row));
-        }
-        break;
-      }
-
-      case "fetch": {
-        const documents = response.data.documents;
-        resultCount = documents.length;
-        logLines.push(
-          `Results: ${resultCount} document${resultCount !== 1 ? "s" : ""}`
-        );
-        logLines.push("");
-
-        // Extract columns from first document
-        if (documents.length > 0) {
-          tableColumns.push(...Object.keys(documents[0]));
-        }
-
-        // Format each document
-        for (const doc of documents) {
-          tableRows.push(JSON.stringify(doc));
-          logLines.push(JSON.stringify(doc, null, 2));
-        }
-        break;
-      }
-
-      case "insert": {
-        const inserted = response.data.inserted;
-        resultCount = inserted.length;
-        logLines.push(
-          `Inserted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`
-        );
-        break;
-      }
-
-      case "delete": {
-        resultCount = response.data.deletedCount;
-        logLines.push(
-          `Deleted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`
-        );
-        break;
-      }
-
-      case "define":
-      case "undefine":
-      case "redefine": {
-        resultCount = response.data.success ? 1 : 0;
-        logLines.push(
-          response.data.success
-            ? "Schema updated successfully"
-            : "Schema update failed"
-        );
-        break;
-      }
-
-      case "aggregate": {
-        resultCount = 1;
-        logLines.push(`Result: ${response.data.value}`);
-        tableColumns.push("value");
-        tableRows.push(JSON.stringify({ value: response.data.value }));
-        break;
-      }
-    }
-
-    return { logLines, tableColumns, tableRows, resultCount };
-  };
+  // Note: executeQueryAndUpdateResults and processQueryResults are now
+  // defined at module level and passed in as a parameter.
 
   // Editor Actions
   const actions: QueryEditorActionsVM = {
@@ -3098,6 +3265,7 @@ function createQueryPageVM(
     results,
     historyBar,
     docsViewer: docsViewerVM,
+    schemaViewer: schemaViewerVM,
     placeholder$: computed(
       (get) => {
         const session = get(connectionSession$);
@@ -3126,140 +3294,6 @@ function createQueryPageVM(
         return null;
       },
       { label: "queryPage.placeholder" }
-    ),
-  };
-}
-
-// ============================================================================
-// Schema Page Factory (Placeholder)
-// ============================================================================
-
-function createSchemaPageVM(
-  store: Store<typeof schema>,
-  _connectionStatus$: Queryable<ConnectionStatus>,
-  _activeDatabase$: Queryable<string | null>
-): SchemaPageVM {
-  // Schema Tree helper
-  const emptySchemaItems: SchemaTreeItemVM[] = [];
-  const createSchemaTreeGroup = (
-    label: string,
-    prefix: string
-  ): SchemaTreeGroupVM => ({
-    label,
-    count$: constant(0, `${prefix}.count`),
-    collapsed$: constant(false, `${prefix}.collapsed`),
-    toggleCollapsed: () => {},
-    items$: constant(emptySchemaItems, `${prefix}.items`),
-  });
-
-  const schemaTree: SchemaTreeVM = {
-    status$: constant<SchemaTreeStatus>("ready", "schema.tree.status"),
-    statusMessage$: constant<string | null>(null, "schema.tree.statusMessage"),
-    retry: () => {},
-    entities: createSchemaTreeGroup("Entities", "schema.tree.entities"),
-    relations: createSchemaTreeGroup("Relations", "schema.tree.relations"),
-    attributes: createSchemaTreeGroup("Attributes", "schema.tree.attributes"),
-  };
-
-  return {
-    sidebar: {
-      width$: constant(280, "schema.sidebar.width"),
-      setWidth: () => {},
-      tree: schemaTree,
-      viewMode$: computed((get) => get(uiState$).schemaViewMode, {
-        label: "schema.viewMode",
-      }),
-      setViewMode: (mode) =>
-        store.commit(events.uiStateSet({ schemaViewMode: mode })),
-      linksVisibility: {
-        sub$: computed((get) => get(uiState$).schemaShowSub, {
-          label: "schema.showSub",
-        }),
-        toggleSub: () =>
-          store.commit(
-            events.uiStateSet({
-              schemaShowSub: !store.query(uiState$).schemaShowSub,
-            })
-          ),
-        owns$: computed((get) => get(uiState$).schemaShowOwns, {
-          label: "schema.showOwns",
-        }),
-        toggleOwns: () =>
-          store.commit(
-            events.uiStateSet({
-              schemaShowOwns: !store.query(uiState$).schemaShowOwns,
-            })
-          ),
-        plays$: computed((get) => get(uiState$).schemaShowPlays, {
-          label: "schema.showPlays",
-        }),
-        togglePlays: () =>
-          store.commit(
-            events.uiStateSet({
-              schemaShowPlays: !store.query(uiState$).schemaShowPlays,
-            })
-          ),
-        relates$: computed((get) => get(uiState$).schemaShowRelates, {
-          label: "schema.showRelates",
-        }),
-        toggleRelates: () =>
-          store.commit(
-            events.uiStateSet({
-              schemaShowRelates: !store.query(uiState$).schemaShowRelates,
-            })
-          ),
-      },
-    },
-    graph: {
-      status$: constant<SchemaGraphStatus>("loading", "schema.graph.status"),
-      statusMessage$: constant<string | null>(
-        "Select a database to view schema",
-        "schema.graph.statusMessage"
-      ),
-      retry: () => {},
-      setCanvasRef: () => {},
-      zoom: {
-        level$: constant(1, "schema.graph.zoom.level"),
-        zoomIn: () => {},
-        zoomOut: () => {},
-        reset: () => {},
-      },
-      selectedNode$: constant<SchemaGraphNodeVM | null>(
-        null,
-        "schema.graph.selectedNode"
-      ),
-      hoveredNode$: constant<SchemaGraphNodeVM | null>(
-        null,
-        "schema.graph.hoveredNode"
-      ),
-      highlightFilter$: constant<string | null>(
-        null,
-        "schema.graph.highlightFilter"
-      ),
-      setHighlightFilter: () => {},
-    },
-    placeholder$: computed(
-      (get) => {
-        const session = get(connectionSession$);
-        if (session.status !== "connected") {
-          return {
-            type: "noServer" as const,
-            message: "Connect to a server to view schema",
-            actionLabel: "Connect",
-            action: () => {},
-          };
-        }
-        if (!session.activeDatabase) {
-          return {
-            type: "noDatabase" as const,
-            message: "Select a database to view schema",
-            actionLabel: "Select Database",
-            action: () => {},
-          };
-        }
-        return null;
-      },
-      { label: "schema.placeholder" }
     ),
   };
 }
@@ -3324,7 +3358,12 @@ function createLearnPageVM(
   ) => void,
   sections: Record<string, ParsedSection>,
   profileId: string,
-  queryExecutionService: QueryExecutionService
+  executeQueryWithResults: (query: string) => Promise<{
+    success: boolean;
+    resultCount?: number;
+    error?: string;
+    executionTimeMs: number;
+  }>
 ): LearnPageVM {
   // Group sections by folder path for curriculum structure
   const sectionsByFolder = new Map<string, ParsedSection[]>();
@@ -3373,7 +3412,7 @@ function createLearnPageVM(
     store,
     events,
     navigate,
-    executeQuery: queryExecutionService.execute,
+    executeQuery: executeQueryWithResults,
     showSnackbar,
   });
 
