@@ -21,14 +21,28 @@ import {
 } from "lucide-react";
 
 import { events, type schema } from "../livestore/schema";
-import { uiState$, snackbarNotifications$, allConnections$, localServers$, schemaTypes$, queryResults$, availableDatabases$, queryHistory$ } from "../livestore/queries";
+import {
+  connectionSession$,
+  uiState$,
+  snackbarNotifications$,
+  allConnections$,
+  localServers$,
+  schemaTypes$,
+  queryResults$,
+  sessionDatabases$,
+  queryHistory$,
+} from "../livestore/queries";
 import {
   getService,
   quickConnectWasm,
   disconnect as disconnectService,
   detectQueryType,
+  onStatusChange as subscribeToStatusChange,
+  onModeChange as subscribeToModeChange,
   type QueryResponse,
+  type ServiceMode,
 } from "../services";
+import { TypeDBEmbeddedService } from "../services/typedb-embedded-service";
 import { DEMOS, getDemoById } from "../demos";
 import { parseSchema } from "../services/schema-parser";
 import { generateFetchQuery } from "../services/query-generator";
@@ -36,11 +50,17 @@ import { generateFetchQuery } from "../services/query-generator";
 import type { TypeDBStudioAppVM, CurrentPageState } from "./app.vm";
 import type { TopBarVM } from "./top-bar/top-bar.vm";
 import type { NavigationVM, NavigationItemVM } from "./top-bar/navigation.vm";
-import type { DatabaseSelectorVM, DatabaseOptionVM } from "./top-bar/database-selector.vm";
+import type {
+  DatabaseSelectorVM,
+  DatabaseOptionVM,
+} from "./top-bar/database-selector.vm";
 import type { ConnectionStatusVM } from "./top-bar/connection-status.vm";
 import type { SnackbarVM } from "./snackbar.vm";
 import type { DialogsVM } from "./dialogs/dialogs.vm";
-import type { HomePageVM, HomeNavigationCardVM } from "./pages/home/home-page.vm";
+import type {
+  HomePageVM,
+  HomeNavigationCardVM,
+} from "./pages/home/home-page.vm";
 import type {
   ConnectPageVM,
   DemosSectionVM,
@@ -54,29 +74,79 @@ import type {
   SavedConnectionItemVM,
 } from "./pages/connect/connect-page.vm";
 import type { QueryPageVM } from "./pages/query/query-page.vm";
-import type { QuerySidebarVM, QuerySidebarSchemaSectionVM, QuerySidebarSavedQueriesSectionVM, QuerySidebarLearnSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
-import type { QueryEditorVM, QueryEditorHeaderVM, QueryCodeEditorVM, AutocompleteVM, QueryChatAssistantVM, QueryEditorActionsVM } from "./pages/query/editor/query-editor.vm";
-import type { QueryResultsVM, LogOutputVM, TableOutputVM, GraphOutputVM, RawOutputVM } from "./pages/query/results/query-results.vm";
+import type {
+  QuerySidebarVM,
+  QuerySidebarSchemaSectionVM,
+  QuerySidebarSavedQueriesSectionVM,
+  QuerySidebarLearnSectionVM,
+} from "./pages/query/sidebar/query-sidebar.vm";
+import type {
+  QueryEditorVM,
+  QueryEditorHeaderVM,
+  QueryCodeEditorVM,
+  AutocompleteVM,
+  QueryChatAssistantVM,
+  QueryEditorActionsVM,
+} from "./pages/query/editor/query-editor.vm";
+import type {
+  QueryResultsVM,
+  LogOutputVM,
+  TableOutputVM,
+  GraphOutputVM,
+  RawOutputVM,
+} from "./pages/query/results/query-results.vm";
 import type { QueryHistoryBarVM } from "./pages/query/history/query-history-bar.vm";
 import type { SchemaPageVM } from "./pages/schema/schema-page.vm";
 import type { UsersPageVM } from "./pages/users/users-page.vm";
 import type { DisabledState, FormInputVM, IconComponent } from "./types";
-import type { SchemaTreeVM, SchemaTreeGroupVM, SchemaTreeItemVM, SchemaTreeChildItemVM, SchemaTreeStatus } from "./shared/schema-tree.vm";
-import type { SavedQueriesTreeVM, SavedQueryTreeItemVM } from "./pages/query/sidebar/saved-queries.vm";
+import type {
+  SchemaTreeVM,
+  SchemaTreeGroupVM,
+  SchemaTreeItemVM,
+  SchemaTreeChildItemVM,
+  SchemaTreeStatus,
+} from "./shared/schema-tree.vm";
+import type {
+  SavedQueriesTreeVM,
+  SavedQueryTreeItemVM,
+} from "./pages/query/sidebar/saved-queries.vm";
 import type { ActiveDialogVM } from "./dialogs/dialogs.vm";
-import type { AutocompleteSuggestionVM, ChatMessageVM } from "./pages/query/editor/query-editor.vm";
-import type { TableStatus, TableColumnVM, TableRowVM, GraphStatus, GraphNodeVM } from "./pages/query/results/query-results.vm";
+import type {
+  AutocompleteSuggestionVM,
+  ChatMessageVM,
+} from "./pages/query/editor/query-editor.vm";
+import type {
+  TableStatus,
+  TableColumnVM,
+  TableRowVM,
+  GraphStatus,
+  GraphNodeVM,
+} from "./pages/query/results/query-results.vm";
 import type { HistoryEntryVM } from "./pages/query/history/query-history-bar.vm";
 import type { QuerySidebarUrlImportsSectionVM } from "./pages/query/sidebar/query-sidebar.vm";
-import type { SchemaGraphStatus, SchemaGraphNodeVM } from "./pages/schema/schema-page.vm";
-import type { UsersPageStatus, UsersPagePlaceholder, UserRowVM } from "./pages/users/users-page.vm";
+import type {
+  SchemaGraphStatus,
+  SchemaGraphNodeVM,
+} from "./pages/schema/schema-page.vm";
+import type {
+  UsersPageStatus,
+  UsersPagePlaceholder,
+  UserRowVM,
+} from "./pages/users/users-page.vm";
 import type { LearnPageVM } from "./pages/learn/learn-page.vm";
 import { createLearnSidebarScope } from "./learn/sidebar-scope";
 import { createDocumentViewerScope } from "./learn/document-viewer-scope";
 import { createNavigationScope } from "./learn/navigation-scope";
 import { createReplBridge } from "../learn/repl-bridge";
-import { sections as curriculumSections, contexts as curriculumContexts } from "../curriculum/content";
-import type { ParsedSection, CurriculumMeta, SectionMeta } from "../curriculum/types";
+import {
+  sections as curriculumSections,
+  contexts as curriculumContexts,
+} from "../curriculum/content";
+import type {
+  ParsedSection,
+  CurriculumMeta,
+  SectionMeta,
+} from "../curriculum/types";
 import { constant } from "./learn/constant";
 
 // ============================================================================
@@ -89,7 +159,11 @@ import { constant } from "./learn/constant";
  */
 export interface SnackbarService {
   /** Show a notification. Error notifications are always persistent. */
-  show(type: "success" | "warning" | "error", message: string, persistent?: boolean): void;
+  show(
+    type: "success" | "warning" | "error",
+    message: string,
+    persistent?: boolean
+  ): void;
   /** Dismiss a notification by ID. */
   dismiss(id: string): void;
 }
@@ -102,7 +176,11 @@ export interface ConnectionService {
   /** Connect to TypeDB via WASM (embedded). */
   connectWasm(databaseName?: string): Promise<void>;
   /** Connect to TypeDB via HTTP (remote server). */
-  connectHttp(address: string, username: string, password: string): Promise<void>;
+  connectHttp(
+    address: string,
+    username: string,
+    password: string
+  ): Promise<void>;
   /** Disconnect from current connection. */
   disconnect(): Promise<void>;
   /** Get current connection status. */
@@ -163,29 +241,78 @@ export interface StudioServices {
 const createID = (prefix: string) => `${prefix}_${nanoid(12)}`;
 
 // ============================================================================
+// Result type for createStudioScope
+// ============================================================================
+
+export interface StudioScopeResult {
+  vm: TypeDBStudioAppVM;
+  services: StudioServices;
+  teardown: () => void;
+}
+
+// ============================================================================
+// Disconnect Handler Helper
+// ============================================================================
+
+/**
+ * Handles service disconnection by clearing session state and marking catalogs stale.
+ * Consolidates all disconnect-related state updates into a single place.
+ * Enforces invariant: status !== "connected" => activeDatabase === null
+ */
+function handleServiceDisconnected(store: Store<typeof schema>): void {
+  const now = Date.now();
+  console.log(
+    "[scope] Handling service disconnection - clearing session state"
+  );
+
+  store.commit(
+    events.connectionSessionSet({
+      status: "disconnected",
+      activeDatabase: null,
+      lastStatusChange: now,
+      lastDisconnectedAt: now,
+    })
+  );
+
+  store.commit(
+    events.sessionDatabasesSet({
+      isStale: true,
+      lastError: null,
+    })
+  );
+
+  store.commit(
+    events.schemaTypesSet({
+      entities: [],
+      relations: [],
+      attributes: [],
+    })
+  );
+}
+
+// ============================================================================
 // Main Scope
 // ============================================================================
 
 export function createStudioScope(
   store: Store<typeof schema>,
   navigate: (path: string) => void
-): { vm: TypeDBStudioAppVM; services: StudioServices } {
+): StudioScopeResult {
   // ---------------------------------------------------------------------------
   // Derived UI State Queries
   // ---------------------------------------------------------------------------
 
-  const currentPage$ = computed(
-    (get) => get(uiState$).currentPage,
-    { label: "currentPage" }
-  );
+  const currentPage$ = computed((get) => get(uiState$).currentPage, {
+    label: "currentPage",
+  });
 
-  const connectionStatus$ = computed(
-    (get) => get(uiState$).connectionStatus,
-    { label: "connectionStatus" }
-  );
+  // Connection session derived queries (from connectionSession$, not uiState$)
+  const connectionStatus$ = computed((get) => get(connectionSession$).status, {
+    label: "connectionStatus",
+  });
 
   const activeDatabase$ = computed(
-    (get) => get(uiState$).activeDatabase,
+    (get) => get(connectionSession$).activeDatabase,
     { label: "activeDatabase" }
   );
 
@@ -193,6 +320,57 @@ export function createStudioScope(
     (get) => get(connectionStatus$) === "connected",
     { label: "isConnected" }
   );
+
+  // ---------------------------------------------------------------------------
+  // Service Provider Event Subscriptions
+  // ---------------------------------------------------------------------------
+  // Subscribe to service provider events to keep connectionSession in sync
+  // with the actual service state. This makes the service the source of truth.
+
+  // Subscribe and keep unsubscribe handles for potential future cleanup
+  // (prefixed with _ since they're not used in this app's lifecycle)
+  const _unsubscribeStatusChange = subscribeToStatusChange((status) => {
+    const currentSession = store.query(connectionSession$);
+    // Only update if status actually changed to avoid unnecessary commits
+    if (currentSession.status !== status) {
+      console.log(
+        `[scope] Service status changed: ${currentSession.status} -> ${status}`
+      );
+
+      if (status === "disconnected") {
+        handleServiceDisconnected(store);
+      } else {
+        const now = Date.now();
+        store.commit(
+          events.connectionSessionSet({
+            status,
+            lastStatusChange: now,
+            ...(status === "connected" && !currentSession.connectedAt
+              ? { connectedAt: now }
+              : {}),
+          })
+        );
+      }
+    }
+  });
+
+  const _unsubscribeModeChange = subscribeToModeChange((mode: ServiceMode) => {
+    const currentSession = store.query(connectionSession$);
+    // Only update if mode actually changed
+    if (currentSession.mode !== mode) {
+      console.log(
+        `[scope] Service mode changed: ${currentSession.mode} -> ${mode}`
+      );
+      store.commit(
+        events.connectionSessionSet({
+          mode,
+          // When mode changes, we're typically starting a new connection
+          address: mode === "wasm" ? "wasm://local" : currentSession.address,
+          username: mode === "wasm" ? "browser" : currentSession.username,
+        })
+      );
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // Snackbar
@@ -267,15 +445,19 @@ export function createStudioScope(
 
     displayText$: computed(
       (get) => {
-        const status = get(connectionStatus$);
-        const ui = get(uiState$);
-        switch (status) {
+        const session = get(connectionSession$);
+        switch (session.status) {
           case "disconnected":
             return "Not connected";
           case "connecting":
             return "Connecting...";
-          case "connected":
-            return `${ui.connectionFormUsername || "admin"}@${ui.connectionFormAddress || "localhost"}`;
+          case "connected": {
+            const user = session.username || "admin";
+            const addr =
+              session.address ||
+              (session.mode === "wasm" ? "wasm://local" : "localhost");
+            return `${user}@${addr}`;
+          }
           case "reconnecting":
             return "Reconnecting...";
         }
@@ -307,7 +489,9 @@ export function createStudioScope(
     ),
 
     isClickable$: computed(
-      (get) => get(connectionStatus$) === "connected" || get(connectionStatus$) === "disconnected",
+      (get) =>
+        get(connectionStatus$) === "connected" ||
+        get(connectionStatus$) === "disconnected",
       { label: "connectionStatus.isClickable" }
     ),
 
@@ -327,10 +511,11 @@ export function createStudioScope(
         console.warn("[scope] Error disconnecting:", e);
       }
       store.commit(
-        events.uiStateSet({
-          connectionStatus: "disconnected",
-          activeConnectionId: null,
+        events.connectionSessionSet({
+          status: "disconnected",
           activeDatabase: null,
+          lastStatusChange: Date.now(),
+          lastDisconnectedAt: Date.now(),
         })
       );
       showSnackbar("success", "Signed out");
@@ -341,26 +526,62 @@ export function createStudioScope(
   // Connection Service (for use by other scopes)
   const connectionService: ConnectionService = {
     async connectWasm(databaseName = "playground") {
-      store.commit(events.uiStateSet({ connectionStatus: "connecting" }));
+      store.commit(
+        events.connectionSessionSet({
+          status: "connecting",
+          mode: "wasm",
+          address: "wasm://local",
+          username: "browser",
+          lastStatusChange: Date.now(),
+        })
+      );
       try {
         await quickConnectWasm(databaseName);
-        store.commit(events.uiStateSet({
-          connectionStatus: "connected",
-          activeDatabase: databaseName,
-        }));
+        store.commit(
+          events.connectionSessionSet({
+            status: "connected",
+            activeDatabase: databaseName,
+            connectedAt: Date.now(),
+            lastStatusChange: Date.now(),
+          })
+        );
       } catch (error) {
-        store.commit(events.uiStateSet({ connectionStatus: "disconnected" }));
+        store.commit(
+          events.connectionSessionSet({
+            status: "disconnected",
+            lastStatusChange: Date.now(),
+          })
+        );
         throw error;
       }
     },
     async connectHttp(address: string, username: string, password: string) {
-      store.commit(events.uiStateSet({ connectionStatus: "connecting" }));
+      store.commit(
+        events.connectionSessionSet({
+          status: "connecting",
+          mode: "http",
+          address,
+          username,
+          lastStatusChange: Date.now(),
+        })
+      );
       try {
         const service = getService();
         await service.connect({ address, username, password });
-        store.commit(events.uiStateSet({ connectionStatus: "connected" }));
+        store.commit(
+          events.connectionSessionSet({
+            status: "connected",
+            connectedAt: Date.now(),
+            lastStatusChange: Date.now(),
+          })
+        );
       } catch (error) {
-        store.commit(events.uiStateSet({ connectionStatus: "disconnected" }));
+        store.commit(
+          events.connectionSessionSet({
+            status: "disconnected",
+            lastStatusChange: Date.now(),
+          })
+        );
         throw error;
       }
     },
@@ -370,11 +591,7 @@ export function createStudioScope(
       } catch (e) {
         console.warn("[scope] Error disconnecting:", e);
       }
-      store.commit(events.uiStateSet({
-        connectionStatus: "disconnected",
-        activeConnectionId: null,
-        activeDatabase: null,
-      }));
+      handleServiceDisconnected(store);
     },
     getStatus() {
       return store.query(connectionStatus$);
@@ -385,26 +602,95 @@ export function createStudioScope(
   // Database Selector
   // ---------------------------------------------------------------------------
 
+  /** Maximum backoff delay in milliseconds (30 seconds) */
+  const MAX_BACKOFF_MS = 30_000;
+
+  /**
+   * Calculates exponential backoff delay: 1000 * 2^retryCount, capped at MAX_BACKOFF_MS
+   */
+  const calculateBackoffMs = (retryCount: number): number => {
+    return Math.min(1000 * Math.pow(2, retryCount), MAX_BACKOFF_MS);
+  };
+
   /**
    * Refreshes the list of available databases from the service.
+   * Updates the session-scoped database catalog with staleness tracking.
+   * @param bypassBackoff - If true, ignores backoff timing (for manual retry)
    */
-  const refreshDatabaseList = async (): Promise<void> => {
-    store.commit(events.availableDatabasesSet({ isLoading: true }));
+  const refreshDatabaseList = async (bypassBackoff = false): Promise<void> => {
+    const session = store.query(connectionSession$);
+
+    // Don't refresh if not connected
+    if (session.status !== "connected") {
+      console.log("[scope] Skipping database refresh - not connected");
+      return;
+    }
+
+    const catalog = store.query(sessionDatabases$);
+    const now = Date.now();
+
+    // Check backoff unless bypassed (manual retry)
+    if (
+      !bypassBackoff &&
+      catalog.nextAllowedRefreshAt &&
+      now < catalog.nextAllowedRefreshAt
+    ) {
+      const waitSeconds = Math.ceil(
+        (catalog.nextAllowedRefreshAt - now) / 1000
+      );
+      console.log(
+        `[scope] Skipping database refresh - backoff active, retry in ${waitSeconds}s`
+      );
+      return;
+    }
+
+    store.commit(
+      events.sessionDatabasesSet({
+        isLoading: true,
+        lastError: null,
+        lastRefreshAttemptAt: now,
+      })
+    );
 
     try {
       const service = getService();
       const databases = await service.getDatabases();
-      const databaseNames = databases.map((db) => db.name);
+      const successTime = Date.now();
 
-      store.commit(events.availableDatabasesSet({
-        isLoading: false,
-        databases: databaseNames,
-        lastRefreshedAt: Date.now(),
-      }));
+      store.commit(
+        events.sessionDatabasesSet({
+          isLoading: false,
+          isStale: false,
+          databases: databases.map((db) => ({
+            name: db.name,
+            lastSeenAt: successTime,
+          })),
+          lastRefreshedAt: successTime,
+          fetchedForConnectionAt: session.connectedAt,
+          lastError: null,
+          refreshRetryCount: 0,
+          nextAllowedRefreshAt: null,
+        })
+      );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("[scope] Failed to refresh databases:", error);
-      store.commit(events.availableDatabasesSet({ isLoading: false }));
-      showSnackbar("error", `Failed to refresh databases: ${error}`);
+
+      const newRetryCount = catalog.refreshRetryCount + 1;
+      const backoffMs = calculateBackoffMs(newRetryCount);
+      const nextAllowed = Date.now() + backoffMs;
+
+      store.commit(
+        events.sessionDatabasesSet({
+          isLoading: false,
+          isStale: true,
+          lastError: errorMessage,
+          refreshRetryCount: newRetryCount,
+          nextAllowedRefreshAt: nextAllowed,
+        })
+      );
+      showSnackbar("error", `Failed to refresh databases: ${errorMessage}`);
     }
   };
 
@@ -412,32 +698,66 @@ export function createStudioScope(
    * Refreshes schema for a specific database.
    * Called when a database is selected.
    */
-  const refreshSchemaForDatabase = async (databaseName: string): Promise<void> => {
+  const refreshSchemaForDatabase = async (
+    databaseName: string
+  ): Promise<void> => {
     try {
       const service = getService();
+
+      // For WASM/embedded mode, use the schema introspection API
+      if (service instanceof TypeDBEmbeddedService) {
+        const schemaBundle = await service.getSchemaBundle(databaseName);
+        store.commit(
+          events.schemaTypesSet({
+            entities: schemaBundle.entities.map((e) => ({
+              label: e.typeName,
+              isAbstract: false,
+              supertype: null,
+              ownedAttributes: e.attributes,
+              playedRoles: [],
+            })),
+            relations: schemaBundle.relations.map((r) => ({
+              label: r.typeName,
+              isAbstract: false,
+              supertype: null,
+              ownedAttributes: [],
+              relatedRoles: r.roles.map((role) => role.roleName),
+            })),
+            attributes: schemaBundle.attributes.map((a) => ({
+              label: a.typeName,
+              valueType: a.kind === "unknown" ? null : a.kind,
+            })),
+          })
+        );
+        return;
+      }
+
+      // For HTTP/remote mode, use the schema text parsing approach
       const schemaText = await service.getDatabaseSchemaText(databaseName);
       if (schemaText && !schemaText.startsWith("#")) {
         const parsedSchema = parseSchema(schemaText);
-        store.commit(events.schemaTypesSet({
-          entities: parsedSchema.entities.map((e) => ({
-            label: e.label,
-            isAbstract: e.isAbstract,
-            supertype: e.supertype,
-            ownedAttributes: e.ownedAttributes,
-            playedRoles: e.playedRoles,
-          })),
-          relations: parsedSchema.relations.map((r) => ({
-            label: r.label,
-            isAbstract: r.isAbstract,
-            supertype: r.supertype,
-            ownedAttributes: r.ownedAttributes,
-            relatedRoles: r.relatedRoles,
-          })),
-          attributes: parsedSchema.attributes.map((a) => ({
-            label: a.label,
-            valueType: a.valueType,
-          })),
-        }));
+        store.commit(
+          events.schemaTypesSet({
+            entities: parsedSchema.entities.map((e) => ({
+              label: e.label,
+              isAbstract: e.isAbstract,
+              supertype: e.supertype,
+              ownedAttributes: e.ownedAttributes,
+              playedRoles: e.playedRoles,
+            })),
+            relations: parsedSchema.relations.map((r) => ({
+              label: r.label,
+              isAbstract: r.isAbstract,
+              supertype: r.supertype,
+              ownedAttributes: r.ownedAttributes,
+              relatedRoles: r.relatedRoles,
+            })),
+            attributes: parsedSchema.attributes.map((a) => ({
+              label: a.label,
+              valueType: a.valueType,
+            })),
+          })
+        );
       }
     } catch (e) {
       // Schema fetch failed - this is okay for embedded mode
@@ -457,17 +777,18 @@ export function createStudioScope(
     displayText$: computed(
       (get) => {
         const db = get(activeDatabase$);
-        const dbList = get(availableDatabases$);
-        if (dbList.isLoading) return "Loading...";
+        const catalog = get(sessionDatabases$);
+        if (catalog.isLoading) return "Loading...";
+        if (catalog.isStale && catalog.databases.length === 0)
+          return "Select database...";
         return db ?? "Select database...";
       },
       { label: "databaseSelector.displayText" }
     ),
 
-    hasSelection$: computed(
-      (get) => get(activeDatabase$) !== null,
-      { label: "databaseSelector.hasSelection" }
-    ),
+    hasSelection$: computed((get) => get(activeDatabase$) !== null, {
+      label: "databaseSelector.hasSelection",
+    }),
 
     isOpen$: computed(
       (get) => get(uiState$).activeDialog === "databaseSelector",
@@ -477,8 +798,12 @@ export function createStudioScope(
     toggle: () => {
       const isOpen = store.query(uiState$).activeDialog === "databaseSelector";
       if (!isOpen) {
-        // Refresh database list when opening
-        refreshDatabaseList();
+        // Refresh database list when opening (if connected)
+        // Also refresh if catalog is stale even if we have cached data
+        const catalog = store.query(sessionDatabases$);
+        if (catalog.isStale || catalog.databases.length === 0) {
+          refreshDatabaseList();
+        }
       }
       store.commit(
         events.uiStateSet({ activeDialog: isOpen ? null : "databaseSelector" })
@@ -491,8 +816,12 @@ export function createStudioScope(
 
     disabled$: computed(
       (get): DisabledState => {
-        if (get(availableDatabases$).isLoading) {
+        const catalog = get(sessionDatabases$);
+        if (catalog.isLoading) {
           return { displayReason: "Loading databases..." };
+        }
+        if (catalog.isStale && catalog.lastError) {
+          return { displayReason: `Refresh failed: ${catalog.lastError}` };
         }
         return null;
       },
@@ -501,26 +830,33 @@ export function createStudioScope(
 
     databases$: computed(
       (get) => {
-        const dbList = get(availableDatabases$);
-        const databases = dbList.databases;
+        const catalog = get(sessionDatabases$);
+        const databases = catalog.databases;
         const currentDb = get(activeDatabase$);
 
-        return databases.map((name): DatabaseOptionVM => ({
-          key: name,
-          label: name,
-          isSelected$: constant(currentDb === name, `database.${name}.isSelected`),
-          select: () => {
-            store.commit(events.uiStateSet({ activeDatabase: name }));
-            databaseSelectorVM.close();
-            showSnackbar("success", `Now using database '${name}'`);
+        return databases.map(
+          (entry): DatabaseOptionVM => ({
+            key: entry.name,
+            label: entry.name,
+            isSelected$: constant(
+              currentDb === entry.name,
+              `database.${entry.name}.isSelected`
+            ),
+            select: () => {
+              store.commit(
+                events.connectionSessionSet({ activeDatabase: entry.name })
+              );
+              databaseSelectorVM.close();
+              showSnackbar("success", `Now using database '${entry.name}'`);
 
-            // Refresh schema for the newly selected database (async, fire-and-forget)
-            refreshSchemaForDatabase(name);
-          },
-          openDeleteDialog: () => {
-            showSnackbar("warning", "Delete database not yet implemented");
-          },
-        }));
+              // Refresh schema for the newly selected database (async, fire-and-forget)
+              refreshSchemaForDatabase(entry.name);
+            },
+            openDeleteDialog: () => {
+              showSnackbar("warning", "Delete database not yet implemented");
+            },
+          })
+        );
       },
       { label: "databaseSelector.databases" }
     ),
@@ -538,7 +874,9 @@ export function createStudioScope(
   const databaseService: DatabaseService = {
     refreshList: refreshDatabaseList,
     select: (databaseName: string) => {
-      store.commit(events.uiStateSet({ activeDatabase: databaseName }));
+      store.commit(
+        events.connectionSessionSet({ activeDatabase: databaseName })
+      );
       refreshSchemaForDatabase(databaseName);
     },
     refreshSchema: refreshSchemaForDatabase,
@@ -557,12 +895,48 @@ export function createStudioScope(
   };
 
   const navItems: NavItem[] = [
-    { key: "home", label: "Home", icon: Home, path: "/", requiresConnection: false },
-    { key: "connect", label: "Connect", icon: Plug, path: "/connect", requiresConnection: false },
-    { key: "learn", label: "Learn", icon: BookOpen, path: "/learn", requiresConnection: false },
-    { key: "query", label: "Query", icon: Code, path: "/query", requiresConnection: true },
-    { key: "schema", label: "Schema", icon: GitBranch, path: "/schema", requiresConnection: true },
-    { key: "users", label: "Users", icon: Users, path: "/users", requiresConnection: true },
+    {
+      key: "home",
+      label: "Home",
+      icon: Home,
+      path: "/",
+      requiresConnection: false,
+    },
+    {
+      key: "connect",
+      label: "Connect",
+      icon: Plug,
+      path: "/connect",
+      requiresConnection: false,
+    },
+    {
+      key: "learn",
+      label: "Learn",
+      icon: BookOpen,
+      path: "/learn",
+      requiresConnection: false,
+    },
+    {
+      key: "query",
+      label: "Query",
+      icon: Code,
+      path: "/query",
+      requiresConnection: true,
+    },
+    {
+      key: "schema",
+      label: "Schema",
+      icon: GitBranch,
+      path: "/schema",
+      requiresConnection: true,
+    },
+    {
+      key: "users",
+      label: "Users",
+      icon: Users,
+      path: "/users",
+      requiresConnection: true,
+    },
   ];
 
   const navigationVM: NavigationVM = {
@@ -578,19 +952,23 @@ export function createStudioScope(
           (item) => !item.requiresConnection || connected
         );
 
-        return visibleItems.map((item): NavigationItemVM => ({
-          key: item.key,
-          label: item.label,
-          icon: item.icon,
-          isActive$: computed(
-            (get) => get(currentPage$) === item.key,
-            { label: `nav.${item.key}.isActive`, deps: [item.key] }
-          ),
-          click: () => {
-            store.commit(events.uiStateSet({ currentPage: item.key as typeof page }));
-            navigate(item.path);
-          },
-        }));
+        return visibleItems.map(
+          (item): NavigationItemVM => ({
+            key: item.key,
+            label: item.label,
+            icon: item.icon,
+            isActive$: computed((get) => get(currentPage$) === item.key, {
+              label: `nav.${item.key}.isActive`,
+              deps: [item.key],
+            }),
+            click: () => {
+              store.commit(
+                events.uiStateSet({ currentPage: item.key as typeof page })
+              );
+              navigate(item.path);
+            },
+          })
+        );
       },
       { label: "navigation.items" }
     ),
@@ -623,7 +1001,10 @@ export function createStudioScope(
             title: "Connect to Server",
             description: "Connect to a TypeDB server to start querying",
             icon: Plug,
-            disabled$: constant<DisabledState>(null, "homeCard.connect.disabled"),
+            disabled$: constant<DisabledState>(
+              null,
+              "homeCard.connect.disabled"
+            ),
             click: () => {
               store.commit(events.uiStateSet({ currentPage: "connect" }));
               navigate("/connect");
@@ -635,7 +1016,10 @@ export function createStudioScope(
             description: "Write and execute TypeQL queries",
             icon: Code,
             disabled$: computed(
-              (get): DisabledState => get(isConnected$) ? null : { displayReason: "Connect to a server first" },
+              (get): DisabledState =>
+                get(isConnected$)
+                  ? null
+                  : { displayReason: "Connect to a server first" },
               { label: "homeCard.query.disabled" }
             ),
             click: () => {
@@ -650,7 +1034,10 @@ export function createStudioScope(
             description: "Visualize and explore your database schema",
             icon: GitBranch,
             disabled$: computed(
-              (get): DisabledState => get(isConnected$) ? null : { displayReason: "Connect to a server first" },
+              (get): DisabledState =>
+                get(isConnected$)
+                  ? null
+                  : { displayReason: "Connect to a server first" },
               { label: "homeCard.schema.disabled" }
             ),
             click: () => {
@@ -668,17 +1055,19 @@ export function createStudioScope(
 
     connectionSummary$: computed(
       (get) => {
-        const status = get(connectionStatus$);
-        const ui = get(uiState$);
-        switch (status) {
+        const session = get(connectionSession$);
+        const address =
+          session.address ||
+          (session.mode === "wasm" ? "wasm://local" : "server");
+        switch (session.status) {
           case "disconnected":
             return "Connect to a TypeDB server to get started";
           case "connecting":
-            return `Connecting to ${ui.connectionFormAddress || "server"}...`;
+            return `Connecting to ${address}...`;
           case "connected":
-            return `Connected to ${ui.connectionFormAddress || "localhost"}`;
+            return `Connected to ${address}`;
           case "reconnecting":
-            return `Reconnecting to ${ui.connectionFormAddress || "server"}...`;
+            return `Reconnecting to ${address}...`;
         }
       },
       { label: "homePage.connectionSummary" }
@@ -708,7 +1097,10 @@ export function createStudioScope(
   /**
    * Loads a demo's schema and sample data into the database.
    */
-  const loadDemoData = async (demoId: string, databaseName: string): Promise<void> => {
+  const loadDemoData = async (
+    demoId: string,
+    databaseName: string
+  ): Promise<void> => {
     const demo = getDemoById(demoId);
     if (!demo) {
       throw new Error(`Demo not found: ${demoId}`);
@@ -743,7 +1135,9 @@ export function createStudioScope(
         })),
       })
     );
-    console.log(`[scope] Stored ${parsedSchema.entities.length} entities, ${parsedSchema.relations.length} relations, ${parsedSchema.attributes.length} attributes`);
+    console.log(
+      `[scope] Stored ${parsedSchema.entities.length} entities, ${parsedSchema.relations.length} relations, ${parsedSchema.attributes.length} attributes`
+    );
 
     // Load schema - send entire define block as one statement
     console.log(`[scope] Loading schema for ${demo.name}...`);
@@ -754,7 +1148,9 @@ export function createStudioScope(
       .join("\n");
 
     try {
-      await service.executeQuery(databaseName, cleanSchema, { transactionType: "schema" });
+      await service.executeQuery(databaseName, cleanSchema, {
+        transactionType: "schema",
+      });
       console.log(`[scope] Schema loaded successfully`);
     } catch (e) {
       console.warn(`[scope] Schema loading warning:`, e);
@@ -770,7 +1166,9 @@ export function createStudioScope(
     for (const statement of dataStatements) {
       if (statement.trim()) {
         try {
-          await service.executeQuery(databaseName, statement + ";", { transactionType: "write" });
+          await service.executeQuery(databaseName, statement + ";", {
+            transactionType: "write",
+          });
         } catch (e) {
           console.warn(`[scope] Data statement warning:`, e);
           // Continue with other statements
@@ -789,9 +1187,17 @@ export function createStudioScope(
   // Query Execution Service (for use by other scopes, including ReplBridge)
   const queryExecutionService: QueryExecutionService = {
     async execute(queryText: string) {
-      const ui = store.query(uiState$);
-      const database = ui.activeDatabase;
+      const session = store.query(connectionSession$);
 
+      if (session.status !== "connected") {
+        return {
+          success: false,
+          error: "Not connected to TypeDB",
+          executionTimeMs: 0,
+        };
+      }
+
+      const database = session.activeDatabase;
       if (!database) {
         return {
           success: false,
@@ -839,18 +1245,23 @@ export function createStudioScope(
           executionTimeMs: response.executionTimeMs,
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message :
-                            (error as { message?: string })?.message || String(error);
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : (error as { message?: string })?.message || String(error);
         return {
           success: false,
-          error: errorMessage,
+          error: errorMessage.replace(
+            /"((?:[^\\"]|\\")+)"/g,
+            (_, content) => `\`${content.replace(/\\([n"])/g, "$1")}\``
+          ),
           executionTimeMs: Date.now() - startTime,
         };
       }
     },
     isReady() {
-      const ui = store.query(uiState$);
-      return ui.connectionStatus === "connected" && ui.activeDatabase !== null;
+      const session = store.query(connectionSession$);
+      return session.status === "connected" && session.activeDatabase !== null;
     },
   };
 
@@ -860,86 +1271,105 @@ export function createStudioScope(
 
     items$: computed(
       () => {
-        return DEMOS.map((demo): DemoItemVM => ({
-          key: `demo-${demo.id}`,
-          id: demo.id,
-          name: demo.name,
-          description: demo.description,
-          icon: demo.icon,
-          exampleQueries: demo.exampleQueries.map((eq, idx): DemoExampleQueryVM => ({
-            key: `${demo.id}-query-${idx}`,
-            name: eq.name,
-            description: eq.description,
-            query: eq.query,
-            run: () => {
-              store.commit(events.uiStateSet({
-                currentQueryText: eq.query,
-                hasUnsavedChanges: true,
-              }));
-              showSnackbar("success", `Loaded: ${eq.name}`);
+        return DEMOS.map(
+          (demo): DemoItemVM => ({
+            key: `demo-${demo.id}`,
+            id: demo.id,
+            name: demo.name,
+            description: demo.description,
+            icon: demo.icon,
+            exampleQueries: demo.exampleQueries.map(
+              (eq, idx): DemoExampleQueryVM => ({
+                key: `${demo.id}-query-${idx}`,
+                name: eq.name,
+                description: eq.description,
+                query: eq.query,
+                run: () => {
+                  store.commit(
+                    events.uiStateSet({
+                      currentQueryText: eq.query,
+                      hasUnsavedChanges: true,
+                    })
+                  );
+                  showSnackbar("success", `Loaded: ${eq.name}`);
+                },
+              })
+            ),
+            isLoading$: constant(false, `demo.${demo.id}.isLoading`),
+            isActive$: computed(
+              (get) => {
+                const session = get(connectionSession$);
+                return (
+                  session.status === "connected" &&
+                  session.activeDatabase === demo.id
+                );
+              },
+              { label: `demo.${demo.id}.isActive`, deps: [demo.id] }
+            ),
+            load: async () => {
+              // Check if already active
+              const session = store.query(connectionSession$);
+              if (
+                session.status === "connected" &&
+                session.activeDatabase === demo.id
+              ) {
+                // Already on this demo, just navigate to query page
+                showSnackbar("success", `Continuing with ${demo.name}`);
+                store.commit(events.uiStateSet({ currentPage: "query" }));
+                navigate("/query");
+                return;
+              }
+
+              try {
+                showSnackbar("success", `Loading ${demo.name}...`);
+
+                // Create a demo server entry
+                const serverId = createID("demo");
+                store.commit(
+                  events.localServerCreated({
+                    id: serverId,
+                    name: demo.name,
+                    isDemo: true,
+                    demoId: demo.id,
+                    createdAt: new Date(),
+                  })
+                );
+
+                // Connect via WASM (creates the database)
+                await quickConnectWasm(demo.id);
+
+                // Load the demo schema and data
+                await loadDemoData(demo.id, demo.id);
+
+                store.commit(
+                  events.connectionSessionSet({
+                    status: "connected",
+                    savedLocalServerId: serverId,
+                    activeDatabase: demo.id,
+                    connectedAt: Date.now(),
+                    lastStatusChange: Date.now(),
+                  }),
+                  events.uiStateSet({
+                    currentPage: "query",
+                  }),
+                  events.localServerUpdated({
+                    id: serverId,
+                    lastUsedAt: new Date(),
+                  })
+                );
+
+                showSnackbar(
+                  "success",
+                  `${demo.name} ready! Try the example queries.`
+                );
+                navigate("/query");
+              } catch (error) {
+                console.error("[scope] Failed to load demo:", error);
+                showSnackbar("error", `Failed to load demo: ${error}`);
+              }
             },
-          })),
-          isLoading$: constant(false, `demo.${demo.id}.isLoading`),
-          isActive$: computed(
-            (get) => {
-              const ui = get(uiState$);
-              return ui.connectionStatus === "connected" && ui.activeDatabase === demo.id;
-            },
-            { label: `demo.${demo.id}.isActive`, deps: [demo.id] }
-          ),
-          load: async () => {
-            // Check if already active
-            const ui = store.query(uiState$);
-            if (ui.connectionStatus === "connected" && ui.activeDatabase === demo.id) {
-              // Already on this demo, just navigate to query page
-              showSnackbar("success", `Continuing with ${demo.name}`);
-              store.commit(events.uiStateSet({ currentPage: "query" }));
-              navigate("/query");
-              return;
-            }
-
-            try {
-              showSnackbar("success", `Loading ${demo.name}...`);
-
-              // Create a demo server entry
-              const serverId = createID("demo");
-              store.commit(
-                events.localServerCreated({
-                  id: serverId,
-                  name: demo.name,
-                  isDemo: true,
-                  demoId: demo.id,
-                  createdAt: new Date(),
-                })
-              );
-
-              // Connect via WASM (creates the database)
-              await quickConnectWasm(demo.id);
-
-              // Load the demo schema and data
-              await loadDemoData(demo.id, demo.id);
-
-              store.commit(
-                events.uiStateSet({
-                  connectionStatus: "connected",
-                  activeLocalServerId: serverId,
-                  activeDatabase: demo.id,
-                  currentPage: "query",
-                }),
-                events.localServerUpdated({
-                  id: serverId,
-                  lastUsedAt: new Date(),
-                })
-              );
-
-              showSnackbar("success", `${demo.name} ready! Try the example queries.`);
-              navigate("/query");
-            } catch (error) {
-              console.error("[scope] Failed to load demo:", error);
-              showSnackbar("error", `Failed to load demo: ${error}`);
-            }
-          },
-        }));
+          })
+        );
       },
       { label: "demos.items" }
     ),
@@ -950,65 +1380,81 @@ export function createStudioScope(
     items$: computed(
       (get) => {
         const servers = get(localServers$);
-        return servers.map((server): LocalServerItemVM => ({
-          key: server.id,
-          id: server.id,
-          name: server.name,
-          databaseCount$: constant(0, `server.${server.id}.dbCount`), // TODO: Track actual DB count
-          lastUsedAt: server.lastUsedAt,
-          lastUsedDisplay: formatRelativeTime(server.lastUsedAt),
-          isActive$: computed(
-            (get) => get(uiState$).activeLocalServerId === server.id,
-            { label: `server.${server.id}.isActive`, deps: [server.id] }
-          ),
-          connect: async () => {
-            try {
-              store.commit(events.uiStateSet({ connectionStatus: "connecting" }));
+        return servers.map(
+          (server): LocalServerItemVM => ({
+            key: server.id,
+            id: server.id,
+            name: server.name,
+            databaseCount$: constant(0, `server.${server.id}.dbCount`), // TODO: Track actual DB count
+            lastUsedAt: server.lastUsedAt,
+            lastUsedDisplay: formatRelativeTime(server.lastUsedAt),
+            isActive$: computed(
+              (get) => get(connectionSession$).savedLocalServerId === server.id,
+              { label: `server.${server.id}.isActive`, deps: [server.id] }
+            ),
+            connect: async () => {
+              try {
+                store.commit(
+                  events.connectionSessionSet({
+                    status: "connecting",
+                    mode: "wasm",
+                    lastStatusChange: Date.now(),
+                  })
+                );
 
-              await quickConnectWasm(server.name);
+                await quickConnectWasm(server.name);
 
-              store.commit(
-                events.uiStateSet({
-                  connectionStatus: "connected",
-                  activeLocalServerId: server.id,
-                  activeDatabase: server.name,
-                  currentPage: "query",
-                }),
-                events.localServerUpdated({
-                  id: server.id,
-                  lastUsedAt: new Date(),
-                })
-              );
+                store.commit(
+                  events.connectionSessionSet({
+                    status: "connected",
+                    savedLocalServerId: server.id,
+                    activeDatabase: server.name,
+                    connectedAt: Date.now(),
+                    lastStatusChange: Date.now(),
+                  }),
+                  events.uiStateSet({
+                    currentPage: "query",
+                  }),
+                  events.localServerUpdated({
+                    id: server.id,
+                    lastUsedAt: new Date(),
+                  })
+                );
 
-              showSnackbar("success", `Connected to ${server.name}`);
-              navigate("/query");
-            } catch (error) {
-              console.error("[scope] Failed to connect to server:", error);
-              store.commit(events.uiStateSet({ connectionStatus: "disconnected" }));
-              showSnackbar("error", `Failed to connect: ${error}`);
-            }
-          },
-          exportSnapshot: async () => {
-            showSnackbar("warning", "Snapshot export not yet implemented");
-          },
-          delete: () => {
-            store.commit(events.localServerDeleted({ id: server.id }));
-            showSnackbar("success", `Deleted ${server.name}`);
-          },
-          rename: () => {
-            showSnackbar("warning", "Rename not yet implemented");
-          },
-        }));
+                showSnackbar("success", `Connected to ${server.name}`);
+                navigate("/query");
+              } catch (error) {
+                console.error("[scope] Failed to connect to server:", error);
+                store.commit(
+                  events.connectionSessionSet({
+                    status: "disconnected",
+                    lastStatusChange: Date.now(),
+                  })
+                );
+                showSnackbar("error", `Failed to connect: ${error}`);
+              }
+            },
+            exportSnapshot: async () => {
+              showSnackbar("warning", "Snapshot export not yet implemented");
+            },
+            delete: () => {
+              store.commit(events.localServerDeleted({ id: server.id }));
+              showSnackbar("success", `Deleted ${server.name}`);
+            },
+            rename: () => {
+              showSnackbar("warning", "Rename not yet implemented");
+            },
+          })
+        );
       },
       { label: "localServers.items" }
     ),
 
-    isEmpty$: computed(
-      (get) => get(localServers$).length === 0,
-      { label: "localServers.isEmpty" }
-    ),
+    isEmpty$: computed((get) => get(localServers$).length === 0, {
+      label: "localServers.isEmpty",
+    }),
 
-    createNew: async () => {
+    createNew: async (): Promise<{ key: string }> => {
       const serverCount = store.query(localServers$).length;
       const serverId = createID("local");
       const serverName = `Local Server ${serverCount + 1}`;
@@ -1024,9 +1470,15 @@ export function createStudioScope(
       );
 
       showSnackbar("success", `Created ${serverName}`);
+
+      // Return key for tests to find the new item in items$
+      return { key: serverId };
     },
 
-    createDisabled$: constant<DisabledState>(null, "localServers.createDisabled"),
+    createDisabled$: constant<DisabledState>(
+      null,
+      "localServers.createDisabled"
+    ),
 
     importSnapshot: () => {
       showSnackbar("warning", "Snapshot import not yet implemented");
@@ -1035,20 +1487,18 @@ export function createStudioScope(
 
   // Connection Form (for remote connections)
   const connectionFormVM: ConnectionFormVM = {
-    mode$: computed(
-      (get) => get(uiState$).connectionFormMode,
-      { label: "connectForm.mode" }
-    ),
+    mode$: computed((get) => get(uiState$).connectionFormMode, {
+      label: "connectForm.mode",
+    }),
 
     setMode: (mode) => {
       store.commit(events.uiStateSet({ connectionFormMode: mode }));
     },
 
     urlInput: {
-      value$: computed(
-        (get) => get(uiState$).connectionFormUrl,
-        { label: "connectForm.url.value" }
-      ),
+      value$: computed((get) => get(uiState$).connectionFormUrl, {
+        label: "connectForm.url.value",
+      }),
       update: (value) => {
         store.commit(events.uiStateSet({ connectionFormUrl: value }));
         try {
@@ -1056,11 +1506,13 @@ export function createStudioScope(
           const address = url.origin.replace("https://", "http://");
           const username = url.username || "";
           const password = url.password || "";
-          store.commit(events.uiStateSet({
-            connectionFormAddress: address,
-            connectionFormUsername: username,
-            connectionFormPassword: password,
-          }));
+          store.commit(
+            events.uiStateSet({
+              connectionFormAddress: address,
+              connectionFormUsername: username,
+              connectionFormPassword: password,
+            })
+          );
         } catch {
           // Invalid URL, don't sync
         }
@@ -1071,10 +1523,9 @@ export function createStudioScope(
     },
 
     addressInput: {
-      value$: computed(
-        (get) => get(uiState$).connectionFormAddress,
-        { label: "connectForm.address.value" }
-      ),
+      value$: computed((get) => get(uiState$).connectionFormAddress, {
+        label: "connectForm.address.value",
+      }),
       update: (value) => {
         store.commit(events.uiStateSet({ connectionFormAddress: value }));
       },
@@ -1084,10 +1535,9 @@ export function createStudioScope(
     },
 
     usernameInput: {
-      value$: computed(
-        (get) => get(uiState$).connectionFormUsername,
-        { label: "connectForm.username.value" }
-      ),
+      value$: computed((get) => get(uiState$).connectionFormUsername, {
+        label: "connectForm.username.value",
+      }),
       update: (value) => {
         store.commit(events.uiStateSet({ connectionFormUsername: value }));
       },
@@ -1097,10 +1547,9 @@ export function createStudioScope(
     },
 
     passwordInput: {
-      value$: computed(
-        (get) => get(uiState$).connectionFormPassword,
-        { label: "connectForm.password.value" }
-      ),
+      value$: computed((get) => get(uiState$).connectionFormPassword, {
+        label: "connectForm.password.value",
+      }),
       update: (value) => {
         store.commit(events.uiStateSet({ connectionFormPassword: value }));
       },
@@ -1112,24 +1561,29 @@ export function createStudioScope(
     },
 
     fillExample: () => {
-      store.commit(events.uiStateSet({
-        connectionFormAddress: "http://localhost:8000",
-        connectionFormUsername: "admin",
-        connectionFormPassword: "admin",
-      }));
+      store.commit(
+        events.uiStateSet({
+          connectionFormAddress: "http://localhost:8000",
+          connectionFormUsername: "admin",
+          connectionFormPassword: "admin",
+        })
+      );
       showSnackbar("success", "Example credentials filled");
     },
 
     safariHttpWarning$: computed(
       (get) => {
         const address = get(uiState$).connectionFormAddress;
-        const isSafari = typeof navigator !== "undefined" &&
+        const isSafari =
+          typeof navigator !== "undefined" &&
           /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        const isHttp = address.startsWith("http://") && !address.includes("localhost");
+        const isHttp =
+          address.startsWith("http://") && !address.includes("localhost");
 
         return {
           visible: isSafari && isHttp,
-          message: "Safari may block HTTP connections. Consider using HTTPS or a local server.",
+          message:
+            "Safari may block HTTP connections. Consider using HTTPS or a local server.",
         };
       },
       { label: "connectForm.safariWarning" }
@@ -1158,10 +1612,16 @@ export function createStudioScope(
     connect: async () => {
       const ui = store.query(uiState$);
 
-      store.commit(events.uiStateSet({
-        isConnecting: true,
-        connectionStatus: "connecting",
-      }));
+      store.commit(
+        events.uiStateSet({ isConnecting: true }),
+        events.connectionSessionSet({
+          status: "connecting",
+          mode: "http",
+          address: ui.connectionFormAddress,
+          username: ui.connectionFormUsername,
+          lastStatusChange: Date.now(),
+        })
+      );
 
       try {
         // HTTP mode - connect to real server
@@ -1186,12 +1646,16 @@ export function createStudioScope(
             id: connectionId,
             lastUsedAt: new Date(),
           }),
+          events.connectionSessionSet({
+            status: "connected",
+            savedConnectionId: connectionId,
+            savedLocalServerId: null,
+            activeDatabase: null,
+            connectedAt: Date.now(),
+            lastStatusChange: Date.now(),
+          }),
           events.uiStateSet({
             isConnecting: false,
-            connectionStatus: "connected",
-            activeConnectionId: connectionId,
-            activeLocalServerId: null,
-            activeDatabase: null,
             currentPage: "query",
           })
         );
@@ -1200,18 +1664,20 @@ export function createStudioScope(
         navigate("/query");
       } catch (error) {
         console.error("[scope] Connection failed:", error);
-        store.commit(events.uiStateSet({
-          isConnecting: false,
-          connectionStatus: "disconnected",
-        }));
+        store.commit(
+          events.uiStateSet({ isConnecting: false }),
+          events.connectionSessionSet({
+            status: "disconnected",
+            lastStatusChange: Date.now(),
+          })
+        );
         showSnackbar("error", `Connection failed: ${error}`);
       }
     },
 
-    isConnecting$: computed(
-      (get) => get(uiState$).isConnecting,
-      { label: "connectForm.isConnecting" }
-    ),
+    isConnecting$: computed((get) => get(uiState$).isConnecting, {
+      label: "connectForm.isConnecting",
+    }),
   };
 
   // Saved Connections (for remote connections)
@@ -1219,55 +1685,64 @@ export function createStudioScope(
     items$: computed(
       (get) => {
         const connections = get(allConnections$);
-        return connections.slice(0, 10).map((conn): SavedConnectionItemVM => ({
-          key: conn.id,
-          nameDisplay: conn.name || conn.address,
-          addressDisplay: conn.address.replace(/^https?:\/\//, ""),
-          isStartupConnection$: constant(conn.isStartupConnection, `savedConn.${conn.id}.isStartup`),
-          select: () => {
-            store.commit(events.uiStateSet({
-              connectionFormAddress: conn.address,
-              connectionFormUsername: conn.username,
-              connectionFormPassword: "",
-              remoteConnectionExpanded: true,
-            }));
-          },
-          remove: () => {
-            store.commit(events.connectionDeleted({ id: conn.id }));
-            showSnackbar("success", "Connection removed");
-          },
-          toggleStartup: () => {
-            const allConns = store.query(allConnections$);
-            for (const c of allConns) {
-              if (c.isStartupConnection) {
-                store.commit(events.connectionUpdated({
-                  id: c.id,
-                  isStartupConnection: false,
-                }));
+        return connections.slice(0, 10).map(
+          (conn): SavedConnectionItemVM => ({
+            key: conn.id,
+            nameDisplay: conn.name || conn.address,
+            addressDisplay: conn.address.replace(/^https?:\/\//, ""),
+            isStartupConnection$: constant(
+              conn.isStartupConnection,
+              `savedConn.${conn.id}.isStartup`
+            ),
+            select: () => {
+              store.commit(
+                events.uiStateSet({
+                  connectionFormAddress: conn.address,
+                  connectionFormUsername: conn.username,
+                  connectionFormPassword: "",
+                  remoteConnectionExpanded: true,
+                })
+              );
+            },
+            remove: () => {
+              store.commit(events.connectionDeleted({ id: conn.id }));
+              showSnackbar("success", "Connection removed");
+            },
+            toggleStartup: () => {
+              const allConns = store.query(allConnections$);
+              for (const c of allConns) {
+                if (c.isStartupConnection) {
+                  store.commit(
+                    events.connectionUpdated({
+                      id: c.id,
+                      isStartupConnection: false,
+                    })
+                  );
+                }
               }
-            }
-            store.commit(events.connectionUpdated({
-              id: conn.id,
-              isStartupConnection: true,
-            }));
-          },
-        }));
+              store.commit(
+                events.connectionUpdated({
+                  id: conn.id,
+                  isStartupConnection: true,
+                })
+              );
+            },
+          })
+        );
       },
       { label: "savedConnections.items" }
     ),
 
-    isEmpty$: computed(
-      (get) => get(allConnections$).length === 0,
-      { label: "savedConnections.isEmpty" }
-    ),
+    isEmpty$: computed((get) => get(allConnections$).length === 0, {
+      label: "savedConnections.isEmpty",
+    }),
   };
 
   // Remote Connection Section
   const remoteConnectionSectionVM: RemoteConnectionSectionVM = {
-    isExpanded$: computed(
-      (get) => get(uiState$).remoteConnectionExpanded,
-      { label: "remoteConnection.isExpanded" }
-    ),
+    isExpanded$: computed((get) => get(uiState$).remoteConnectionExpanded, {
+      label: "remoteConnection.isExpanded",
+    }),
 
     toggleExpanded: () => {
       const expanded = store.query(uiState$).remoteConnectionExpanded;
@@ -1300,7 +1775,9 @@ export function createStudioScope(
     const PROFILE_KEY = "typedb_studio_profile";
     let profileId = localStorage.getItem(PROFILE_KEY);
     if (!profileId) {
-      profileId = `profile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      profileId = `profile_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
       localStorage.setItem(PROFILE_KEY, profileId);
     }
     return profileId;
@@ -1311,7 +1788,14 @@ export function createStudioScope(
   // Learn Page (created first so we can share VMs with Query Page)
   // ---------------------------------------------------------------------------
 
-  const learnPageVM: LearnPageVM = createLearnPageVM(store, navigate, showSnackbar, curriculumSectionsData, sharedProfileId, queryExecutionService);
+  const learnPageVM: LearnPageVM = createLearnPageVM(
+    store,
+    navigate,
+    showSnackbar,
+    curriculumSectionsData,
+    sharedProfileId,
+    queryExecutionService
+  );
 
   // ---------------------------------------------------------------------------
   // Query Page
@@ -1335,17 +1819,19 @@ export function createStudioScope(
   const sharedCurriculumMeta: CurriculumMeta = {
     name: "TypeQL Learning",
     version: "1.0.0",
-    sections: Array.from(sectionsByFolder.entries()).map(([folder, folderSections]): SectionMeta => ({
-      id: folder,
-      title: formatFolderTitle(folder),
-      path: folder,
-      lessons: folderSections.map((s) => ({
-        id: s.id,
-        title: s.title,
-        file: s.sourceFile,
-        context: s.context,
-      })),
-    })),
+    sections: Array.from(sectionsByFolder.entries()).map(
+      ([folder, folderSections]): SectionMeta => ({
+        id: folder,
+        title: formatFolderTitle(folder),
+        path: folder,
+        lessons: folderSections.map((s) => ({
+          id: s.id,
+          title: s.title,
+          file: s.sourceFile,
+          context: s.context,
+        })),
+      })
+    ),
     contexts: curriculumContexts,
   };
 
@@ -1367,13 +1853,21 @@ export function createStudioScope(
   // Schema Page (Placeholder)
   // ---------------------------------------------------------------------------
 
-  const schemaPageVM: SchemaPageVM = createSchemaPageVM(store, connectionStatus$, activeDatabase$);
+  const schemaPageVM: SchemaPageVM = createSchemaPageVM(
+    store,
+    connectionStatus$,
+    activeDatabase$
+  );
 
   // ---------------------------------------------------------------------------
   // Users Page (Placeholder)
   // ---------------------------------------------------------------------------
 
-  const usersPageVM: UsersPageVM = createUsersPageVM(store, showSnackbar, connectionStatus$);
+  const usersPageVM: UsersPageVM = createUsersPageVM(
+    store,
+    showSnackbar,
+    connectionStatus$
+  );
 
   // ---------------------------------------------------------------------------
   // Dialogs
@@ -1434,18 +1928,31 @@ export function createStudioScope(
     queryExecution: queryExecutionService,
   };
 
-  return { vm, services };
+  const teardown = () => {
+    console.log("[scope] Teardown: unsubscribing from service events");
+    _unsubscribeStatusChange();
+    _unsubscribeModeChange();
+  };
+
+  return { vm, services, teardown };
 }
 
 // ============================================================================
 // Query Page Factory
 // ============================================================================
 
-type ConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting";
+type ConnectionStatus =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "reconnecting";
 
 function createQueryPageVM(
   store: Store<typeof schema>,
-  showSnackbar: (type: "success" | "warning" | "error", message: string) => void,
+  showSnackbar: (
+    type: "success" | "warning" | "error",
+    message: string
+  ) => void,
   navigate: (path: string) => void,
   databaseSelector: DatabaseSelectorVM,
   _connectionStatus$: Queryable<ConnectionStatus>,
@@ -1459,28 +1966,48 @@ function createQueryPageVM(
   // Helper to create schema tree item VMs
   const emptyChildren: SchemaTreeChildItemVM[] = [];
 
-  const createEntityItem = (entity: { label: string; isAbstract: boolean; ownedAttributes: readonly string[] }): SchemaTreeItemVM => ({
+  const createEntityItem = (entity: {
+    label: string;
+    isAbstract: boolean;
+    ownedAttributes: readonly string[];
+  }): SchemaTreeItemVM => ({
     key: entity.label,
     label: entity.label,
     icon: Box,
     kind: "entity",
     isAbstract: entity.isAbstract,
     level: 0,
-    hasChildren$: constant(entity.ownedAttributes.length > 0, `entity.${entity.label}.hasChildren`),
-    expanded$: constant(false, `entity.${entity.label}.expanded`),
+    hasChildren$: constant(
+      entity.ownedAttributes.length > 0,
+      `entity.${entity.label}.hasChildren`
+    ),
+    expanded$: constant(
+      false as boolean | null,
+      `entity.${entity.label}.expanded`
+    ),
     toggleExpanded: () => {},
     children$: constant(
-      entity.ownedAttributes.map((attr): SchemaTreeChildItemVM => ({
-        key: `${entity.label}.${attr}`,
-        label: attr,
-        kind: "attribute",
-        typeInfo: null,
-        generateQuery: () => {
-          const query = `match $x isa ${entity.label}, has ${attr} $a;\nfetch { "value": $a };`;
-          store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
-          showSnackbar("success", `Generated query for ${entity.label}.${attr}`);
-        },
-      })),
+      entity.ownedAttributes.map(
+        (attr): SchemaTreeChildItemVM => ({
+          key: `${entity.label}.${attr}`,
+          label: attr,
+          kind: "attribute",
+          typeInfo: null,
+          generateQuery: () => {
+            const query = `match $x isa ${entity.label}, has ${attr} $a;\nfetch { "value": $a };`;
+            store.commit(
+              events.uiStateSet({
+                currentQueryText: query,
+                hasUnsavedChanges: true,
+              })
+            );
+            showSnackbar(
+              "success",
+              `Generated query for ${entity.label}.${attr}`
+            );
+          },
+        })
+      ),
       `entity.${entity.label}.children`
     ),
     showPlayOnHover: true,
@@ -1490,45 +2017,78 @@ function createQueryPageVM(
         kind: "entity",
         ownedAttributes: entity.ownedAttributes,
       });
-      store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+      store.commit(
+        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true })
+      );
       showSnackbar("success", `Generated fetch query for ${entity.label}`);
     },
   });
 
-  const createRelationItem = (relation: { label: string; isAbstract: boolean; ownedAttributes: readonly string[]; relatedRoles: readonly string[] }): SchemaTreeItemVM => ({
+  const createRelationItem = (relation: {
+    label: string;
+    isAbstract: boolean;
+    ownedAttributes: readonly string[];
+    relatedRoles: readonly string[];
+  }): SchemaTreeItemVM => ({
     key: relation.label,
     label: relation.label,
     icon: Diamond,
     kind: "relation",
     isAbstract: relation.isAbstract,
     level: 0,
-    hasChildren$: constant(relation.relatedRoles.length > 0 || relation.ownedAttributes.length > 0, `relation.${relation.label}.hasChildren`),
-    expanded$: constant(false, `relation.${relation.label}.expanded`),
+    hasChildren$: constant(
+      relation.relatedRoles.length > 0 || relation.ownedAttributes.length > 0,
+      `relation.${relation.label}.hasChildren`
+    ),
+    expanded$: constant(
+      false as boolean | null,
+      `relation.${relation.label}.expanded`
+    ),
     toggleExpanded: () => {},
     children$: constant(
       [
-        ...relation.relatedRoles.map((role): SchemaTreeChildItemVM => ({
-          key: `${relation.label}.role.${role}`,
-          label: role,
-          kind: "role",
-          typeInfo: null,
-          generateQuery: () => {
-            const query = `match ($role: $player) isa ${relation.label};\nfetch { "${role}": $player };`;
-            store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
-            showSnackbar("success", `Generated query for ${relation.label}:${role}`);
-          },
-        })),
-        ...relation.ownedAttributes.map((attr): SchemaTreeChildItemVM => ({
-          key: `${relation.label}.attr.${attr}`,
-          label: attr,
-          kind: "attribute",
-          typeInfo: null,
-          generateQuery: () => {
-            const query = `match $r isa ${relation.label}, has ${attr} $a;\nfetch { "value": $a };`;
-            store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
-            showSnackbar("success", `Generated query for ${relation.label}.${attr}`);
-          },
-        })),
+        ...relation.relatedRoles.map(
+          (role): SchemaTreeChildItemVM => ({
+            key: `${relation.label}.role.${role}`,
+            label: role,
+            kind: "role",
+            typeInfo: null,
+            generateQuery: () => {
+              const query = `match ($role: $player) isa ${relation.label};\nfetch { "${role}": $player };`;
+              store.commit(
+                events.uiStateSet({
+                  currentQueryText: query,
+                  hasUnsavedChanges: true,
+                })
+              );
+              showSnackbar(
+                "success",
+                `Generated query for ${relation.label}:${role}`
+              );
+            },
+          })
+        ),
+        ...relation.ownedAttributes.map(
+          (attr): SchemaTreeChildItemVM => ({
+            key: `${relation.label}.attr.${attr}`,
+            label: attr,
+            kind: "attribute",
+            typeInfo: null,
+            generateQuery: () => {
+              const query = `match $r isa ${relation.label}, has ${attr} $a;\nfetch { "value": $a };`;
+              store.commit(
+                events.uiStateSet({
+                  currentQueryText: query,
+                  hasUnsavedChanges: true,
+                })
+              );
+              showSnackbar(
+                "success",
+                `Generated query for ${relation.label}.${attr}`
+              );
+            },
+          })
+        ),
       ],
       `relation.${relation.label}.children`
     ),
@@ -1540,12 +2100,17 @@ function createQueryPageVM(
         ownedAttributes: relation.ownedAttributes,
         relatedRoles: relation.relatedRoles,
       });
-      store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+      store.commit(
+        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true })
+      );
       showSnackbar("success", `Generated fetch query for ${relation.label}`);
     },
   });
 
-  const createAttributeItem = (attribute: { label: string; valueType: string | null }): SchemaTreeItemVM => ({
+  const createAttributeItem = (attribute: {
+    label: string;
+    valueType: string | null;
+  }): SchemaTreeItemVM => ({
     key: attribute.label,
     label: attribute.label,
     icon: Tag,
@@ -1553,7 +2118,10 @@ function createQueryPageVM(
     isAbstract: false,
     level: 0,
     hasChildren$: constant(false, `attribute.${attribute.label}.hasChildren`),
-    expanded$: constant(null, `attribute.${attribute.label}.expanded`),
+    expanded$: constant(
+      null as boolean | null,
+      `attribute.${attribute.label}.expanded`
+    ),
     toggleExpanded: () => {},
     children$: constant(emptyChildren, `attribute.${attribute.label}.children`),
     showPlayOnHover: true,
@@ -1562,7 +2130,9 @@ function createQueryPageVM(
         label: attribute.label,
         kind: "attribute",
       });
-      store.commit(events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true }));
+      store.commit(
+        events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: true })
+      );
       showSnackbar("success", `Generated fetch query for ${attribute.label}`);
     },
   });
@@ -1570,10 +2140,9 @@ function createQueryPageVM(
   // Create schema tree groups using stored schema types
   const entitiesGroup: SchemaTreeGroupVM = {
     label: "Entities",
-    count$: computed(
-      (get) => get(schemaTypes$)?.entities?.length ?? 0,
-      { label: "schemaTree.entities.count" }
-    ),
+    count$: computed((get) => get(schemaTypes$)?.entities?.length ?? 0, {
+      label: "schemaTree.entities.count",
+    }),
     collapsed$: constant(false, "schemaTree.entities.collapsed"),
     toggleCollapsed: () => {},
     items$: computed(
@@ -1584,10 +2153,9 @@ function createQueryPageVM(
 
   const relationsGroup: SchemaTreeGroupVM = {
     label: "Relations",
-    count$: computed(
-      (get) => get(schemaTypes$)?.relations?.length ?? 0,
-      { label: "schemaTree.relations.count" }
-    ),
+    count$: computed((get) => get(schemaTypes$)?.relations?.length ?? 0, {
+      label: "schemaTree.relations.count",
+    }),
     collapsed$: constant(false, "schemaTree.relations.collapsed"),
     toggleCollapsed: () => {},
     items$: computed(
@@ -1598,10 +2166,9 @@ function createQueryPageVM(
 
   const attributesGroup: SchemaTreeGroupVM = {
     label: "Attributes",
-    count$: computed(
-      (get) => get(schemaTypes$)?.attributes?.length ?? 0,
-      { label: "schemaTree.attributes.count" }
-    ),
+    count$: computed((get) => get(schemaTypes$)?.attributes?.length ?? 0, {
+      label: "schemaTree.attributes.count",
+    }),
     collapsed$: constant(false, "schemaTree.attributes.collapsed"),
     toggleCollapsed: () => {},
     items$: computed(
@@ -1614,7 +2181,10 @@ function createQueryPageVM(
     status$: computed(
       (get) => {
         const types = get(schemaTypes$);
-        const totalTypes = (types?.entities?.length ?? 0) + (types?.relations?.length ?? 0) + (types?.attributes?.length ?? 0);
+        const totalTypes =
+          (types?.entities?.length ?? 0) +
+          (types?.relations?.length ?? 0) +
+          (types?.attributes?.length ?? 0);
         if (totalTypes === 0) {
           return "empty" as SchemaTreeStatus;
         }
@@ -1625,7 +2195,10 @@ function createQueryPageVM(
     statusMessage$: computed(
       (get) => {
         const types = get(schemaTypes$);
-        const totalTypes = (types?.entities?.length ?? 0) + (types?.relations?.length ?? 0) + (types?.attributes?.length ?? 0);
+        const totalTypes =
+          (types?.entities?.length ?? 0) +
+          (types?.relations?.length ?? 0) +
+          (types?.attributes?.length ?? 0);
         if (totalTypes === 0) {
           return "No schema types defined. Load a demo or define schema." as string;
         }
@@ -1660,22 +2233,55 @@ function createQueryPageVM(
   // Schema Section
   const schemaSection: QuerySidebarSchemaSectionVM = {
     label: "Schema",
-    collapsed$: computed((get) => get(uiState$).schemaCollapsed, { label: "schemaSection.collapsed" }),
+    collapsed$: computed((get) => get(uiState$).schemaCollapsed, {
+      label: "schemaSection.collapsed",
+    }),
     toggleCollapsed: () => {
       const collapsed = store.query(uiState$).schemaCollapsed;
       store.commit(events.uiStateSet({ schemaCollapsed: !collapsed }));
     },
-    viewMode$: computed((get) => get(uiState$).schemaViewMode, { label: "schemaSection.viewMode" }),
-    setViewMode: (mode) => store.commit(events.uiStateSet({ schemaViewMode: mode })),
+    viewMode$: computed((get) => get(uiState$).schemaViewMode, {
+      label: "schemaSection.viewMode",
+    }),
+    setViewMode: (mode) =>
+      store.commit(events.uiStateSet({ schemaViewMode: mode })),
     linksVisibility: {
-      sub$: computed((get) => get(uiState$).schemaShowSub, { label: "schemaSection.showSub" }),
-      toggleSub: () => store.commit(events.uiStateSet({ schemaShowSub: !store.query(uiState$).schemaShowSub })),
-      owns$: computed((get) => get(uiState$).schemaShowOwns, { label: "schemaSection.showOwns" }),
-      toggleOwns: () => store.commit(events.uiStateSet({ schemaShowOwns: !store.query(uiState$).schemaShowOwns })),
-      plays$: computed((get) => get(uiState$).schemaShowPlays, { label: "schemaSection.showPlays" }),
-      togglePlays: () => store.commit(events.uiStateSet({ schemaShowPlays: !store.query(uiState$).schemaShowPlays })),
-      relates$: computed((get) => get(uiState$).schemaShowRelates, { label: "schemaSection.showRelates" }),
-      toggleRelates: () => store.commit(events.uiStateSet({ schemaShowRelates: !store.query(uiState$).schemaShowRelates })),
+      sub$: computed((get) => get(uiState$).schemaShowSub, {
+        label: "schemaSection.showSub",
+      }),
+      toggleSub: () =>
+        store.commit(
+          events.uiStateSet({
+            schemaShowSub: !store.query(uiState$).schemaShowSub,
+          })
+        ),
+      owns$: computed((get) => get(uiState$).schemaShowOwns, {
+        label: "schemaSection.showOwns",
+      }),
+      toggleOwns: () =>
+        store.commit(
+          events.uiStateSet({
+            schemaShowOwns: !store.query(uiState$).schemaShowOwns,
+          })
+        ),
+      plays$: computed((get) => get(uiState$).schemaShowPlays, {
+        label: "schemaSection.showPlays",
+      }),
+      togglePlays: () =>
+        store.commit(
+          events.uiStateSet({
+            schemaShowPlays: !store.query(uiState$).schemaShowPlays,
+          })
+        ),
+      relates$: computed((get) => get(uiState$).schemaShowRelates, {
+        label: "schemaSection.showRelates",
+      }),
+      toggleRelates: () =>
+        store.commit(
+          events.uiStateSet({
+            schemaShowRelates: !store.query(uiState$).schemaShowRelates,
+          })
+        ),
     },
     tree: schemaTree,
   };
@@ -1683,7 +2289,9 @@ function createQueryPageVM(
   // Saved Queries Section
   const savedQueriesSection: QuerySidebarSavedQueriesSectionVM = {
     label: "Saved Queries",
-    collapsed$: computed((get) => get(uiState$).savedQueriesCollapsed, { label: "savedQueriesSection.collapsed" }),
+    collapsed$: computed((get) => get(uiState$).savedQueriesCollapsed, {
+      label: "savedQueriesSection.collapsed",
+    }),
     toggleCollapsed: () => {
       const collapsed = store.query(uiState$).savedQueriesCollapsed;
       store.commit(events.uiStateSet({ savedQueriesCollapsed: !collapsed }));
@@ -1701,17 +2309,18 @@ function createQueryPageVM(
     showSnackbar,
   });
 
-  const { vm: docsViewerVM, service: docsViewerService } = createDocumentViewerScope({
-    store,
-    profileId,
-    sections: curriculumSectionsData,
-    replBridge: queryReplBridge,
-    stateKeys: {
-      visibleKey: "queryDocsViewerVisible",
-      sectionIdKey: "queryDocsCurrentSectionId",
-      labelPrefix: "queryDocsViewer",
-    },
-  });
+  const { vm: docsViewerVM, service: docsViewerService } =
+    createDocumentViewerScope({
+      store,
+      profileId,
+      sections: curriculumSectionsData,
+      replBridge: queryReplBridge,
+      stateKeys: {
+        visibleKey: "queryDocsViewerVisible",
+        sectionIdKey: "queryDocsCurrentSectionId",
+        labelPrefix: "queryDocsViewer",
+      },
+    });
 
   // Create Learn Sidebar for Query Page (with navigation to docs viewer)
   const queryLearnSidebar = createLearnSidebarScope({
@@ -1729,13 +2338,14 @@ function createQueryPageVM(
   // Learn Section for Query Sidebar
   const learnSection: QuerySidebarLearnSectionVM = {
     label: "Learn",
-    collapsed$: computed(
-      (get) => get(uiState$).querySidebarLearnCollapsed,
-      { label: "querySidebar.learn.collapsed" }
-    ),
+    collapsed$: computed((get) => get(uiState$).querySidebarLearnCollapsed, {
+      label: "querySidebar.learn.collapsed",
+    }),
     toggleCollapsed: () => {
       const collapsed = store.query(uiState$).querySidebarLearnCollapsed;
-      store.commit(events.uiStateSet({ querySidebarLearnCollapsed: !collapsed }));
+      store.commit(
+        events.uiStateSet({ querySidebarLearnCollapsed: !collapsed })
+      );
     },
     curriculum: queryLearnSidebar.learnSection,
     reference: queryLearnSidebar.referenceSection,
@@ -1744,12 +2354,18 @@ function createQueryPageVM(
 
   // Sidebar
   const sidebar: QuerySidebarVM = {
-    width$: computed((get) => get(uiState$).querySidebarWidth, { label: "sidebar.width" }),
-    setWidth: (width) => store.commit(events.uiStateSet({ querySidebarWidth: width })),
+    width$: computed((get) => get(uiState$).querySidebarWidth, {
+      label: "sidebar.width",
+    }),
+    setWidth: (width) =>
+      store.commit(events.uiStateSet({ querySidebarWidth: width })),
     learnSection,
     schemaSection,
     savedQueriesSection,
-    urlImportsSection$: constant<QuerySidebarUrlImportsSectionVM | null>(null, "sidebar.urlImports"),
+    urlImportsSection$: constant<QuerySidebarUrlImportsSectionVM | null>(
+      null,
+      "sidebar.urlImports"
+    ),
   };
 
   // Editor Header
@@ -1765,9 +2381,16 @@ function createQueryPageVM(
       },
       { label: "editor.header.title" }
     ),
-    isDirty$: computed((get) => get(uiState$).hasUnsavedChanges, { label: "editor.header.isDirty" }),
-    isScratch$: computed((get) => get(uiState$).currentQueryId === null, { label: "editor.header.isScratch" }),
-    savedQueryName$: constant<string | null>(null, "editor.header.savedQueryName"),
+    isDirty$: computed((get) => get(uiState$).hasUnsavedChanges, {
+      label: "editor.header.isDirty",
+    }),
+    isScratch$: computed((get) => get(uiState$).currentQueryId === null, {
+      label: "editor.header.isScratch",
+    }),
+    savedQueryName$: constant<string | null>(
+      null,
+      "editor.header.savedQueryName"
+    ),
   };
 
   // Autocomplete
@@ -1785,9 +2408,13 @@ function createQueryPageVM(
 
   // Code Editor
   const codeEditor: QueryCodeEditorVM = {
-    text$: computed((get) => get(uiState$).currentQueryText, { label: "editor.text" }),
+    text$: computed((get) => get(uiState$).currentQueryText, {
+      label: "editor.text",
+    }),
     updateText: (text) => {
-      store.commit(events.uiStateSet({ currentQueryText: text, hasUnsavedChanges: true }));
+      store.commit(
+        events.uiStateSet({ currentQueryText: text, hasUnsavedChanges: true })
+      );
     },
     cursorPosition$: constant({ line: 1, column: 1 }, "editor.cursor"),
     setCursorPosition: () => {},
@@ -1809,7 +2436,10 @@ function createQueryPageVM(
   const chatAssistant: QueryChatAssistantVM = {
     messages$: constant(emptyChatMessages, "chat.messages"),
     input: chatInput,
-    sendDisabled$: constant<DisabledState>({ displayReason: "Chat not implemented" }, "chat.sendDisabled"),
+    sendDisabled$: constant<DisabledState>(
+      { displayReason: "Chat not implemented" },
+      "chat.sendDisabled"
+    ),
     send: () => showSnackbar("warning", "Chat not implemented"),
     clear: () => {},
     isGenerating$: constant(false, "chat.isGenerating"),
@@ -1824,9 +2454,11 @@ function createQueryPageVM(
    * This is the core function that handles query execution, result processing,
    * and history recording.
    */
-  const executeQueryAndUpdateResults = async (queryText: string): Promise<void> => {
-    const ui = store.query(uiState$);
-    const database = ui.activeDatabase;
+  const executeQueryAndUpdateResults = async (
+    queryText: string
+  ): Promise<void> => {
+    const session = store.query(connectionSession$);
+    const database = session.activeDatabase;
 
     if (!database) {
       showSnackbar("error", "No database selected");
@@ -1834,11 +2466,13 @@ function createQueryPageVM(
     }
 
     // Set running state
-    store.commit(events.queryResultsSet({
-      isRunning: true,
-      query: queryText,
-      errorMessage: null,
-    }));
+    store.commit(
+      events.queryResultsSet({
+        isRunning: true,
+        query: queryText,
+        errorMessage: null,
+      })
+    );
 
     const startTime = Date.now();
 
@@ -1850,74 +2484,88 @@ function createQueryPageVM(
       });
 
       // Process results and update state
-      const { logLines, tableColumns, tableRows, resultCount } = processQueryResults(response);
+      const { logLines, tableColumns, tableRows, resultCount } =
+        processQueryResults(response);
 
-      store.commit(events.queryResultsSet({
-        isRunning: false,
-        query: queryText,
-        transactionType: response.transactionType,
-        executionTimeMs: response.executionTimeMs,
-        completedAt: Date.now(),
-        errorMessage: null,
-        resultType: response.data.type,
-        resultCount,
-        rawJson: JSON.stringify(response.data, null, 2),
-        logLines,
-        tableColumns,
-        tableRows,
-      }));
+      store.commit(
+        events.queryResultsSet({
+          isRunning: false,
+          query: queryText,
+          transactionType: response.transactionType,
+          executionTimeMs: response.executionTimeMs,
+          completedAt: Date.now(),
+          errorMessage: null,
+          resultType: response.data.type,
+          resultCount,
+          rawJson: JSON.stringify(response.data, null, 2),
+          logLines,
+          tableColumns,
+          tableRows,
+        })
+      );
 
       // Add to history
-      store.commit(events.historyEntryAdded({
-        id: createID("hist"),
-        connectionId: ui.activeConnectionId,
-        databaseName: database,
-        queryText,
-        executedAt: new Date(),
-        status: "success",
-        durationMs: response.executionTimeMs,
-        rowCount: resultCount,
-        errorMessage: null,
-      }));
+      store.commit(
+        events.historyEntryAdded({
+          id: createID("hist"),
+          connectionId: session.savedConnectionId,
+          databaseName: database,
+          queryText,
+          executedAt: new Date(),
+          status: "success",
+          durationMs: response.executionTimeMs,
+          rowCount: resultCount,
+          errorMessage: null,
+        })
+      );
 
       // Show success notification
-      const typeLabel = response.data.type === "define" ? "Schema updated" :
-                       response.data.type === "insert" ? "Data inserted" :
-                       response.data.type === "delete" ? "Data deleted" :
-                       `${resultCount} result${resultCount !== 1 ? "s" : ""}`;
+      const typeLabel =
+        response.data.type === "define"
+          ? "Schema updated"
+          : response.data.type === "insert"
+          ? "Data inserted"
+          : response.data.type === "delete"
+          ? "Data deleted"
+          : `${resultCount} result${resultCount !== 1 ? "s" : ""}`;
       showSnackbar("success", `${typeLabel} (${response.executionTimeMs}ms)`);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message :
-                          (error as { message?: string })?.message || String(error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : (error as { message?: string })?.message || String(error);
 
-      store.commit(events.queryResultsSet({
-        isRunning: false,
-        query: queryText,
-        transactionType: null,
-        executionTimeMs: Date.now() - startTime,
-        completedAt: Date.now(),
-        errorMessage,
-        resultType: null,
-        resultCount: null,
-        rawJson: null,
-        logLines: [`Error: ${errorMessage}`],
-        tableColumns: [],
-        tableRows: [],
-      }));
+      store.commit(
+        events.queryResultsSet({
+          isRunning: false,
+          query: queryText,
+          transactionType: null,
+          executionTimeMs: Date.now() - startTime,
+          completedAt: Date.now(),
+          errorMessage,
+          resultType: null,
+          resultCount: null,
+          rawJson: null,
+          logLines: [`Error: ${errorMessage}`],
+          tableColumns: [],
+          tableRows: [],
+        })
+      );
 
       // Add failed entry to history
-      store.commit(events.historyEntryAdded({
-        id: createID("hist"),
-        connectionId: ui.activeConnectionId,
-        databaseName: database,
-        queryText,
-        executedAt: new Date(),
-        status: "error",
-        durationMs: Date.now() - startTime,
-        rowCount: null,
-        errorMessage,
-      }));
+      store.commit(
+        events.historyEntryAdded({
+          id: createID("hist"),
+          connectionId: session.savedConnectionId,
+          databaseName: database,
+          queryText,
+          executedAt: new Date(),
+          status: "error",
+          durationMs: Date.now() - startTime,
+          rowCount: null,
+          errorMessage,
+        })
+      );
 
       showSnackbar("error", `Query failed: ${errorMessage}`);
     }
@@ -1926,7 +2574,9 @@ function createQueryPageVM(
   /**
    * Process query response into display-friendly formats.
    */
-  const processQueryResults = (response: QueryResponse): {
+  const processQueryResults = (
+    response: QueryResponse
+  ): {
     logLines: string[];
     tableColumns: string[];
     tableRows: string[];
@@ -1946,7 +2596,9 @@ function createQueryPageVM(
       case "match": {
         const answers = response.data.answers;
         resultCount = answers.length;
-        logLines.push(`Results: ${resultCount} row${resultCount !== 1 ? "s" : ""}`);
+        logLines.push(
+          `Results: ${resultCount} row${resultCount !== 1 ? "s" : ""}`
+        );
         logLines.push("");
 
         // Extract columns from first result
@@ -1976,7 +2628,9 @@ function createQueryPageVM(
       case "fetch": {
         const documents = response.data.documents;
         resultCount = documents.length;
-        logLines.push(`Results: ${resultCount} document${resultCount !== 1 ? "s" : ""}`);
+        logLines.push(
+          `Results: ${resultCount} document${resultCount !== 1 ? "s" : ""}`
+        );
         logLines.push("");
 
         // Extract columns from first document
@@ -1995,13 +2649,17 @@ function createQueryPageVM(
       case "insert": {
         const inserted = response.data.inserted;
         resultCount = inserted.length;
-        logLines.push(`Inserted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`);
+        logLines.push(
+          `Inserted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`
+        );
         break;
       }
 
       case "delete": {
         resultCount = response.data.deletedCount;
-        logLines.push(`Deleted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`);
+        logLines.push(
+          `Deleted: ${resultCount} concept${resultCount !== 1 ? "s" : ""}`
+        );
         break;
       }
 
@@ -2009,7 +2667,11 @@ function createQueryPageVM(
       case "undefine":
       case "redefine": {
         resultCount = response.data.success ? 1 : 0;
-        logLines.push(response.data.success ? "Schema updated successfully" : "Schema update failed");
+        logLines.push(
+          response.data.success
+            ? "Schema updated successfully"
+            : "Schema update failed"
+        );
         break;
       }
 
@@ -2033,17 +2695,23 @@ function createQueryPageVM(
         if (hasChanges) {
           showSnackbar("warning", "Unsaved changes will be discarded");
         }
-        store.commit(events.uiStateSet({
-          currentQueryText: "",
-          currentQueryId: null,
-          hasUnsavedChanges: false,
-        }));
+        store.commit(
+          events.uiStateSet({
+            currentQueryText: "",
+            currentQueryId: null,
+            hasUnsavedChanges: false,
+          })
+        );
       },
-      needsConfirmation$: computed((get) => get(uiState$).hasUnsavedChanges, { label: "newScratch.needsConfirmation" }),
+      needsConfirmation$: computed((get) => get(uiState$).hasUnsavedChanges, {
+        label: "newScratch.needsConfirmation",
+      }),
     },
     saveChanges: {
       visible$: computed(
-        (get) => get(uiState$).currentQueryId !== null && get(uiState$).hasUnsavedChanges,
+        (get) =>
+          get(uiState$).currentQueryId !== null &&
+          get(uiState$).hasUnsavedChanges,
         { label: "saveChanges.visible" }
       ),
       click: () => {
@@ -2053,9 +2721,10 @@ function createQueryPageVM(
     },
     saveAsNew: {
       disabled$: computed(
-        (get): DisabledState => get(uiState$).currentQueryText.trim() === ""
-          ? { displayReason: "Query is empty" }
-          : null,
+        (get): DisabledState =>
+          get(uiState$).currentQueryText.trim() === ""
+            ? { displayReason: "Query is empty" }
+            : null,
         { label: "saveAsNew.disabled" }
       ),
       click: () => showSnackbar("success", "Opening save dialog..."),
@@ -2069,10 +2738,10 @@ function createQueryPageVM(
           if (get(uiState$).currentQueryText.trim() === "") {
             return { displayReason: "Query is empty" };
           }
-          if (get(uiState$).connectionStatus !== "connected") {
+          if (get(connectionSession$).status !== "connected") {
             return { displayReason: "Not connected to server" };
           }
-          if (!get(uiState$).activeDatabase) {
+          if (!get(connectionSession$).activeDatabase) {
             return { displayReason: "No database selected" };
           }
           return null;
@@ -2081,15 +2750,16 @@ function createQueryPageVM(
       ),
       tooltip$: computed(
         (get): string => {
-          const disabled = get(uiState$).connectionStatus !== "connected";
-          return disabled ? "Connect to a server first" : "Run query (Cmd+Enter)";
+          const disabled = get(connectionSession$).status !== "connected";
+          return disabled
+            ? "Connect to a server first"
+            : "Run query (Cmd+Enter)";
         },
         { label: "run.tooltip" }
       ),
-      isRunning$: computed(
-        (get) => get(queryResults$).isRunning,
-        { label: "run.isRunning" }
-      ),
+      isRunning$: computed((get) => get(queryResults$).isRunning, {
+        label: "run.isRunning",
+      }),
       click: () => {
         const queryText = store.query(uiState$).currentQueryText;
         executeQueryAndUpdateResults(queryText);
@@ -2099,7 +2769,9 @@ function createQueryPageVM(
 
   // Editor
   const editor: QueryEditorVM = {
-    mode$: computed((get) => get(uiState$).editorMode, { label: "editor.mode" }),
+    mode$: computed((get) => get(uiState$).editorMode, {
+      label: "editor.mode",
+    }),
     setMode: (mode) => store.commit(events.uiStateSet({ editorMode: mode })),
     header: editorHeader,
     codeEditor,
@@ -2167,7 +2839,8 @@ function createQueryPageVM(
         const results = get(queryResults$);
         if (results.isRunning) return "Running query...";
         if (results.errorMessage) return results.errorMessage;
-        if (results.tableRows.length === 0 && results.completedAt) return "No table data for this query";
+        if (results.tableRows.length === 0 && results.completedAt)
+          return "No table data for this query";
         if (results.tableRows.length === 0) return "Run a query to see results";
         return null;
       },
@@ -2180,7 +2853,10 @@ function createQueryPageVM(
           key: col,
           label: col,
           isSorted$: constant(false, `table.column.${col}.isSorted`),
-          sortDirection$: constant<"asc" | "desc" | null>(null, `table.column.${col}.sortDirection`),
+          sortDirection$: constant<"asc" | "desc" | null>(
+            null,
+            `table.column.${col}.sortDirection`
+          ),
         }));
       },
       { label: "table.columns" }
@@ -2201,11 +2877,13 @@ function createQueryPageVM(
       { label: "table.rows" }
     ),
     isTruncated$: constant(false, "table.isTruncated"),
-    totalRowCount$: computed(
-      (get) => get(queryResults$).resultCount ?? 0,
-      { label: "table.totalRowCount" }
+    totalRowCount$: computed((get) => get(queryResults$).resultCount ?? 0, {
+      label: "table.totalRowCount",
+    }),
+    sort$: constant<{ column: string; direction: "asc" | "desc" } | null>(
+      null,
+      "table.sort"
     ),
-    sort$: constant<{ column: string; direction: "asc" | "desc" } | null>(null, "table.sort"),
     setSort: () => {},
   };
 
@@ -2271,12 +2949,15 @@ function createQueryPageVM(
 
   // Results
   const results: QueryResultsVM = {
-    selectedTab$: computed((get) => get(uiState$).resultsActiveTab, { label: "results.selectedTab" }),
+    selectedTab$: computed((get) => get(uiState$).resultsActiveTab, {
+      label: "results.selectedTab",
+    }),
     setTab: (tab) => store.commit(events.uiStateSet({ resultsActiveTab: tab })),
     disabled$: computed(
-      (get): DisabledState => get(uiState$).connectionStatus !== "connected"
-        ? { displayReason: "Not connected to server" }
-        : null,
+      (get): DisabledState =>
+        get(connectionSession$).status !== "connected"
+          ? { displayReason: "Not connected to server" }
+          : null,
       { label: "results.disabled" }
     ),
     log,
@@ -2323,11 +3004,16 @@ function createQueryPageVM(
   const ErrorIcon: IconComponent = () => null;
   const RunningIcon: IconComponent = () => null;
 
-  const getStatusIcon = (status: "success" | "error" | "running"): IconComponent => {
+  const getStatusIcon = (
+    status: "success" | "error" | "running"
+  ): IconComponent => {
     switch (status) {
-      case "success": return SuccessIcon;
-      case "error": return ErrorIcon;
-      case "running": return RunningIcon;
+      case "success":
+        return SuccessIcon;
+      case "error":
+        return ErrorIcon;
+      case "running":
+        return RunningIcon;
     }
   };
 
@@ -2348,16 +3034,20 @@ function createQueryPageVM(
       type: "query",
       statusIcon: getStatusIcon(status),
       status,
-      summary: entry.queryText.slice(0, 40) + (entry.queryText.length > 40 ? "..." : ""),
+      summary:
+        entry.queryText.slice(0, 40) +
+        (entry.queryText.length > 40 ? "..." : ""),
       fullQueryText: entry.queryText,
       timeAgo$: constant(formatTimeAgo(date), `history.${entry.id}.timeAgo`),
       timestampDisplay: formatTimestamp(date),
       durationDisplay: formatDuration(entry.durationMs),
       loadInEditor: () => {
-        store.commit(events.uiStateSet({
-          currentQueryText: entry.queryText,
-          hasUnsavedChanges: true,
-        }));
+        store.commit(
+          events.uiStateSet({
+            currentQueryText: entry.queryText,
+            hasUnsavedChanges: true,
+          })
+        );
         showSnackbar("success", "Query loaded into editor");
       },
       showErrorDetails: () => {
@@ -2371,7 +3061,9 @@ function createQueryPageVM(
 
   // History Bar - reads from queryHistory$ table
   const historyBar: QueryHistoryBarVM = {
-    isExpanded$: computed((get) => get(uiState$).historyBarExpanded, { label: "history.expanded" }),
+    isExpanded$: computed((get) => get(uiState$).historyBarExpanded, {
+      label: "history.expanded",
+    }),
     toggle: () => {
       const expanded = store.query(uiState$).historyBarExpanded;
       store.commit(events.uiStateSet({ historyBarExpanded: !expanded }));
@@ -2391,10 +3083,9 @@ function createQueryPageVM(
       },
       { label: "history.entries" }
     ),
-    isEmpty$: computed(
-      (get) => get(queryHistory$).length === 0,
-      { label: "history.isEmpty" }
-    ),
+    isEmpty$: computed((get) => get(queryHistory$).length === 0, {
+      label: "history.isEmpty",
+    }),
     clear: () => {
       store.commit(events.historyCleared({}));
       showSnackbar("success", "History cleared");
@@ -2409,9 +3100,9 @@ function createQueryPageVM(
     docsViewer: docsViewerVM,
     placeholder$: computed(
       (get) => {
-        const ui = get(uiState$);
+        const session = get(connectionSession$);
 
-        if (ui.connectionStatus !== "connected") {
+        if (session.status !== "connected") {
           return {
             type: "noServer" as const,
             message: "Connect to a server to start querying",
@@ -2423,7 +3114,7 @@ function createQueryPageVM(
           };
         }
 
-        if (!ui.activeDatabase) {
+        if (!session.activeDatabase) {
           return {
             type: "noDatabase" as const,
             message: "Select a database to start querying",
@@ -2450,7 +3141,10 @@ function createSchemaPageVM(
 ): SchemaPageVM {
   // Schema Tree helper
   const emptySchemaItems: SchemaTreeItemVM[] = [];
-  const createSchemaTreeGroup = (label: string, prefix: string): SchemaTreeGroupVM => ({
+  const createSchemaTreeGroup = (
+    label: string,
+    prefix: string
+  ): SchemaTreeGroupVM => ({
     label,
     count$: constant(0, `${prefix}.count`),
     collapsed$: constant(false, `${prefix}.collapsed`),
@@ -2472,22 +3166,56 @@ function createSchemaPageVM(
       width$: constant(280, "schema.sidebar.width"),
       setWidth: () => {},
       tree: schemaTree,
-      viewMode$: computed((get) => get(uiState$).schemaViewMode, { label: "schema.viewMode" }),
-      setViewMode: (mode) => store.commit(events.uiStateSet({ schemaViewMode: mode })),
+      viewMode$: computed((get) => get(uiState$).schemaViewMode, {
+        label: "schema.viewMode",
+      }),
+      setViewMode: (mode) =>
+        store.commit(events.uiStateSet({ schemaViewMode: mode })),
       linksVisibility: {
-        sub$: computed((get) => get(uiState$).schemaShowSub, { label: "schema.showSub" }),
-        toggleSub: () => store.commit(events.uiStateSet({ schemaShowSub: !store.query(uiState$).schemaShowSub })),
-        owns$: computed((get) => get(uiState$).schemaShowOwns, { label: "schema.showOwns" }),
-        toggleOwns: () => store.commit(events.uiStateSet({ schemaShowOwns: !store.query(uiState$).schemaShowOwns })),
-        plays$: computed((get) => get(uiState$).schemaShowPlays, { label: "schema.showPlays" }),
-        togglePlays: () => store.commit(events.uiStateSet({ schemaShowPlays: !store.query(uiState$).schemaShowPlays })),
-        relates$: computed((get) => get(uiState$).schemaShowRelates, { label: "schema.showRelates" }),
-        toggleRelates: () => store.commit(events.uiStateSet({ schemaShowRelates: !store.query(uiState$).schemaShowRelates })),
+        sub$: computed((get) => get(uiState$).schemaShowSub, {
+          label: "schema.showSub",
+        }),
+        toggleSub: () =>
+          store.commit(
+            events.uiStateSet({
+              schemaShowSub: !store.query(uiState$).schemaShowSub,
+            })
+          ),
+        owns$: computed((get) => get(uiState$).schemaShowOwns, {
+          label: "schema.showOwns",
+        }),
+        toggleOwns: () =>
+          store.commit(
+            events.uiStateSet({
+              schemaShowOwns: !store.query(uiState$).schemaShowOwns,
+            })
+          ),
+        plays$: computed((get) => get(uiState$).schemaShowPlays, {
+          label: "schema.showPlays",
+        }),
+        togglePlays: () =>
+          store.commit(
+            events.uiStateSet({
+              schemaShowPlays: !store.query(uiState$).schemaShowPlays,
+            })
+          ),
+        relates$: computed((get) => get(uiState$).schemaShowRelates, {
+          label: "schema.showRelates",
+        }),
+        toggleRelates: () =>
+          store.commit(
+            events.uiStateSet({
+              schemaShowRelates: !store.query(uiState$).schemaShowRelates,
+            })
+          ),
       },
     },
     graph: {
       status$: constant<SchemaGraphStatus>("loading", "schema.graph.status"),
-      statusMessage$: constant<string | null>("Select a database to view schema", "schema.graph.statusMessage"),
+      statusMessage$: constant<string | null>(
+        "Select a database to view schema",
+        "schema.graph.statusMessage"
+      ),
       retry: () => {},
       setCanvasRef: () => {},
       zoom: {
@@ -2496,15 +3224,24 @@ function createSchemaPageVM(
         zoomOut: () => {},
         reset: () => {},
       },
-      selectedNode$: constant<SchemaGraphNodeVM | null>(null, "schema.graph.selectedNode"),
-      hoveredNode$: constant<SchemaGraphNodeVM | null>(null, "schema.graph.hoveredNode"),
-      highlightFilter$: constant<string | null>(null, "schema.graph.highlightFilter"),
+      selectedNode$: constant<SchemaGraphNodeVM | null>(
+        null,
+        "schema.graph.selectedNode"
+      ),
+      hoveredNode$: constant<SchemaGraphNodeVM | null>(
+        null,
+        "schema.graph.hoveredNode"
+      ),
+      highlightFilter$: constant<string | null>(
+        null,
+        "schema.graph.highlightFilter"
+      ),
       setHighlightFilter: () => {},
     },
     placeholder$: computed(
       (get) => {
-        const ui = get(uiState$);
-        if (ui.connectionStatus !== "connected") {
+        const session = get(connectionSession$);
+        if (session.status !== "connected") {
           return {
             type: "noServer" as const,
             message: "Connect to a server to view schema",
@@ -2512,7 +3249,7 @@ function createSchemaPageVM(
             action: () => {},
           };
         }
-        if (!ui.activeDatabase) {
+        if (!session.activeDatabase) {
           return {
             type: "noDatabase" as const,
             message: "Select a database to view schema",
@@ -2533,7 +3270,10 @@ function createSchemaPageVM(
 
 function createUsersPageVM(
   _store: Store<typeof schema>,
-  showSnackbar: (type: "success" | "warning" | "error", message: string) => void,
+  showSnackbar: (
+    type: "success" | "warning" | "error",
+    message: string
+  ) => void,
   _connectionStatus$: Queryable<ConnectionStatus>
 ): UsersPageVM {
   const emptyUsers: UserRowVM[] = [];
@@ -2546,16 +3286,17 @@ function createUsersPageVM(
     createUser: {
       click: () => showSnackbar("success", "Opening create user dialog..."),
       disabled$: computed(
-        (get): DisabledState => get(uiState$).connectionStatus !== "connected"
-          ? { displayReason: "Not connected" }
-          : null,
+        (get): DisabledState =>
+          get(connectionSession$).status !== "connected"
+            ? { displayReason: "Not connected" }
+            : null,
         { label: "users.createUser.disabled" }
       ),
     },
     placeholder$: computed(
       (get): UsersPagePlaceholder | null => {
-        const ui = get(uiState$);
-        if (ui.connectionStatus !== "connected") {
+        const session = get(connectionSession$);
+        if (session.status !== "connected") {
           return {
             type: "noServer" as const,
             message: "Connect to a server to manage users",
@@ -2577,12 +3318,14 @@ function createUsersPageVM(
 function createLearnPageVM(
   store: Store<typeof schema>,
   navigate: (path: string) => void,
-  showSnackbar: (type: "success" | "warning" | "error", message: string) => void,
+  showSnackbar: (
+    type: "success" | "warning" | "error",
+    message: string
+  ) => void,
   sections: Record<string, ParsedSection>,
   profileId: string,
   queryExecutionService: QueryExecutionService
 ): LearnPageVM {
-
   // Group sections by folder path for curriculum structure
   const sectionsByFolder = new Map<string, ParsedSection[]>();
   for (const section of curriculumSections) {
@@ -2597,17 +3340,19 @@ function createLearnPageVM(
   const curriculumMeta: CurriculumMeta = {
     name: "TypeQL Learning",
     version: "1.0.0",
-    sections: Array.from(sectionsByFolder.entries()).map(([folder, folderSections]): SectionMeta => ({
-      id: folder,
-      title: formatFolderTitle(folder),
-      path: folder,
-      lessons: folderSections.map((s) => ({
-        id: s.id,
-        title: s.title,
-        file: s.sourceFile,
-        context: s.context,
-      })),
-    })),
+    sections: Array.from(sectionsByFolder.entries()).map(
+      ([folder, folderSections]): SectionMeta => ({
+        id: folder,
+        title: formatFolderTitle(folder),
+        path: folder,
+        lessons: folderSections.map((s) => ({
+          id: s.id,
+          title: s.title,
+          file: s.sourceFile,
+          context: s.context,
+        })),
+      })
+    ),
     contexts: curriculumContexts,
   };
 
