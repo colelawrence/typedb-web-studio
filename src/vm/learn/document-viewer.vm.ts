@@ -117,17 +117,18 @@ export interface DocumentSectionVM {
   requires: readonly string[];
 
   /**
-   * The raw markdown content for rendering.
+   * Ordered content blocks in display order.
+   * Contains headings, examples, and prose blocks ready for rendering.
    */
-  rawContent: string;
+  contentBlocks: DocumentSectionContentBlockVM[];
 
   /**
-   * Parsed headings in the document.
+   * All headings in the document (for TOC, navigation).
    */
   headings: DocumentHeadingVM[];
 
   /**
-   * Parsed examples in the document.
+   * All examples in the document (for progress tracking).
    */
   examples: DocumentExampleVM[];
 
@@ -320,6 +321,19 @@ export interface ExampleRunResultVM {
    */
   executionTimeMs: number;
 }
+
+/**
+ * A content block within a document section.
+ *
+ * Represents a single renderable unit in display order:
+ * - heading: A section heading with progress tracking
+ * - example: An interactive code example
+ * - prose: Markdown text content
+ */
+export type DocumentSectionContentBlockVM =
+  | { kind: "heading"; heading: DocumentHeadingVM }
+  | { kind: "example"; example: DocumentExampleVM }
+  | { kind: "prose"; content: string };
 
 /**
  * Context switch prompt VM.
