@@ -206,11 +206,61 @@ export const tables = {
   }),
 
   // -------------------------------------------------------------------------
+  // Connection Session (Client Document - Session-scoped)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Active connection session state.
+   * Mirrors the real TypeDB service status and replaces ad-hoc uiState fields.
+   * This is the source of truth for "are we connected?" and "what are we connected to?"
+   */
+  connectionSession: State.SQLite.clientDocument({
+    name: "connectionSession",
+    schema: Schema.Struct({
+      // Connection mode and target
+      mode: Schema.NullOr(Schema.Literal("wasm", "http")),
+      address: Schema.NullOr(Schema.String),
+      username: Schema.NullOr(Schema.String),
+
+      // Reference to saved connection config (if using a saved connection)
+      savedConnectionId: Schema.NullOr(Schema.String),
+      savedLocalServerId: Schema.NullOr(Schema.String),
+
+      // Connection status (mirrors service provider state)
+      status: Schema.Literal("disconnected", "connecting", "connected", "reconnecting"),
+
+      // Active database within the session
+      activeDatabase: Schema.NullOr(Schema.String),
+
+      // Timestamps for diagnostics
+      connectedAt: Schema.NullOr(Schema.Number),
+      lastStatusChange: Schema.Number,
+      lastDisconnectedAt: Schema.NullOr(Schema.Number),
+    }),
+    default: {
+      id: SessionIdSymbol,
+      value: {
+        mode: null,
+        address: null,
+        username: null,
+        savedConnectionId: null,
+        savedLocalServerId: null,
+        status: "disconnected",
+        activeDatabase: null,
+        connectedAt: null,
+        lastStatusChange: Date.now(),
+        lastDisconnectedAt: null,
+      },
+    },
+  }),
+
+  // -------------------------------------------------------------------------
   // UI State (Client Document - Session-scoped)
   // -------------------------------------------------------------------------
 
   /**
    * Client-only UI state that doesn't need to sync.
+   * NOTE: Connection-related state has been moved to connectionSession.
    */
   uiState: State.SQLite.clientDocument({
     name: "uiState",
@@ -218,19 +268,13 @@ export const tables = {
       // Current page
       currentPage: Schema.Literal("home", "connect", "learn", "query", "schema", "users"),
 
-      // Connection form state
+      // Connection form state (form inputs only, not connection status)
       connectionFormMode: Schema.Literal("url", "credentials"),
       connectionFormUrl: Schema.String,
       connectionFormAddress: Schema.String,
       connectionFormUsername: Schema.String,
       connectionFormPassword: Schema.String,
       isConnecting: Schema.Boolean,
-
-      // Active connection session (not persisted)
-      activeConnectionId: Schema.NullOr(Schema.String),
-      activeLocalServerId: Schema.NullOr(Schema.String),
-      activeDatabase: Schema.NullOr(Schema.String),
-      connectionStatus: Schema.Literal("disconnected", "connecting", "connected", "reconnecting"),
 
       // Remote connection form expanded state
       remoteConnectionExpanded: Schema.Boolean,
@@ -287,10 +331,6 @@ export const tables = {
         connectionFormUsername: "",
         connectionFormPassword: "",
         isConnecting: false,
-        activeConnectionId: null,
-        activeLocalServerId: null,
-        activeDatabase: null,
-        connectionStatus: "disconnected",
         remoteConnectionExpanded: false,
         currentQueryText: "",
         currentQueryId: null,
@@ -436,25 +476,49 @@ export const tables = {
   }),
 
   /**
-   * Available databases for the current connection.
-   * Updated when connection is established or databases are refreshed.
+   * Session-scoped database catalog.
+   * Tracks available databases for the current connection session with staleness info.
+   * Cleared/marked stale when session disconnects to prevent data leaking between sessions.
    */
-  availableDatabases: State.SQLite.clientDocument({
-    name: "availableDatabases",
+  sessionDatabases: State.SQLite.clientDocument({
+    name: "sessionDatabases",
     schema: Schema.Struct({
-      /** Whether database list is loading */
+      /** Whether database list is currently loading */
       isLoading: Schema.Boolean,
-      /** List of database names */
-      databases: Schema.Array(Schema.String),
-      /** Last refreshed timestamp */
+      /** Whether the cached data is stale (e.g., after disconnect or fetch error) */
+      isStale: Schema.Boolean,
+      /** Database entries with per-database metadata */
+      databases: Schema.Array(
+        Schema.Struct({
+          name: Schema.String,
+          lastSeenAt: Schema.Number,
+        })
+      ),
+      /** Last successful refresh timestamp */
       lastRefreshedAt: Schema.NullOr(Schema.Number),
+      /** Connection timestamp when this data was fetched (to detect reconnects) */
+      fetchedForConnectionAt: Schema.NullOr(Schema.Number),
+      /** Error message if last fetch failed */
+      lastError: Schema.NullOr(Schema.String),
+      /** Backoff: last refresh attempt timestamp (success or failure) */
+      lastRefreshAttemptAt: Schema.NullOr(Schema.Number),
+      /** Backoff: consecutive failure count (resets to 0 on success) */
+      refreshRetryCount: Schema.Number,
+      /** Backoff: earliest time when next refresh is allowed */
+      nextAllowedRefreshAt: Schema.NullOr(Schema.Number),
     }),
     default: {
       id: SessionIdSymbol,
       value: {
         isLoading: false,
+        isStale: true, // Start as stale until first fetch
         databases: [],
         lastRefreshedAt: null,
+        fetchedForConnectionAt: null,
+        lastError: null,
+        lastRefreshAttemptAt: null,
+        refreshRetryCount: 0,
+        nextAllowedRefreshAt: null,
       },
     },
   }),
@@ -724,6 +788,12 @@ export const events = {
   }),
 
   // -------------------------------------------------------------------------
+  // Connection Session Events (Client-only)
+  // -------------------------------------------------------------------------
+
+  connectionSessionSet: tables.connectionSession.set,
+
+  // -------------------------------------------------------------------------
   // UI State Events (Client-only)
   // -------------------------------------------------------------------------
 
@@ -731,7 +801,7 @@ export const events = {
   snackbarSet: tables.snackbarNotifications.set,
   schemaTypesSet: tables.schemaTypes.set,
   queryResultsSet: tables.queryResults.set,
-  availableDatabasesSet: tables.availableDatabases.set,
+  sessionDatabasesSet: tables.sessionDatabases.set,
 };
 
 // ============================================================================

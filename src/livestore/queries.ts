@@ -105,6 +105,15 @@ export function annotationsForSection$(profileId: string, sectionId: string) {
 }
 
 // ============================================================================
+// Connection Session Queries
+// ============================================================================
+
+/** Current connection session state (client-scoped) */
+export const connectionSession$ = queryDb(tables.connectionSession.get(), {
+  label: "connectionSession",
+});
+
+// ============================================================================
 // UI State Queries
 // ============================================================================
 
@@ -187,10 +196,10 @@ export const queryResults$ = queryDb(tables.queryResults.get(), {
 });
 
 // ============================================================================
-// Available Databases
+// Session Databases (Session-Scoped Database Catalog)
 // ============================================================================
 
-/** Available databases for current connection */
-export const availableDatabases$ = queryDb(tables.availableDatabases.get(), {
-  label: "availableDatabases",
+/** Session-scoped database catalog with staleness tracking */
+export const sessionDatabases$ = queryDb(tables.sessionDatabases.get(), {
+  label: "sessionDatabases",
 });
