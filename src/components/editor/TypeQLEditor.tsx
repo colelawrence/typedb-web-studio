@@ -25,8 +25,6 @@ export interface TypeQLEditorProps {
   value: string;
   /** Called when content changes */
   onChange: (value: string) => void;
-  /** Placeholder text shown when editor is empty */
-  placeholder?: string;
   /** Optional class name for the container */
   className?: string;
   /** Whether the editor is read-only */
@@ -92,7 +90,6 @@ function useIsDarkMode(): boolean {
 export const TypeQLEditor = memo(function TypeQLEditor({
   value,
   onChange,
-  placeholder = "// Enter your TypeQL query here...",
   className = "",
   readOnly = false,
   onKeyDown,
@@ -186,15 +183,11 @@ export const TypeQLEditor = memo(function TypeQLEditor({
     []
   );
 
-  // Track if editor is empty for placeholder
-  const [isEmpty, setIsEmpty] = useState(value === "");
-  useEffect(() => {
-    setIsEmpty(value === "");
-  }, [value]);
-
   return (
-    <div className={`relative ${className}`}>
+    <div className={className}>
       <Editor
+        width="100%"
+        height="100%"
         defaultLanguage={TYPEQL_LANGUAGE_ID}
         defaultValue={value}
         onChange={handleChange}
@@ -248,16 +241,6 @@ export const TypeQLEditor = memo(function TypeQLEditor({
           padding: { top: 16, bottom: 16 },
         }}
       />
-
-      {/* Placeholder overlay when empty */}
-      {isEmpty && (
-        <div
-          className="absolute top-4 left-14 pointer-events-none text-muted-foreground font-mono text-dense-sm"
-          style={{ opacity: 0.6 }}
-        >
-          {placeholder}
-        </div>
-      )}
     </div>
   );
 });

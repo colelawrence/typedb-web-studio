@@ -698,7 +698,6 @@ function QueryEditor({ vm, schemaViewer }: { vm: QueryPageVM["editor"]; schemaVi
             <TypeQLEditor
               value={text}
               onChange={(value) => vm.codeEditor.updateText(value)}
-              placeholder="// Enter your TypeQL query here..."
               className="absolute inset-0"
               onKeyDown={(e) => vm.codeEditor.onKeyDown(e)}
             />
