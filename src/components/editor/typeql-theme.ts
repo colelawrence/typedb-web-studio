@@ -1,8 +1,10 @@
 /**
  * TypeQL Monaco Editor Theme
  *
- * Maps Monaco token types to CSS variable colors defined in styles.css.
- * Supports both light and dark mode by reading CSS custom properties at runtime.
+ * Defines syntax highlighting colors for Monaco editor.
+ * Colors are hardcoded hex values that match the OKLCH values in styles.css.
+ *
+ * Monaco requires hex colors - it cannot use CSS variables or OKLCH directly.
  */
 
 import type * as Monaco from "monaco-editor";
@@ -11,76 +13,62 @@ export const TYPEQL_THEME_LIGHT = "typeql-light";
 export const TYPEQL_THEME_DARK = "typeql-dark";
 
 /**
- * Get computed CSS variable value from the document
+ * Light mode syntax colors
+ * Converted from OKLCH values in styles.css (lines 56-67)
  */
-function getCSSVariable(name: string): string {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-}
+const LIGHT_COLORS = {
+  // Syntax tokens
+  keywordRead: "0077aa",    // oklch(0.50 0.18 220) - cyan
+  keywordWrite: "b45309",   // oklch(0.55 0.18 60) - amber
+  keywordSchema: "7c3aed",  // oklch(0.50 0.18 290) - violet
+  keywordStruct: "6d28d9",  // oklch(0.45 0.15 280) - purple
+  keywordModifier: "475569", // oklch(0.40 0.10 250) - blue-gray
+  type: "0d9488",           // oklch(0.55 0.15 180) - teal
+  variable: "c2410c",       // oklch(0.60 0.12 60) - orange
+  string: "16a34a",         // oklch(0.50 0.15 140) - green
+  number: "ea580c",         // oklch(0.55 0.18 40) - orange-red
+  comment: "64748b",        // oklch(0.55 0.03 250) - gray
+  punctuation: "64748b",    // muted foreground
+
+  // Editor colors
+  foreground: "0f172a",     // near black
+  background: "ffffff",     // white
+  muted: "f1f5f9",          // light gray
+  lineHighlight: "f8fafc",  // very light gray
+};
 
 /**
- * Convert OKLCH color to hex for Monaco
- * Monaco requires hex colors, but our CSS uses OKLCH
- * This creates a temporary element to let the browser do the conversion
+ * Dark mode syntax colors
+ * Converted from OKLCH values in styles.css (lines 104-115)
  */
-function cssColorToHex(cssValue: string): string {
-  const temp = document.createElement("div");
-  temp.style.color = cssValue;
-  document.body.appendChild(temp);
-  const computed = getComputedStyle(temp).color;
-  document.body.removeChild(temp);
+const DARK_COLORS = {
+  // Syntax tokens (lighter versions for dark bg)
+  keywordRead: "38bdf8",    // oklch(0.75 0.18 220) - light cyan
+  keywordWrite: "fbbf24",   // oklch(0.80 0.18 60) - light amber
+  keywordSchema: "a78bfa",  // oklch(0.75 0.18 290) - light violet
+  keywordStruct: "8b5cf6",  // oklch(0.70 0.15 280) - light purple
+  keywordModifier: "94a3b8", // oklch(0.65 0.10 250) - light blue-gray
+  type: "2dd4bf",           // oklch(0.80 0.15 180) - light teal
+  variable: "fb923c",       // oklch(0.85 0.12 60) - light orange
+  string: "4ade80",         // oklch(0.75 0.15 140) - light green
+  number: "fb923c",         // oklch(0.80 0.18 40) - light orange-red
+  comment: "64748b",        // oklch(0.50 0.03 250) - gray
+  punctuation: "94a3b8",    // muted foreground
 
-  // Parse rgb(r, g, b) format
-  const match = computed.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-  if (match) {
-    const r = parseInt(match[1], 10).toString(16).padStart(2, "0");
-    const g = parseInt(match[2], 10).toString(16).padStart(2, "0");
-    const b = parseInt(match[3], 10).toString(16).padStart(2, "0");
-    return `#${r}${g}${b}`;
-  }
-
-  // Fallback - return as-is (might already be hex)
-  return cssValue;
-}
+  // Editor colors
+  foreground: "f8fafc",     // near white
+  background: "1e1e2e",     // dark bg
+  muted: "334155",          // dark gray
+  lineHighlight: "2d3748",  // slightly lighter dark
+};
 
 /**
- * Get syntax colors from CSS variables
- */
-function getSyntaxColors(): Record<string, string> {
-  const variables = {
-    keywordRead: "--syntax-keyword-read",
-    keywordWrite: "--syntax-keyword-write",
-    keywordSchema: "--syntax-keyword-schema",
-    keywordStruct: "--syntax-keyword-struct",
-    keywordModifier: "--syntax-keyword-modifier",
-    type: "--syntax-type",
-    variable: "--syntax-variable",
-    string: "--syntax-string",
-    number: "--syntax-number",
-    comment: "--syntax-comment",
-    punctuation: "--syntax-punctuation",
-    foreground: "--foreground",
-    background: "--background",
-    muted: "--muted",
-  };
-
-  const colors: Record<string, string> = {};
-  for (const [key, cssVar] of Object.entries(variables)) {
-    const value = getCSSVariable(cssVar);
-    colors[key] = cssColorToHex(value);
-  }
-
-  return colors;
-}
-
-/**
- * Create Monaco theme definition from CSS variables
+ * Create Monaco theme definition
  */
 export function createTypeQLTheme(
   isDark: boolean
 ): Monaco.editor.IStandaloneThemeData {
-  const colors = getSyntaxColors();
+  const colors = isDark ? DARK_COLORS : LIGHT_COLORS;
 
   return {
     base: isDark ? "vs-dark" : "vs",
@@ -122,13 +110,13 @@ export function createTypeQLTheme(
       { token: "white.typeql", foreground: colors.foreground },
     ],
     colors: {
-      "editor.background": colors.background,
-      "editor.foreground": colors.foreground,
-      "editor.lineHighlightBackground": colors.muted,
-      "editorLineNumber.foreground": colors.comment,
-      "editorLineNumber.activeForeground": colors.foreground,
-      "editor.selectionBackground": colors.muted,
-      "editorCursor.foreground": colors.foreground,
+      "editor.background": `#${colors.background}`,
+      "editor.foreground": `#${colors.foreground}`,
+      "editor.lineHighlightBackground": `#${colors.lineHighlight}`,
+      "editorLineNumber.foreground": `#${colors.comment}`,
+      "editorLineNumber.activeForeground": `#${colors.foreground}`,
+      "editor.selectionBackground": `#${colors.muted}`,
+      "editorCursor.foreground": `#${colors.foreground}`,
     },
   };
 }
@@ -137,15 +125,13 @@ export function createTypeQLTheme(
  * Register TypeQL themes with Monaco
  */
 export function registerTypeQLThemes(monaco: typeof Monaco): void {
-  // We register both themes upfront
-  // The actual colors will be updated when defineTheme is called
   monaco.editor.defineTheme(TYPEQL_THEME_LIGHT, createTypeQLTheme(false));
   monaco.editor.defineTheme(TYPEQL_THEME_DARK, createTypeQLTheme(true));
 }
 
 /**
- * Update themes with current CSS variable values
- * Call this when theme changes (light/dark mode switch)
+ * Update themes - now a no-op since colors are hardcoded
+ * Kept for API compatibility
  */
 export function updateTypeQLThemes(monaco: typeof Monaco): void {
   monaco.editor.defineTheme(TYPEQL_THEME_LIGHT, createTypeQLTheme(false));
