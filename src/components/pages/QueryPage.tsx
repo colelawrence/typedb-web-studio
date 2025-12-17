@@ -35,6 +35,7 @@ import {
   PanelResizeHandle,
   type ImperativePanelHandle,
 } from "react-resizable-panels";
+import { TypeQLEditor } from "../editor";
 
 export function QueryPage({ vm }: { vm: QueryPageVM }) {
   return (
@@ -691,20 +692,15 @@ function QueryEditor({ vm, schemaViewer }: { vm: QueryPageVM["editor"]; schemaVi
       </div>
 
       {/* Editor Area */}
-      <div className="overflow-y-auto bg-muted/30 relative grow">
+      <div className="bg-muted/30 relative grow">
         <Queryable query={vm.codeEditor.text$}>
           {(text) => (
-            <textarea
+            <TypeQLEditor
               value={text}
-              onChange={(e) => vm.codeEditor.updateText(e.target.value)}
+              onChange={(value) => vm.codeEditor.updateText(value)}
               placeholder="// Enter your TypeQL query here..."
-              className="
-                w-full p-4 absolute inset-0 min-h-40
-                font-mono text-dense-sm
-                resize-none
-                focus:outline-none
-                placeholder:text-muted-foreground
-              "
+              className="absolute inset-0"
+              onKeyDown={(e) => vm.codeEditor.onKeyDown(e)}
             />
           )}
         </Queryable>
