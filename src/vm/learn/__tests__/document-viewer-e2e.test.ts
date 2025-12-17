@@ -202,7 +202,7 @@ describe("Document Viewer End-to-End", () => {
     });
 
     // Create document viewer scope with real sections and REPL bridge
-    const { vm: viewer, service: viewerService } = createDocumentViewerScope({
+    const { vm: viewer, service: _viewerService } = createDocumentViewerScope({
       store,
       profileId,
       sections: TEST_SECTIONS,

@@ -303,7 +303,6 @@ export function createLearnSidebarScope(
   // Create folder VMs once (memoized) since curriculumMeta is static
   const learnFolderVMs: LearnFolderVM[] = curriculumMeta.sections.map((sectionMeta): LearnFolderVM => {
     const lessonIds = sectionMeta.lessons.map((l) => l.id);
-    const totalCount = lessonIds.length;
 
     // Create lesson VMs once per folder
     const lessonVMs: LearnSectionItemVM[] = sectionMeta.lessons.map((lesson): LearnSectionItemVM => ({

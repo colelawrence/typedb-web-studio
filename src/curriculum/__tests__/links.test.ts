@@ -325,7 +325,6 @@ describe("getSectionsReferencingKeyword", () => {
 describe("findBrokenLinks", () => {
   it("finds links to non-existent sections", () => {
     const sectionsMap = new Map(MOCK_SECTIONS.map((s) => [s.id, s]));
-    const index = buildLinkIndex(MOCK_SECTIONS);
 
     // Add a broken link
     const brokenSection: ParsedSection = {
@@ -349,7 +348,6 @@ describe("findBrokenLinks", () => {
 
   it("finds broken internal heading links", () => {
     const sectionsMap = new Map(MOCK_SECTIONS.map((s) => [s.id, s]));
-    const index = buildLinkIndex(MOCK_SECTIONS);
 
     // Add section with broken heading link
     const brokenSection: ParsedSection = {

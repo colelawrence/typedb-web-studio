@@ -115,7 +115,7 @@ export async function createVMTestContext(): Promise<VMTestContext> {
   const navigate = vi.fn()
 
   // Create the VM scope
-  const { vm, services } = createStudioScope(store, navigate)
+  const { vm, services: _services } = createStudioScope(store, navigate)
 
   // Cleanup function
   const cleanup = async () => {

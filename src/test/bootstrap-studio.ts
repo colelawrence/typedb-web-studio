@@ -10,7 +10,7 @@ import { createStore, provideOtel } from "@livestore/livestore";
 import { makeInMemoryAdapter } from "@livestore/adapter-web";
 import { Effect } from "effect";
 
-import { schema, events } from "../livestore/schema";
+import { schema } from "../livestore/schema";
 import { createStudioScope, type StudioServices } from "../vm/scope";
 import type { TypeDBStudioAppVM } from "../vm/app.vm";
 import { makeQuery, type TestQueryFn } from "./vm-test-helpers";

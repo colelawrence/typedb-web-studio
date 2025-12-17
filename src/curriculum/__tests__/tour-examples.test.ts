@@ -9,11 +9,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TypeDBEmbeddedService, createEmbeddedService } from '../../services/typedb-embedded-service';
 import { testExample, formatTestResult } from '../test-runner';
 import { clearContexts } from '../context-loader';
-import type { ParsedExample, ParsedSection } from '../types';
+import type { ParsedSection } from '../types';
 
 import {
   curriculumSections,
-  curriculumMetadata,
 } from 'virtual:curriculum-content';
 
 // Same context setup as all-examples.test.ts

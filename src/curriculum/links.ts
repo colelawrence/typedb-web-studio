@@ -257,7 +257,7 @@ export function getSectionsReferencingKeyword(
  * Check if a link target exists.
  */
 export function linkTargetExists(
-  index: LinkIndex,
+  _index: LinkIndex,
   link: ParsedLink,
   sections: Map<string, ParsedSection>
 ): boolean {
