@@ -24,6 +24,7 @@ import type { DocumentExampleVM, ExampleExecutionState } from "@/vm/learn";
 import { mapExampleResultToDisplayVM } from "@/vm/query-results.adapters";
 import { QueryResultsDisplay } from "../query/QueryResultsDisplay";
 import { Button } from "../ui/button";
+import { TypeQLHighlighter } from "../editor";
 
 export interface ExampleBlockProps {
   vm: DocumentExampleVM;
@@ -42,7 +43,7 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
     >
       {/* Code display */}
       <pre className="p-3 pr-24 overflow-x-auto text-dense-sm font-mono bg-muted/30">
-        <code className="text-foreground">{vm.query}</code>
+        <TypeQLHighlighter code={vm.query} className="text-foreground" />
       </pre>
 
       {/* Action buttons */}
