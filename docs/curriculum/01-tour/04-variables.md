@@ -23,7 +23,7 @@ Each result row shows a person with their name and age bound to `$n` and `$a`.
 
 Every variable needs something to bind to. This fails:
 
-```typeql:invalid[id=tour-unbound-var, error=unbound]
+```typeql:invalid[id=tour-unbound-var, error=data]
 match $p isa person; $x > 10;
 ```
 

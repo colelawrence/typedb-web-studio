@@ -287,6 +287,37 @@ export const tables = {
   }),
 
   // -------------------------------------------------------------------------
+  // Lesson Context (Client Document - Session-scoped)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Tracks the current lesson context state for the Learn page.
+   * This is the reactive source of truth for which context is loaded.
+   */
+  lessonContext: State.SQLite.clientDocument({
+    name: "lessonContext",
+    schema: Schema.Struct({
+      /** Currently loaded context name, or null if none */
+      currentContext: Schema.NullOr(Schema.String),
+      /** Whether a context is currently being loaded */
+      isLoading: Schema.Boolean,
+      /** Last error message, or null if no error */
+      lastError: Schema.NullOr(Schema.String),
+      /** Timestamp when context was last loaded */
+      lastLoadedAt: Schema.NullOr(Schema.Number),
+    }),
+    default: {
+      id: SessionIdSymbol,
+      value: {
+        currentContext: null,
+        isLoading: false,
+        lastError: null,
+        lastLoadedAt: null,
+      },
+    },
+  }),
+
+  // -------------------------------------------------------------------------
   // UI State (Client Document - Session-scoped)
   // -------------------------------------------------------------------------
 
@@ -852,6 +883,12 @@ export const events = {
   // -------------------------------------------------------------------------
 
   connectionSessionSet: tables.connectionSession.set,
+
+  // -------------------------------------------------------------------------
+  // Lesson Context Events (Client-only)
+  // -------------------------------------------------------------------------
+
+  lessonContextSet: tables.lessonContext.set,
 
   // -------------------------------------------------------------------------
   // UI State Events (Client-only)

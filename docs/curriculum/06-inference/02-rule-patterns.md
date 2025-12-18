@@ -1,103 +1,96 @@
 ---
 id: inf-rule-patterns
-title: Common Rule Patterns
-context: null
+title: Modeling Derived Relationships
+context: social-network
 requires: [inf-rules-intro]
 ---
 
-# Common Rule Patterns
+# Modeling Derived Relationships
 
-Rules follow predictable patterns. Learning these patterns helps you model complex domains.
+Without automatic inference, we model derived relationships with multi-hop queries. These patterns work with the social network data.
 
-## Pattern 1: Simple Derivation
+## Pattern 1: Multi-Hop Queries
 
-Derive one relation from another:
+Find indirect relationships by chaining patterns. This finds friends-of-friends:
 
-```typeql:readonly[id=inf-pattern-simple]
-define
-rule parent-is-ancestor:
+```typeql:example[id=inf-multihop-fof, expect=results, min=1]
+match
+  $me isa person, has name "Alice";
+  (friend: $me, friend: $f1) isa friendship;
+  (friend: $f1, friend: $fof) isa friendship;
+  not { $fof is $me; };
+  $fof has name $name;
+```
+
+Alice's friends are Bob and Carol. Bob's friends include Carol and Dan. So Dan is a friend-of-friend.
+
+## Pattern 2: Shared Context
+
+Find people with common relationships. This finds coworkers:
+
+```typeql:example[id=inf-shared-employer, expect=results, min=1]
+match
+  $p1 isa person, has name $n1;
+  $p2 isa person, has name $n2;
+  (employee: $p1, employer: $c) isa employment;
+  (employee: $p2, employer: $c) isa employment;
+  not { $p1 is $p2; };
+```
+
+Two people are coworkers if they work for the same company.
+
+## Pattern 3: Cross-Relationship Queries
+
+Combine friendship and employment patterns:
+
+```typeql:example[id=inf-cross-relations, expect=results, min=1]
+match
+  $person isa person, has name "Alice";
+  $company isa company, has name $company-name;
+  (friend: $person, friend: $friend) isa friendship;
+  (employee: $friend, employer: $company) isa employment;
+```
+
+This finds companies where Alice's friends work.
+
+## Pattern 4: Aggregated Attributes
+
+Use `reduce` for computed values:
+
+```typeql:example[id=inf-computed-count, expect=results, min=1]
+match
+  $c isa company, has name $company-name;
+  (employee: $p, employer: $c) isa employment;
+reduce $employee-count = count groupby $c, $company-name;
+```
+
+Count employees per company.
+
+## When to Store vs Query
+
+**Query patterns directly when:**
+- Data changes frequently
+- Real-time accuracy matters
+- The pattern is simple (2-3 hops)
+
+**Store derived relationships when:**
+- They're queried frequently
+- The computation spans many hops
+- Performance is critical
+
+## Future: Rule Syntax
+
+When rules become available, multi-hop patterns can be computed automatically:
+
+```
+# Future syntax (not yet supported)
+rule friend-of-friend:
   when {
-    (parent: $p, child: $c) isa parenthood;
+    (friend: $a, friend: $b) isa friendship;
+    (friend: $b, friend: $c) isa friendship;
   } then {
-    (ancestor: $p, descendant: $c) isa ancestry;
+    (indirect-friend: $a, indirect-friend: $c) isa indirect-friendship;
   };
 ```
 
-Every parent is also an ancestor of their children.
-
-## Pattern 2: Transitive Closure
-
-Self-referential rules for graph traversal:
-
-```typeql:readonly[id=inf-pattern-transitive]
-define
-rule transitive-ancestry:
-  when {
-    (ancestor: $a, descendant: $b) isa ancestry;
-    (ancestor: $b, descendant: $c) isa ancestry;
-  } then {
-    (ancestor: $a, descendant: $c) isa ancestry;
-  };
-```
-
-Ancestors of ancestors are also ancestors.
-
-## Pattern 3: Permission Inheritance
-
-Derive individual permissions from group membership:
-
-```typeql:readonly[id=inf-pattern-permission]
-define
-rule inherited-team-permission:
-  when {
-    (team: $team, member: $member) isa team-membership;
-    (subject: $team, object: $obj, action: $act) isa permission;
-  } then {
-    (subject: $member, object: $obj, action: $act) isa inherited-permission;
-  };
-```
-
-Team members inherit their team's permissions.
-
-## Pattern 4: Conditional Classification
-
-Classify entities based on attribute values:
-
-```typeql:readonly[id=inf-pattern-classify]
-define
-rule high-value-customer:
-  when {
-    $c isa customer, has total-purchases $p;
-    $p > 10000;
-  } then {
-    $c has customer-tier "gold";
-  };
-```
-
-Customers with high purchases are automatically "gold" tier.
-
-## Combining Rules
-
-Multiple rules can work together:
-
-```typeql:readonly[id=inf-pattern-combined]
-define
-# Base case
-rule parent-is-ancestor:
-  when {
-    (parent: $p, child: $c) isa parenthood;
-  } then {
-    (ancestor: $p, descendant: $c) isa ancestry;
-  };
-
-# Recursive case
-rule transitive-ancestry:
-  when {
-    (ancestor: $a, descendant: $b) isa ancestry;
-    (ancestor: $b, descendant: $c) isa ancestry;
-  } then {
-    (ancestor: $a, descendant: $c) isa ancestry;
-  };
-```
-
-Together, these rules compute the complete ancestry graph.
+Until then, use explicit multi-hop queries.

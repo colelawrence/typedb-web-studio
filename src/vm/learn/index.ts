@@ -32,6 +32,7 @@ export type {
   DocumentHeadingVM,
   DocumentExampleVM,
   ExampleExecutionState,
+  ExampleRunReadiness,
   ExampleRunResultVM,
   ContextSwitchPromptVM,
 } from "./document-viewer.vm";

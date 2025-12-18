@@ -39,10 +39,6 @@ import { constant } from "./constant";
 // Configuration
 // ============================================================================
 
-const SIDEBAR_WIDTH_MIN = 200;
-const SIDEBAR_WIDTH_MAX = 400;
-const SIDEBAR_WIDTH_DEFAULT = 280;
-
 /**
  * Computes progress state from section read counts.
  */
@@ -75,8 +71,8 @@ export interface LearnSidebarScopeOptions {
   sections: Record<string, ParsedSection>;
   /** Navigation callback for selecting content */
   navigate: (sectionId: string, headingId?: string) => void;
-  /** Getter for currently active section ID */
-  getActiveSectionId: () => string | null;
+  /** Key in uiState for current section ID (for reactive isActive$ computed) */
+  sectionIdKey?: "learnCurrentSectionId" | "queryDocsCurrentSectionId";
 }
 
 // ============================================================================
@@ -95,50 +91,11 @@ export function createLearnSidebarScope(
     curriculumMeta,
     sections,
     navigate,
-    getActiveSectionId,
+    sectionIdKey = "learnCurrentSectionId",
   } = options;
 
   // Build search index once
   const searchIndex = buildSearchIndex(curriculumMeta, sections);
-
-  // ---------------------------------------------------------------------------
-  // Sidebar Width (with localStorage persistence)
-  // ---------------------------------------------------------------------------
-
-  const STORAGE_KEY = "typedb_studio_learn_sidebar_width";
-
-  const getSavedWidth = (): number => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const width = parseInt(saved, 10);
-        if (width >= SIDEBAR_WIDTH_MIN && width <= SIDEBAR_WIDTH_MAX) {
-          return width;
-        }
-      }
-    } catch {
-      // localStorage not available
-    }
-    return SIDEBAR_WIDTH_DEFAULT;
-  };
-
-  // Store width in a client-side state (not LiveStore since it's UI-local)
-  let currentWidth = getSavedWidth();
-
-  const width$ = computed(
-    () => currentWidth,
-    { label: "learnSidebar.width" }
-  );
-
-  const setWidth = (width: number) => {
-    const clamped = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, width));
-    currentWidth = clamped;
-    try {
-      localStorage.setItem(STORAGE_KEY, String(clamped));
-    } catch {
-      // localStorage not available
-    }
-  };
 
   // ---------------------------------------------------------------------------
   // Search
@@ -310,8 +267,8 @@ export function createLearnSidebarScope(
       title: lesson.title,
 
       isActive$: computed(
-        () => getActiveSectionId() === lesson.id,
-        { label: `learnLesson.${lesson.id}.isActive`, deps: [lesson.id] }
+        (get) => get(uiState$)[sectionIdKey] === lesson.id,
+        { label: `learnLesson.${lesson.id}.isActive`, deps: [sectionIdKey] }
       ),
 
       progressState$: computed(
@@ -411,6 +368,29 @@ export function createLearnSidebarScope(
     };
   });
 
+  const progressPercentNumber$ = computed(
+    (get) => {
+      // Count actual heading progress across ALL sections
+      const allProgress = get(readingProgress$);
+      let totalHeadings = 0;
+      let readHeadings = 0;
+
+      for (const sectionMeta of curriculumMeta.sections) {
+        for (const lesson of sectionMeta.lessons) {
+          const parsedSection = sections[lesson.id];
+          if (parsedSection) {
+            totalHeadings += parsedSection.headings.length;
+            readHeadings += allProgress.filter(
+              p => p.sectionId === lesson.id && p.headingId !== null && p.markedRead
+            ).length;
+          }
+        }
+      }
+
+      return computeProgressPercent(readHeadings, totalHeadings);
+    },
+    { label: "learnSection.progressPercent" }
+  );
   const learnSection: LearnSectionVM = {
     label: "LEARN",
 
@@ -424,52 +404,10 @@ export function createLearnSidebarScope(
       store.commit(events.uiStateSet({ learnSectionCollapsed: !current.learnSectionCollapsed }));
     },
 
-    progressPercent$: computed(
-      (get) => {
-        // Count actual heading progress across ALL sections
-        const allProgress = get(readingProgress$);
-        let totalHeadings = 0;
-        let readHeadings = 0;
-
-        for (const sectionMeta of curriculumMeta.sections) {
-          for (const lesson of sectionMeta.lessons) {
-            const parsedSection = sections[lesson.id];
-            if (parsedSection) {
-              totalHeadings += parsedSection.headings.length;
-              readHeadings += allProgress.filter(
-                p => p.sectionId === lesson.id && p.headingId !== null && p.markedRead
-              ).length;
-            }
-          }
-        }
-
-        return computeProgressPercent(readHeadings, totalHeadings);
-      },
-      { label: "learnSection.progressPercent" }
-    ),
+    progressPercent$: progressPercentNumber$,
 
     progressDisplay$: computed(
-      (get) => {
-        // Count actual heading progress across ALL sections
-        const allProgress = get(readingProgress$);
-        let totalHeadings = 0;
-        let readHeadings = 0;
-
-        for (const sectionMeta of curriculumMeta.sections) {
-          for (const lesson of sectionMeta.lessons) {
-            const parsedSection = sections[lesson.id];
-            if (parsedSection) {
-              totalHeadings += parsedSection.headings.length;
-              readHeadings += allProgress.filter(
-                p => p.sectionId === lesson.id && p.headingId !== null && p.markedRead
-              ).length;
-            }
-          }
-        }
-
-        const percent = computeProgressPercent(readHeadings, totalHeadings);
-        return `${percent}%`;
-      },
+      (get) => `${get(progressPercentNumber$)}%`,
       { label: "learnSection.progressDisplay" }
     ),
 
@@ -504,8 +442,6 @@ export function createLearnSidebarScope(
   // ---------------------------------------------------------------------------
 
   return {
-    width$,
-    setWidth,
     search,
     view$,
     learnSection,

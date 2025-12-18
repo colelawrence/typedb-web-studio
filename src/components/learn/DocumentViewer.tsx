@@ -30,9 +30,11 @@ import type {
   DocumentSectionVM,
   DocumentHeadingVM,
   DocumentSectionContentBlockVM,
+  ContextSwitchPromptVM,
 } from "@/vm/learn";
 import { Button } from "../ui/button";
 import { ExampleBlock } from "./ExampleBlock";
+import { ContextSwitchPrompt } from "./ContextSwitchPrompt";
 
 export interface DocumentViewerProps {
   vm: DocumentViewerVM;
@@ -46,7 +48,11 @@ export function DocumentViewer({ vm }: DocumentViewerProps) {
           <Queryable query={vm.currentSection$}>
             {(section) =>
               section ? (
-                <DocumentContent section={section} onClose={vm.hide} />
+                <DocumentContent
+                  section={section}
+                  onClose={vm.hide}
+                  contextSwitchPrompt={vm.contextSwitchPrompt}
+                />
               ) : (
                 <EmptyState onClose={vm.hide} />
               )
@@ -81,9 +87,11 @@ function EmptyState({ onClose }: { onClose?: () => void }) {
 function DocumentContent({
   section,
   onClose,
+  contextSwitchPrompt,
 }: {
   section: DocumentSectionVM;
   onClose: () => void;
+  contextSwitchPrompt: ContextSwitchPromptVM;
 }) {
   return (
     <div className="flex flex-col h-full bg-card border-l border-border">
@@ -96,6 +104,7 @@ function DocumentContent({
 
       <div className="flex-1 overflow-y-auto">
         <article className="max-w-3xl mx-auto px-6 py-6">
+          <ContextSwitchPrompt vm={contextSwitchPrompt} />
           <SectionContent section={section} />
         </article>
       </div>

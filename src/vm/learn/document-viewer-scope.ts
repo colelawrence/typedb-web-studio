@@ -15,6 +15,8 @@ import {
   uiState$,
   readingProgressForSection$,
   executedExampleIds$,
+  lessonContext$,
+  connectionSession$,
 } from "../../livestore/queries";
 import type { ParsedSection } from "../../curriculum/types";
 import type { ReplBridge } from "../../learn/repl-bridge";
@@ -25,10 +27,12 @@ import {
   type DocumentHeadingVM,
   type DocumentExampleVM,
   type ExampleExecutionState,
+  type ExampleRunReadiness,
   type ExampleRunResultVM,
   type ContextSwitchPromptVM,
 } from "./document-viewer.vm";
 import type { ContextManager } from "../../curriculum/context-manager";
+import { lessonDatabaseNameForContext } from "../../curriculum/lesson-db";
 import { constant } from "./constant";
 import { parseContentBlocks } from "./content-blocks";
 
@@ -227,6 +231,7 @@ export function createDocumentViewerScope(
     const exampleVMs = section.examples.map((example): DocumentExampleVM => {
       const exampleKey = `${profileId}:${example.id}`;
       const isInteractive = example.type === "example" || example.type === "invalid";
+      const requiredContext = section.context;
 
       // Execution state (local, not persisted)
       const executionState$ = signal<ExampleExecutionState>(
@@ -238,6 +243,97 @@ export function createDocumentViewerScope(
       const currentResult$ = signal<ExampleRunResultVM | null>(
         null,
         { label: `example.currentResult:${exampleKey}` }
+      );
+
+      // Reactive: is the required context name currently loaded?
+      // Note: This only checks the context NAME, not whether the DB is actually selected.
+      const isContextReady$ = computed(
+        (get) => {
+          if (!requiredContext) return true; // No context required
+          const contextState = get(lessonContext$);
+          return contextState.currentContext === requiredContext;
+        },
+        { label: `example.isContextReady:${exampleKey}`, deps: [exampleKey, requiredContext] }
+      );
+
+      // Reactive: is the lesson ACTUALLY ready for query execution?
+      // This checks both:
+      // 1. Context name matches
+      // 2. Connection is established
+      // 3. The expected database is selected
+      const isLessonReady$ = computed(
+        (get) => {
+          if (!requiredContext) return true; // No context required
+
+          const lesson = get(lessonContext$);
+          const session = get(connectionSession$);
+
+          const expectedDb = lessonDatabaseNameForContext(requiredContext);
+
+          return (
+            lesson.currentContext === requiredContext &&
+            lesson.isLoading === false &&
+            lesson.lastError === null &&
+            session.status === "connected" &&
+            session.activeDatabase === expectedDb
+          );
+        },
+        { label: `example.isLessonReady:${exampleKey}`, deps: [exampleKey, requiredContext] }
+      );
+
+      // Reactive: why can't this example run right now?
+      // Returns null if it CAN run, or a string explaining why not.
+      const hasContextManager = !!contextManager;
+      const runDisabledReason$ = computed<string | null>(
+        (get) => {
+          if (!isInteractive) {
+            return "This example is read-only";
+          }
+
+          const state = get(executionState$);
+          if (state.type === "running") {
+            return "Running...";
+          }
+
+          // If context is required but no contextManager is provided,
+          // we cannot auto-load it
+          if (requiredContext && !hasContextManager) {
+            return `Requires "${requiredContext}" lesson context (open Learn page to load it)`;
+          }
+
+          // The context manager can only auto-setup connection/database if there's
+          // actually a context to load. For sections without a context requirement,
+          // we must still check connection status and database selection.
+          const canAutoLoad = requiredContext && hasContextManager;
+
+          // Check connection status and database selection
+          const session = get(connectionSession$);
+
+          if (session.status !== "connected") {
+            // Only skip this guard if context manager will auto-connect for us
+            if (!canAutoLoad) {
+              return "Not connected to database";
+            }
+          } else {
+            // We're connected - check if a database is selected
+            // Only skip this guard if context manager will auto-select the lesson DB
+            if (!session.activeDatabase && !canAutoLoad) {
+              return "Select a database first";
+            }
+          }
+
+          // Can run (context will be auto-loaded if needed)
+          return null;
+        },
+        { label: `example.runDisabledReason:${exampleKey}`, deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0, isInteractive ? 1 : 0] }
+      );
+
+      // Reactive: can this example be run right now?
+      const canRun$ = computed(
+        (get) => {
+          return get(runDisabledReason$) === null;
+        },
+        { label: `example.canRun:${exampleKey}`, deps: [exampleKey] }
       );
 
       const wasExecuted$ = computed(
@@ -266,8 +362,23 @@ export function createDocumentViewerScope(
         store.setSignal(executionState$, { type: "running" });
         store.setSignal(currentResult$, null);
 
+        // Compute expected database name for this context
+        const expectedDb = requiredContext
+          ? lessonDatabaseNameForContext(requiredContext)
+          : null;
+
         try {
-          const result = await replBridge.runQuery(example.query);
+          // Auto-load context if section requires one and it's not already FULLY ready
+          // Use the reactive isLessonReady$ signal which checks both context AND database
+          if (requiredContext && contextManager) {
+            const isReady = store.query(isLessonReady$);
+            if (!isReady) {
+              await contextManager.loadContext(requiredContext);
+            }
+          }
+
+          // Run the query, passing the expected database for lesson queries
+          const result = await replBridge.runQuery(example.query, { database: expectedDb });
 
           // Record execution
           store.commit(events.exampleExecuted({
@@ -316,6 +427,59 @@ export function createDocumentViewerScope(
         }
       };
 
+      // Whether context can be loaded programmatically
+      const canLoadContext$ = computed(
+        (get) => {
+          if (!requiredContext) return false;
+          if (!contextManager) return false;
+
+          const ctx = get(lessonContext$);
+          // Don't claim we can load while a load is already in progress
+          if (ctx.isLoading) return false;
+
+          return true;
+        },
+        { label: `example.canLoadContext:${exampleKey}`, deps: [exampleKey, requiredContext] }
+      );
+
+      // High-level readiness state for UI
+      const runReadiness$ = computed<ExampleRunReadiness>(
+        (get) => {
+          // Non-interactive examples don't show run UI
+          if (!isInteractive) return "blocked";
+
+          const lessonReady = get(isLessonReady$);
+          const canRunNow = get(canRun$);
+
+          // If lesson is ready and we can run, we're ready
+          if (lessonReady && canRunNow) {
+            return "ready";
+          }
+
+          // If we're not ready but CAN load context, expose "needs-context" state
+          const canLoad = get(canLoadContext$);
+          if (!lessonReady && canLoad && canRunNow) {
+            return "needs-context";
+          }
+
+          // Everything else is blocked (no connection, no context manager, etc.)
+          return "blocked";
+        },
+        { label: `example.runReadiness:${exampleKey}`, deps: [exampleKey] }
+      );
+
+      // Helper to load context without running
+      const loadContextAction = async (): Promise<void> => {
+        if (!contextManager || !requiredContext) return;
+
+        const ctx = store.query(lessonContext$);
+        // If already on the right context and not loading, nothing to do
+        if (ctx.currentContext === requiredContext && !ctx.isLoading) return;
+
+        // Delegates to the ContextManager (creates DB, populates, selects)
+        await contextManager.loadContext(requiredContext);
+      };
+
       return {
         id: example.id,
         type: example.type,
@@ -324,11 +488,19 @@ export function createDocumentViewerScope(
         sourceFile: example.sourceFile,
         lineNumber: example.lineNumber,
         isInteractive,
+        requiredContext,
+        isContextReady$,
+        isLessonReady$,
+        canRun$,
+        runDisabledReason$,
         wasExecuted$,
         copyToRepl: copyToReplAction,
         run: runAction,
         executionState$,
         currentResult$,
+        runReadiness$,
+        canLoadContext$,
+        loadContext: loadContextAction,
       };
     });
 
@@ -402,16 +574,35 @@ export function createDocumentViewerScope(
   };
 
   // ---------------------------------------------------------------------------
+  // Context Switch Prompt - Dismissal State
+  // ---------------------------------------------------------------------------
+
+  // Dismissal state as a signal for reactivity.
+  // When dismissed, stores the sectionId it was dismissed for.
+  // Gets cleared when navigating to a different section to restore the
+  // "reminder on revisit" behavior.
+  const contextPromptDismissedFor$ = signal<string | null>(
+    null,
+    { label: `${labelPrefix}.contextPromptDismissedFor` }
+  );
+
+  // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
 
   const openSection = (sectionId: string) => {
-    const currentSectionId = store.query(uiState$).learnCurrentSectionId;
+    const currentSectionId = store.query(uiState$)[sectionIdKey];
     if (sectionId === currentSectionId) {
       // Already open, just ensure visible
       show();
       return;
     }
+
+    // Reset dismissal state when changing sections.
+    // This restores the "reminder on revisit" behavior: if the user dismisses
+    // the prompt for section A, navigates to B, then back to A, the prompt
+    // should appear again for A.
+    store.setSignal(contextPromptDismissedFor$, null);
 
     // Check if section exists before updating state
     const section = sections[sectionId];
@@ -429,10 +620,8 @@ export function createDocumentViewerScope(
   };
 
   // ---------------------------------------------------------------------------
-  // Context Switch Prompt
+  // Context Switch Prompt - Visibility & Actions
   // ---------------------------------------------------------------------------
-
-  let contextPromptDismissed = false;
 
   // Helper to get current section (non-reactive, for imperative code)
   const getCurrentSection = (): DocumentSectionVM | null => {
@@ -441,9 +630,6 @@ export function createDocumentViewerScope(
 
   const contextPromptIsVisible$ = computed(
     (get) => {
-      // Not visible if dismissed for this section
-      if (contextPromptDismissed) return false;
-
       // Not visible if no context manager
       if (!contextManager) return false;
 
@@ -456,31 +642,48 @@ export function createDocumentViewerScope(
       // Not visible if section doesn't require a context
       if (!section.context) return false;
 
-      // Visible if context doesn't match
-      return !contextManager.isContextLoaded(section.context);
+      // Read dismissal state reactively
+      const dismissedForSection = get(contextPromptDismissedFor$);
+
+      // Not visible if dismissed for THIS section
+      if (dismissedForSection === section.id) {
+        return false;
+      }
+
+      // Read context state from LiveStore (REACTIVE!)
+      const contextState = get(lessonContext$);
+
+      // Not visible if context is currently loading
+      if (contextState.isLoading) return false;
+
+      // Visible if context doesn't match required
+      return contextState.currentContext !== section.context;
     },
-    { label: "contextSwitchPrompt.isVisible" }
+    { label: `${labelPrefix}.contextSwitchPrompt.isVisible` }
   );
 
   const currentContext$ = computed(
-    () => contextManager?.currentContext ?? null,
-    { label: "contextSwitchPrompt.currentContext" }
+    (get) => get(lessonContext$).currentContext,
+    { label: `${labelPrefix}.contextSwitchPrompt.currentContext` }
   );
 
   const requiredContext$ = computed(
     (get) => get(currentSection$)?.context ?? null,
-    { label: "contextSwitchPrompt.requiredContext" }
+    { label: `${labelPrefix}.contextSwitchPrompt.requiredContext` }
   );
 
   const switchContext = async () => {
     const section = getCurrentSection();
     if (!contextManager || !section?.context) return;
     await contextManager.loadContext(section.context);
-    contextPromptDismissed = false; // Reset dismissal after successful switch
+    // Clear dismissal after successful switch (prompt should hide because context now matches)
+    store.setSignal(contextPromptDismissedFor$, null);
   };
 
   const dismissContextPrompt = () => {
-    contextPromptDismissed = true;
+    const section = getCurrentSection();
+    // Set dismissal for current section (reactive!)
+    store.setSignal(contextPromptDismissedFor$, section?.id ?? null);
   };
 
   const contextSwitchPrompt: ContextSwitchPromptVM = {

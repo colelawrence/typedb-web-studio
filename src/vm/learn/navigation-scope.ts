@@ -2,13 +2,15 @@
  * Learn Navigation VM Scope
  *
  * Implements the LearnNavigationVM interface with reactive state
- * and browser history integration.
+ * using LiveStore signals and browser history integration.
  *
  * @module vm/learn/navigation-scope
  */
 
-import { computed } from "@livestore/livestore";
+import { computed, signal } from "@livestore/livestore";
+import type { Store } from "@livestore/livestore";
 
+import type { schema } from "../../livestore/schema";
 import {
   type LearnNavigationVM,
   type NavigationTarget,
@@ -24,6 +26,11 @@ import {
 // ============================================================================
 
 export interface NavigationScopeOptions {
+  /**
+   * LiveStore instance for reactive signals.
+   */
+  store: Store<typeof schema>;
+
   /**
    * Callback to perform actual navigation (e.g., TanStack Router navigate).
    */
@@ -55,12 +62,13 @@ export interface NavigationScopeOptions {
 // ============================================================================
 
 /**
- * Create a navigation VM scope.
+ * Create a navigation VM scope with reactive LiveStore signals.
  */
 export function createNavigationScope(
   options: NavigationScopeOptions
 ): LearnNavigationVM {
   const {
+    store,
     navigate,
     onSectionOpened,
     onReferenceOpened,
@@ -69,12 +77,28 @@ export function createNavigationScope(
   } = options;
 
   // ---------------------------------------------------------------------------
-  // State
+  // State - Using LiveStore signals for reactivity
   // ---------------------------------------------------------------------------
 
   const history = new NavigationHistory();
-  let currentTarget: NavigationTarget | null = initialTarget;
-  let highlightTarget: NavigationTarget | null = null;
+
+  // Reactive signals for navigation state
+  const currentTarget$ = signal<NavigationTarget | null>(
+    initialTarget,
+    { label: "navigation.currentTarget" }
+  );
+
+  const highlightTarget$ = signal<NavigationTarget | null>(
+    null,
+    { label: "navigation.highlightTarget" }
+  );
+
+  // Track history version to trigger reactivity on back/forward
+  const historyVersion$ = signal<number>(
+    0,
+    { label: "navigation.historyVersion" }
+  );
+
   let highlightTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Initialize with initial target
@@ -83,28 +107,50 @@ export function createNavigationScope(
   }
 
   // ---------------------------------------------------------------------------
-  // Computed State
+  // Computed State - Derived from reactive signals
   // ---------------------------------------------------------------------------
 
-  const currentTarget$ = computed(
-    () => currentTarget,
-    { label: "navigation.currentTarget" }
-  );
-
   const canGoBack$ = computed(
-    () => history.canGoBack(),
+    (get) => {
+      get(historyVersion$); // Depend on history version for reactivity
+      return history.canGoBack();
+    },
     { label: "navigation.canGoBack" }
   );
 
   const canGoForward$ = computed(
-    () => history.canGoForward(),
+    (get) => {
+      get(historyVersion$); // Depend on history version for reactivity
+      return history.canGoForward();
+    },
     { label: "navigation.canGoForward" }
   );
 
-  const highlightTarget$ = computed(
-    () => highlightTarget,
-    { label: "navigation.highlightTarget" }
-  );
+  // ---------------------------------------------------------------------------
+  // Helper to update reactive state
+  // ---------------------------------------------------------------------------
+
+  const setCurrentTarget = (target: NavigationTarget | null): void => {
+    store.setSignal(currentTarget$, target);
+  };
+
+  const incrementHistoryVersion = (): void => {
+    const current = store.query(historyVersion$);
+    store.setSignal(historyVersion$, current + 1);
+  };
+
+  const setHighlight = (target: NavigationTarget): void => {
+    if (highlightTimeout) {
+      clearTimeout(highlightTimeout);
+    }
+
+    store.setSignal(highlightTarget$, target);
+
+    highlightTimeout = setTimeout(() => {
+      store.setSignal(highlightTarget$, null);
+      highlightTimeout = null;
+    }, HIGHLIGHT_DURATION_MS);
+  };
 
   // ---------------------------------------------------------------------------
   // Navigation Actions
@@ -114,8 +160,10 @@ export function createNavigationScope(
     target: NavigationTarget,
     addToHistory = true
   ): void => {
+    const current = store.query(currentTarget$);
+
     // Skip if same target
-    if (targetsEqual(target, currentTarget)) {
+    if (targetsEqual(target, current)) {
       // Still scroll to heading if specified
       if (target.headingId) {
         scrollToHeading(target.headingId);
@@ -123,12 +171,13 @@ export function createNavigationScope(
       return;
     }
 
-    // Update state
-    currentTarget = target;
+    // Update reactive state
+    setCurrentTarget(target);
 
     // Add to history
     if (addToHistory) {
       history.push(target);
+      incrementHistoryVersion();
     }
 
     // Create path and navigate
@@ -170,11 +219,12 @@ export function createNavigationScope(
   };
 
   const navigateToHeading = (headingId: string): void => {
-    if (currentTarget) {
+    const current = store.query(currentTarget$);
+    if (current) {
       // Navigate within current section
       navigateInternal({
-        type: currentTarget.type,
-        sectionId: currentTarget.sectionId,
+        type: current.type,
+        sectionId: current.sectionId,
         headingId,
       });
     } else {
@@ -195,7 +245,9 @@ export function createNavigationScope(
   const goBack = (): void => {
     const entry = history.back();
     if (entry) {
-      currentTarget = entry.target;
+      setCurrentTarget(entry.target);
+      incrementHistoryVersion();
+
       const path = createNavigationPath(entry.target);
       navigate(path);
 
@@ -216,7 +268,9 @@ export function createNavigationScope(
   const goForward = (): void => {
     const entry = history.forward();
     if (entry) {
-      currentTarget = entry.target;
+      setCurrentTarget(entry.target);
+      incrementHistoryVersion();
+
       const path = createNavigationPath(entry.target);
       navigate(path);
 
@@ -238,27 +292,12 @@ export function createNavigationScope(
   // Highlight Management
   // ---------------------------------------------------------------------------
 
-  const setHighlight = (target: NavigationTarget): void => {
-    // Clear any existing timeout
-    if (highlightTimeout) {
-      clearTimeout(highlightTimeout);
-    }
-
-    highlightTarget = target;
-
-    // Auto-clear after duration
-    highlightTimeout = setTimeout(() => {
-      highlightTarget = null;
-      highlightTimeout = null;
-    }, HIGHLIGHT_DURATION_MS);
-  };
-
   const clearHighlight = (): void => {
     if (highlightTimeout) {
       clearTimeout(highlightTimeout);
       highlightTimeout = null;
     }
-    highlightTarget = null;
+    store.setSignal(highlightTarget$, null);
   };
 
   // ---------------------------------------------------------------------------
@@ -290,8 +329,8 @@ export function createNavigationScope(
       const target = parseNavigationPath(path);
 
       if (target) {
-        // Navigate without adding to our history (browser manages it)
-        currentTarget = target;
+        // Update reactive state without adding to our history (browser manages it)
+        setCurrentTarget(target);
 
         // Trigger callbacks
         if (target.type === "learn") {
@@ -334,6 +373,7 @@ export interface MockNavigationScope extends LearnNavigationVM {
 
 /**
  * Create a mock navigation scope for testing.
+ * Uses simple local state since tests don't need LiveStore reactivity.
  */
 export function createMockNavigationScope(): MockNavigationScope {
   const navigateCalls: Array<{ type: string; sectionId: string; headingId?: string }> = [];

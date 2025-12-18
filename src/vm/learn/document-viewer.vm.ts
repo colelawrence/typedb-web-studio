@@ -268,6 +268,43 @@ export interface DocumentExampleVM {
   isInteractive: boolean;
 
   /**
+   * Required context for this example (from section), or null if none.
+   * Reactive signal that tracks section context requirement.
+   */
+  requiredContext: string | null;
+
+  /**
+   * Whether the required context NAME is loaded (reactive).
+   * Always true if no context is required.
+   * Note: This only checks the context name, not that the database is selected.
+   * For full execution readiness, use isLessonReady$.
+   */
+  isContextReady$: Queryable<boolean>;
+
+  /**
+   * Whether the lesson is FULLY ready for query execution (reactive).
+   * This checks:
+   * 1. Context name matches what the section requires
+   * 2. Context is not loading and has no errors
+   * 3. Connection is established
+   * 4. The correct database is selected
+   */
+  isLessonReady$: Queryable<boolean>;
+
+  /**
+   * Whether the example can currently be run (reactive).
+   * Considers: isInteractive, not already running, etc.
+   * Note: Context will be auto-loaded if needed, so this doesn't block on context.
+   */
+  canRun$: Queryable<boolean>;
+
+  /**
+   * Reason why the example cannot be run, or null if it can run.
+   * Used for tooltip/disabled button explanation.
+   */
+  runDisabledReason$: Queryable<string | null>;
+
+  /**
    * Whether the example has been executed by the user.
    */
   wasExecuted$: Queryable<boolean>;
@@ -278,7 +315,8 @@ export interface DocumentExampleVM {
   copyToRepl(): void;
 
   /**
-   * Runs the query. Updates currentResult$ when complete.
+   * Runs the query. Auto-loads required context if not already loaded.
+   * Updates currentResult$ when complete.
    */
   run(): Promise<void>;
 
@@ -291,6 +329,29 @@ export interface DocumentExampleVM {
    * Result of the last run, or null if not yet executed.
    */
   currentResult$: Queryable<ExampleRunResultVM | null>;
+
+  /**
+   * High-level readiness state for running this example.
+   *
+   * - "ready": Can run immediately
+   * - "needs-context": Lesson context needs to be loaded first (show "Load Context & Run")
+   * - "blocked": Cannot run (show disabled state with reason from runDisabledReason$)
+   */
+  runReadiness$: Queryable<ExampleRunReadiness>;
+
+  /**
+   * Whether this example's lesson context can be loaded programmatically.
+   * True when there is a requiredContext and a contextManager is available.
+   */
+  canLoadContext$: Queryable<boolean>;
+
+  /**
+   * Loads the required lesson context (creates DB, populates data, selects it)
+   * without running the query.
+   *
+   * No-op if the example does not require a context or no contextManager is available.
+   */
+  loadContext(): Promise<void>;
 }
 
 /**
@@ -301,6 +362,15 @@ export type ExampleExecutionState =
   | { type: "running" }
   | { type: "success"; resultCount: number }
   | { type: "error"; message: string };
+
+/**
+ * High-level readiness state for running an example.
+ *
+ * - "ready": Can run immediately with current connection & lesson context
+ * - "needs-context": Lesson context is not ready, but can be loaded automatically
+ * - "blocked": Cannot run at all (disconnected, no context manager, read-only, etc.)
+ */
+export type ExampleRunReadiness = "ready" | "needs-context" | "blocked";
 
 /**
  * Result of running an example.

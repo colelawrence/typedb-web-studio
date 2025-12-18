@@ -20,65 +20,71 @@ TypeDB has three fundamental type kinds:
 
 Attributes store values. Define them first since entities use them:
 
-```typeql:readonly[id=schema-attr-string]
+```typeql:schema[id=schema-attr-string]
 define
-attribute name value string;
-attribute email value string;
-attribute description value string;
+  attribute name, value string;
+  attribute email, value string;
+  attribute description, value string;
 ```
 
 Attributes have value types: `string`, `integer`, `double`, `boolean`, `datetime`, `date`.
 
-```typeql:readonly[id=schema-attr-numeric]
+```typeql:schema[id=schema-attr-numeric]
 define
-attribute age value integer;
-attribute price value double;
-attribute active value boolean;
+  attribute age, value integer;
+  attribute price, value double;
+  attribute active, value boolean;
 ```
 
 ## Defining Entities
 
 Entities own attributes and play roles in relations:
 
-```typeql:readonly[id=schema-entity-basic]
+```typeql:schema[id=schema-entity-basic]
 define
-attribute name value string;
-attribute age value integer;
+  attribute name, value string;
+  attribute age, value integer;
 
-entity person owns name, owns age;
+  entity person,
+    owns name,
+    owns age;
 ```
 
 Multiple entities can own the same attribute type:
 
-```typeql:readonly[id=schema-entity-shared-attr]
+```typeql:schema[id=schema-entity-shared-attr]
 define
-attribute name value string;
+  attribute name, value string;
 
-entity person owns name;
-entity company owns name;
-entity product owns name;
+  entity person, owns name;
+  entity company, owns name;
+  entity product, owns name;
 ```
 
 ## Defining Relations
 
 Relations connect entities through roles:
 
-```typeql:readonly[id=schema-relation]
+```typeql:schema[id=schema-relation]
 define
-relation employment relates employee, relates employer;
+  relation employment,
+    relates employee,
+    relates employer;
 
-entity person plays employment:employee;
-entity company plays employment:employer;
+  entity person, plays employment:employee;
+  entity company, plays employment:employer;
 ```
 
 Relations can own attributes too:
 
-```typeql:readonly[id=schema-relation-attr]
+```typeql:schema[id=schema-relation-attr]
 define
-attribute start-date value datetime;
-attribute salary value double;
+  attribute start-date, value datetime;
+  attribute salary, value double;
 
-relation employment 
-  relates employee, relates employer,
-  owns start-date, owns salary;
+  relation employment,
+    relates employee,
+    relates employer,
+    owns start-date,
+    owns salary;
 ```

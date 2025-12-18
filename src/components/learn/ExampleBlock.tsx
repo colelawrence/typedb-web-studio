@@ -18,9 +18,9 @@
  * - Error: Shows error message
  */
 
-import { Play, Copy, Loader2 } from "lucide-react";
+import { Play, Copy, Loader2, Database } from "lucide-react";
 import { Queryable } from "@/vm/components";
-import type { DocumentExampleVM, ExampleExecutionState } from "@/vm/learn";
+import type { DocumentExampleVM, ExampleExecutionState, ExampleRunReadiness } from "@/vm/learn";
 import { mapExampleResultToDisplayVM } from "@/vm/query-results.adapters";
 import { QueryResultsDisplay } from "../query/QueryResultsDisplay";
 import { Button } from "../ui/button";
@@ -67,12 +67,23 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
             )}
           </Queryable>
 
-          <Queryable query={vm.executionState$}>
-            {(state) => (
-              <RunButton
-                state={state}
-                onClick={() => vm.run()}
-              />
+          <Queryable query={vm.runReadiness$}>
+            {(runReadiness) => (
+              <Queryable query={vm.executionState$}>
+                {(state) => (
+                  <Queryable query={vm.runDisabledReason$}>
+                    {(runDisabledReason) => (
+                      <RunButton
+                        state={state}
+                        runReadiness={runReadiness}
+                        requiredContext={vm.requiredContext}
+                        runDisabledReason={runDisabledReason}
+                        onRun={() => vm.run()}
+                      />
+                    )}
+                  </Queryable>
+                )}
+              </Queryable>
             )}
           </Queryable>
         </div>
@@ -97,23 +108,71 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
 
 /**
  * Run button with state-dependent appearance.
+ *
+ * Shows different UI based on runReadiness:
+ * - "ready": Simple "Run" button
+ * - "needs-context": "Load & Run" button with database icon
+ * - "blocked": Disabled "Run" button with tooltip
  */
 function RunButton({
   state,
-  onClick,
+  runReadiness,
+  requiredContext,
+  runDisabledReason,
+  onRun,
 }: {
   state: ExampleExecutionState;
-  onClick: () => void;
+  runReadiness: ExampleRunReadiness;
+  requiredContext: string | null;
+  runDisabledReason: string | null;
+  onRun: () => void;
 }) {
   const isRunning = state.type === "running";
+  const isBlocked = runReadiness === "blocked";
+  const needsContext = runReadiness === "needs-context";
 
+  // Build title based on state
+  let title = "Run query";
+  if (runDisabledReason && isBlocked) {
+    title = runDisabledReason;
+  } else if (isRunning) {
+    title = "Running...";
+  } else if (needsContext && requiredContext) {
+    title = `Load "${requiredContext}" database and run`;
+  }
+
+  // For "needs-context", show a combined button that loads context then runs
+  if (needsContext && requiredContext) {
+    return (
+      <Button
+        variant="ghost"
+        density="compact"
+        onClick={onRun}
+        disabled={isRunning}
+        title={title}
+        className="h-6 px-2 text-dense-xs gap-1"
+      >
+        {isRunning ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <>
+            <Database className="size-3" />
+            <Play className="size-3" />
+          </>
+        )}
+        <span className="text-[10px]">Load & Run</span>
+      </Button>
+    );
+  }
+
+  // Standard run button (ready or blocked)
   return (
     <Button
       variant="ghost"
       density="compact"
-      onClick={onClick}
-      disabled={isRunning}
-      title={isRunning ? "Running..." : "Run query"}
+      onClick={onRun}
+      disabled={isBlocked || isRunning}
+      title={title}
       className="h-6 px-2 text-dense-xs"
     >
       {isRunning ? (

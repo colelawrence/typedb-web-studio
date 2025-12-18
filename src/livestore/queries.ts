@@ -35,7 +35,7 @@ export function profileById$(profileId: string) {
 export function readingProgressForProfile$(profileId: string) {
   return queryDb(
     () => tables.readingProgress.where({ profileId }).orderBy("lastViewedAt", "desc"),
-    { label: `readingProgress:${profileId}` }
+    { label: `readingProgress:${profileId}`, deps: [profileId] }
   );
 }
 
@@ -46,7 +46,7 @@ export function readingProgressForProfile$(profileId: string) {
 export function readingProgressForSection$(profileId: string, sectionId: string) {
   return queryDb(
     () => tables.readingProgress.where({ profileId, sectionId }),
-    { label: `readingProgress:${profileId}:${sectionId}` }
+    { label: `readingProgress:${profileId}:${sectionId}`, deps: [profileId, sectionId] }
   );
 }
 
@@ -58,7 +58,7 @@ export function isSectionRead$(profileId: string, sectionId: string, headingId?:
   const id = `${profileId}:${sectionId}:${headingId ?? "root"}`;
   return queryDb(
     tables.readingProgress.where({ id }),
-    { label: `isSectionRead:${id}` }
+    { label: `isSectionRead:${id}`, deps: [id] }
   );
 }
 
@@ -69,7 +69,7 @@ export function isSectionRead$(profileId: string, sectionId: string, headingId?:
 export function executionsForProfile$(profileId: string) {
   return queryDb(
     () => tables.exampleExecutions.where({ profileId }).orderBy("executedAt", "desc"),
-    { label: `executions:${profileId}` }
+    { label: `executions:${profileId}`, deps: [profileId] }
   );
 }
 
@@ -80,7 +80,7 @@ export function executionsForProfile$(profileId: string) {
 export function executedExampleIds$(profileId: string) {
   return queryDb(
     () => tables.exampleExecutions.where({ profileId }),
-    { label: `executedExampleIds:${profileId}` }
+    { label: `executedExampleIds:${profileId}`, deps: [profileId] }
   );
 }
 
@@ -90,7 +90,7 @@ export function executedExampleIds$(profileId: string) {
 export function annotationsForProfile$(profileId: string) {
   return queryDb(
     () => tables.annotations.where({ profileId }).orderBy("updatedAt", "desc"),
-    { label: `annotations:${profileId}` }
+    { label: `annotations:${profileId}`, deps: [profileId] }
   );
 }
 
@@ -100,7 +100,7 @@ export function annotationsForProfile$(profileId: string) {
 export function annotationsForSection$(profileId: string, sectionId: string) {
   return queryDb(
     () => tables.annotations.where({ profileId, sectionId }),
-    { label: `annotations:${profileId}:${sectionId}` }
+    { label: `annotations:${profileId}:${sectionId}`, deps: [profileId, sectionId] }
   );
 }
 
@@ -202,4 +202,13 @@ export const queryResults$ = queryDb(tables.queryResults.get(), {
 /** Session-scoped database catalog with staleness tracking */
 export const sessionDatabases$ = queryDb(tables.sessionDatabases.get(), {
   label: "sessionDatabases",
+});
+
+// ============================================================================
+// Lesson Context (Session-Scoped Learning State)
+// ============================================================================
+
+/** Current lesson context state for the Learn page */
+export const lessonContext$ = queryDb(tables.lessonContext.get(), {
+  label: "lessonContext",
 });

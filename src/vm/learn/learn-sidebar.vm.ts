@@ -45,25 +45,9 @@ import type { Queryable } from "../types";
  * Learn sidebar VM.
  *
  * Provides curriculum navigation, reference docs, and search functionality.
+ * Sidebar width is handled by PanelGroup (react-resizable-panels) with autoSaveId.
  */
 export interface LearnSidebarVM {
-  /**
-   * Current sidebar width in pixels.
-   *
-   * **Constraints:**
-   * - Minimum: 200px
-   * - Maximum: 400px
-   * - Default: 280px
-   *
-   * **Persistence:** Width is saved to localStorage.
-   */
-  width$: Queryable<number>;
-
-  /**
-   * Updates the sidebar width during drag resize.
-   */
-  setWidth(width: number): void;
-
   /**
    * Search input VM for filtering sidebar content.
    */

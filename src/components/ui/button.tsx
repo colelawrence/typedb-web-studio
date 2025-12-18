@@ -64,7 +64,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // Build class string
     const classes = [
       // Base styles
-      'inline-flex items-center justify-center gap-1.5',
+      'inline-flex items-center justify-center gap-1.5 word-break-nowrap',
       'font-medium rounded-md',
       'transition-colors duration-150',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',

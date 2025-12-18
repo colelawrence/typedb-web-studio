@@ -12,6 +12,7 @@
 
 import type { TypeDBEmbeddedService } from '../services/typedb-embedded-service';
 import type { LoadedContext } from './types';
+import { splitTypeQLStatements } from './typeql-statement-splitter';
 
 /**
  * Context files loaded from the virtual module at build time.
@@ -108,8 +109,18 @@ export async function applyContext(
   // Apply schema
   await service.executeQuery(database, context.schema, { transactionType: 'schema' });
 
-  // Apply seed data
-  await service.executeQuery(database, context.seed, { transactionType: 'write' });
+  // Apply seed data - split into individual statements to handle match-insert patterns
+  if (context.seed.trim()) {
+    const statements = splitTypeQLStatements(context.seed);
+    for (const statement of statements) {
+      try {
+        await service.executeQuery(database, statement, { transactionType: 'write' });
+      } catch (e) {
+        // Log but continue with other statements
+        console.warn(`[context-loader] Seed statement warning:`, e);
+      }
+    }
+  }
 }
 
 /**

@@ -32,23 +32,70 @@ const items = data.map((item) => ({
 }));
 ```
 
+### What Goes in `deps`
+
+The `deps` array should contain **all closed-over values** that:
+1. Affect the computation result
+2. Could potentially change between different instances
+
+Think of `deps` as capturing the closure's external values. If the computed function uses a variable from outside its body, that variable should be in `deps`.
+
+```typescript
+// Example: Multiple captured values
+const examples = section.examples.map((example) => {
+  const exampleKey = `${profileId}:${example.id}`;
+  const requiredContext = section.context;
+  const hasContextManager = !!contextManager;
+
+  return {
+    // deps captures ALL closed-over values that affect this computation
+    isReady$: computed(
+      (get) => {
+        if (!requiredContext) return true;
+        const session = get(connectionSession$);
+        return session.activeDatabase === expectedDbFor(requiredContext);
+      },
+      {
+        label: `example.isReady:${exampleKey}`,
+        deps: [exampleKey, requiredContext]  // ✅ Captures both closure values
+      }
+    ),
+
+    // deps should include ALL values that affect the result
+    canRun$: computed(
+      (get) => {
+        if (!isInteractive) return false;  // uses isInteractive from closure
+        if (requiredContext && !hasContextManager) return false;  // uses both
+        return get(executionState$).type !== "running";
+      },
+      {
+        label: `example.canRun:${exampleKey}`,
+        deps: [exampleKey, isInteractive, requiredContext, hasContextManager]  // ✅ All captured values
+      }
+    ),
+  };
+});
+```
+
 ### When You Need `deps`
 
 Add a `deps` array when:
 - The `computed()` is created inside a loop or `.map()`
-- The label contains dynamic values (template literals with `${...}`)
+- The computed function uses variables from the enclosing scope (closure)
 - Multiple instances of the computed value should have independent caches
 
 ### When You Don't Need `deps`
 
 Skip `deps` when:
 - The `computed()` is created once at the top level of a scope
-- The label is static (no template literal variables)
+- The function only uses `get()` to read other queryables (no closed-over values)
 - There's only ever one instance of this computed value
 
 ### Rule of Thumb
 
-**If your label has `${dynamicValue}`, you probably need `deps: [dynamicValue]`.**
+**Include in `deps` every variable from outside the function body that affects the computation.** The computed function's result should be deterministic given:
+1. The values returned by `get()` calls
+2. The values in `deps`
 
 ---
 

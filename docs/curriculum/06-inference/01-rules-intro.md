@@ -1,59 +1,58 @@
 ---
 id: inf-rules-intro
-title: Introduction to Rules
-context: null
+title: Introduction to Inference
+context: social-network
 ---
 
-# Introduction to Rules
+# Introduction to Inference
 
-**Rules** in TypeDB automatically derive new facts from existing data. They're the foundation of knowledge graphs that "think."
+TypeDB is designed as a knowledge graph that can derive new facts from existing data.
 
 ## Stored vs Derived Knowledge
 
-TypeDB has two types of knowledge:
+Knowledge graphs work with two types of knowledge:
 
 1. **Stored knowledge** - Data you explicitly insert
-2. **Derived knowledge** - Facts computed by rules at query time
+2. **Derived knowledge** - Facts computed from patterns in your data
 
-When you query, you see both seamlessly combined.
+## TypeQL 3 Status
 
-## Rule Syntax
+In TypeQL 3, **rule-based inference is not yet available**. The `rule` keyword from TypeQL 2.x does not exist in the current grammar.
 
-A rule has two parts:
+This means that all relationships must be **explicitly stored** rather than derived at query time.
 
-```typeql:readonly[id=inf-rule-syntax]
-rule rule-name:
-  when {
-    # condition patterns
-  } then {
-    # conclusion pattern
-  };
+## Alternative: Multi-Hop Queries
+
+You can compute derived relationships at query time using multi-hop patterns:
+
+```typeql:example[id=inf-query-multihop, expect=results, min=1]
+match
+  $a isa person, has name "Alice";
+  (friend: $a, friend: $b) isa friendship;
+  (friend: $b, friend: $c) isa friendship;
+  not { $c is $a; };
+  $c has name $fof-name;
 ```
 
-- **when**: Patterns that must match
-- **then**: New fact to derive when conditions match
+This finds friends-of-friends through two friendship hops.
 
-## A Simple Example
+## Alternative: Explicit Data
 
-Consider transitive friendship - if Alice is friends with Bob, and Bob is friends with Carol, then Alice and Carol are connected through Bob:
+For frequently-needed derived relationships, store them explicitly when data changes:
 
-```typeql:readonly[id=inf-rule-example]
-define
-rule transitive-friendship:
-  when {
-    (friend: $a, friend: $b) isa friendship;
-    (friend: $b, friend: $c) isa friendship;
-  } then {
-    (friend: $a, friend: $c) isa friendship;
-  };
+```typeql
+# When inserting a parent relationship:
+insert
+  (parent: $a, child: $b) isa parenthood;
+  (ancestor: $a, descendant: $b) isa ancestry;  # Also store derived fact
 ```
 
-When you query friendships, TypeDB automatically includes both direct and transitive friends.
+## Looking Forward
 
-## Why Rules Matter
+Rule-based inference remains a core design goal for TypeDB. When available, rules will allow:
 
-Rules let you:
-- **Model implicit relationships** - "ancestor" from "parent"
-- **Inherit permissions** - Team members get team access
-- **Classify data** - "high-risk" from criteria patterns
-- **Traverse graphs** - Find all connected nodes
+- **Automatic derivation** - Facts computed on-demand at query time
+- **Transitive closure** - Traverse graphs to any depth
+- **Conditional classification** - Assign categories based on criteria
+
+For now, model your domain with explicit relationships and use multi-hop queries for complex inference.

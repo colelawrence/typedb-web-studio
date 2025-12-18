@@ -35,9 +35,11 @@ export interface ReplBridge {
    * - Returns the result
    *
    * @param query The TypeQL query to execute
+   * @param options Optional execution options
+   * @param options.database Specific database to run against (overrides active database)
    * @returns Execution result with success status, result count, and timing
    */
-  runQuery(query: string): Promise<ReplQueryResult>;
+  runQuery(query: string, options?: { database?: string | null }): Promise<ReplQueryResult>;
 
   /**
    * Gets the current query text in the editor.
@@ -96,8 +98,12 @@ export interface ReplBridgeOptions {
   events: typeof events;
   /** Navigate to a route */
   navigate: (path: string) => void;
-  /** Execute a query against TypeDB */
-  executeQuery: (query: string) => Promise<{
+  /**
+   * Execute a query against TypeDB.
+   * @param args.query The TypeQL query to execute
+   * @param args.database Optional database to run against (if not provided, uses active database)
+   */
+  executeQuery: (args: { query: string; database?: string | null }) => Promise<{
     success: boolean;
     resultCount?: number;
     error?: string;
@@ -133,7 +139,10 @@ export function createReplBridge(options: ReplBridgeOptions): ReplBridge {
     showSnackbar("success", "Query copied to editor");
   };
 
-  const runQuery = async (query: string): Promise<ReplQueryResult> => {
+  const runQuery = async (
+    query: string,
+    options?: { database?: string | null }
+  ): Promise<ReplQueryResult> => {
     // First copy to REPL
     store.commit(storeEvents.uiStateSet({
       currentQueryText: query,
@@ -148,8 +157,11 @@ export function createReplBridge(options: ReplBridgeOptions): ReplBridge {
       navigate("/query");
     }
 
-    // Execute the query
-    const result = await executeQuery(query);
+    // Execute the query, passing optional database override
+    const result = await executeQuery({
+      query,
+      database: options?.database,
+    });
 
     if (result.success) {
       showSnackbar("success", `Query executed (${result.resultCount ?? 0} results)`);
@@ -202,7 +214,7 @@ export function createMockReplBridge(): ReplBridge & {
       copyToReplCalls.push(query);
     },
 
-    async runQuery(query: string): Promise<ReplQueryResult> {
+    async runQuery(query: string, _options?: { database?: string | null }): Promise<ReplQueryResult> {
       runQueryCalls.push(query);
       return mockResult;
     },

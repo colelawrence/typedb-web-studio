@@ -8,6 +8,8 @@
  */
 
 import type { LoadedContext } from "./types";
+import { lessonDatabaseNameForContext } from "./lesson-db";
+import { splitTypeQLStatements } from "./typeql-statement-splitter";
 
 /**
  * Context manager interface for loading and switching lesson contexts.
@@ -115,6 +117,16 @@ export interface ContextDatabaseOps {
 }
 
 /**
+ * Lesson context state for reactive updates.
+ */
+export interface LessonContextState {
+  currentContext: string | null;
+  isLoading: boolean;
+  lastError: string | null;
+  lastLoadedAt: number | null;
+}
+
+/**
  * Options for creating a context manager.
  */
 export interface ContextManagerOptions {
@@ -137,17 +149,34 @@ export interface ContextManagerOptions {
    * Optional callback for status updates.
    */
   onStatusChanged?: (status: ContextStatus) => void;
+
+  /**
+   * Callback to update lesson context state in LiveStore.
+   * This is how we make context state reactive.
+   */
+  onStateUpdate?: (state: LessonContextState) => void;
 }
 
 /**
  * Creates a context manager for the interactive learning environment.
  */
 export function createContextManager(options: ContextManagerOptions): ContextManager {
-  const { contexts, dbOps, onContextChanged, onStatusChanged } = options;
+  const { contexts, dbOps, onContextChanged, onStatusChanged, onStateUpdate } = options;
 
   let currentContext: string | null = null;
   let isLoading = false;
   let lastError: string | null = null;
+  let lastLoadedAt: number | null = null;
+
+  const notifyStateUpdate = () => {
+    // Update LiveStore state for reactivity
+    onStateUpdate?.({
+      currentContext,
+      isLoading,
+      lastError,
+      lastLoadedAt,
+    });
+  };
 
   const notifyStatusChange = () => {
     onStatusChanged?.({
@@ -156,6 +185,8 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
       isLoading,
       error: lastError,
     });
+    // Also update LiveStore state
+    notifyStateUpdate();
   };
 
   const loadContext = async (contextName: string): Promise<void> => {
@@ -175,7 +206,7 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
 
     try {
       // Create/reset the database for this context
-      const dbName = `learn_${contextName.replace(/-/g, "_")}`;
+      const dbName = lessonDatabaseNameForContext(contextName);
       await dbOps.createDatabase(dbName);
 
       // Apply schema
@@ -189,21 +220,16 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
         await dbOps.executeSchema(dbName, cleanSchema);
       }
 
-      // Apply seed data (insert statements)
+      // Apply seed data (insert and match-insert statements)
       if (context.seed.trim()) {
-        const insertStatements = context.seed
-          .split(/;\s*\n/)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0 && !s.startsWith("#"));
+        const statements = splitTypeQLStatements(context.seed);
 
-        for (const statement of insertStatements) {
-          if (statement.trim()) {
-            try {
-              await dbOps.executeWrite(dbName, statement + ";");
-            } catch (e) {
-              // Log but continue with other statements
-              console.warn(`[context-manager] Seed statement warning:`, e);
-            }
+        for (const statement of statements) {
+          try {
+            await dbOps.executeWrite(dbName, statement);
+          } catch (e) {
+            // Log but continue with other statements
+            console.warn(`[context-manager] Seed statement warning:`, e);
           }
         }
       }
@@ -213,6 +239,7 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
 
       currentContext = contextName;
       isLoading = false;
+      lastLoadedAt = Date.now();
       notifyStatusChange();
       onContextChanged?.(contextName);
     } catch (e) {

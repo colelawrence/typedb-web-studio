@@ -1,7 +1,8 @@
 # Seed data for social-network context
 # This provides a small but interesting dataset for learning
-# Note: Each insert must be a separate statement in TypeQL 3
+# TypeQL 3: Use match to find existing entities, then insert relationships
 
+# Create base entities first
 insert $alice isa person, has name "Alice", has age 30;
 insert $bob isa person, has name "Bob", has age 25;
 insert $carol isa person, has name "Carol", has age 35;
@@ -10,44 +11,52 @@ insert $dan isa person, has name "Dan", has age 28;
 insert $acme isa company, has name "Acme Corp", has founded-year 2010;
 insert $globex isa company, has name "Globex Inc", has founded-year 2015;
 
-# Friendships - need to match people first
-insert
+# Friendships - match existing people, then insert relation
+match
   $alice isa person, has name "Alice";
   $bob isa person, has name "Bob";
+insert
   (friend: $alice, friend: $bob) isa friendship;
 
-insert
+match
   $bob isa person, has name "Bob";
   $carol isa person, has name "Carol";
+insert
   (friend: $bob, friend: $carol) isa friendship;
 
-insert
+match
   $carol isa person, has name "Carol";
   $dan isa person, has name "Dan";
+insert
   (friend: $carol, friend: $dan) isa friendship;
 
-insert
+match
   $alice isa person, has name "Alice";
   $carol isa person, has name "Carol";
+insert
   (friend: $alice, friend: $carol) isa friendship;
 
-# Employment
-insert
+# Employment - match existing entities, then insert relation
+match
   $alice isa person, has name "Alice";
   $acme isa company, has name "Acme Corp";
+insert
   (employee: $alice, employer: $acme) isa employment, has start-date 2020-01-15;
 
-insert
+match
   $bob isa person, has name "Bob";
   $acme isa company, has name "Acme Corp";
+insert
   (employee: $bob, employer: $acme) isa employment, has start-date 2021-06-01;
 
-insert
+match
   $carol isa person, has name "Carol";
   $globex isa company, has name "Globex Inc";
+insert
   (employee: $carol, employer: $globex) isa employment, has start-date 2019-03-20;
 
-insert
+match
   $dan isa person, has name "Dan";
   $globex isa company, has name "Globex Inc";
+insert
   (employee: $dan, employer: $globex) isa employment, has start-date 2022-09-01;

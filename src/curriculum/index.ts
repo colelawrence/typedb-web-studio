@@ -58,6 +58,15 @@ export {
   type ContextManagerOptions,
 } from './context-manager';
 
+// Re-export context database adapter
+export {
+  createContextDatabaseAdapter,
+  type ContextDatabaseAdapterOptions,
+} from './context-database-adapter';
+
+// Re-export lesson database utilities
+export { lessonDatabaseNameForContext } from './lesson-db';
+
 // Re-export link utilities
 export {
   parseLinks,

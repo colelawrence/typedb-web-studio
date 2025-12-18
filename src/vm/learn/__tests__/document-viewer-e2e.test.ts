@@ -24,6 +24,7 @@ import { events, schema } from "../../../livestore/schema";
 import { uiState$, executedExampleIds$ } from "../../../livestore/queries";
 import { TypeDBEmbeddedService, createEmbeddedService } from "../../../services/typedb-embedded-service";
 import { createReplBridge } from "../../../learn/repl-bridge";
+import { lessonDatabaseNameForContext } from "../../../curriculum/lesson-db";
 import type { ParsedSection } from "../../../curriculum/types";
 import type { DocumentSectionContentBlockVM } from "../document-viewer.vm";
 
@@ -116,7 +117,8 @@ async function createTestStore() {
 
 describe("Document Viewer End-to-End", () => {
   let service: TypeDBEmbeddedService;
-  const testDbName = `e2e_test_${Date.now()}`;
+  // Use the lesson database name so queries run against the correct database
+  const testDbName = lessonDatabaseNameForContext("social-network");
 
   beforeAll(async () => {
     // Create and connect to TypeDB WASM
@@ -168,16 +170,27 @@ describe("Document Viewer End-to-End", () => {
       })
     );
 
+    // Set lesson context to match the section's required context
+    store.commit(
+      events.lessonContextSet({
+        currentContext: "social-network",
+        isLoading: false,
+        lastError: null,
+        lastLoadedAt: Date.now(),
+      })
+    );
+
     // Create a real REPL bridge that executes against TypeDB WASM
     const replBridge = createReplBridge({
       store,
       events,
       navigate,
       showSnackbar,
-      executeQuery: async (query: string) => {
+      executeQuery: async ({ query, database }: { query: string; database?: string | null }) => {
         const startTime = Date.now();
+        const targetDb = database ?? testDbName;
         try {
-          const response = await service.executeQuery(testDbName, query, {
+          const response = await service.executeQuery(targetDb, query, {
             transactionType: "read",
           });
 
@@ -330,15 +343,26 @@ describe("Document Viewer End-to-End", () => {
       })
     );
 
+    // Set lesson context to match the section's required context
+    store.commit(
+      events.lessonContextSet({
+        currentContext: "social-network",
+        isLoading: false,
+        lastError: null,
+        lastLoadedAt: Date.now(),
+      })
+    );
+
     const replBridge = createReplBridge({
       store,
       events,
       navigate,
       showSnackbar,
-      executeQuery: async (query: string) => {
+      executeQuery: async ({ query, database }: { query: string; database?: string | null }) => {
         const startTime = Date.now();
+        const targetDb = database ?? testDbName;
         try {
-          const response = await service.executeQuery(testDbName, query, {
+          const response = await service.executeQuery(targetDb, query, {
             transactionType: "read",
           });
 
@@ -415,6 +439,16 @@ describe("Document Viewer End-to-End", () => {
       events.connectionSessionSet({
         status: "connected",
         activeDatabase: testDbName,
+      })
+    );
+
+    // Set lesson context to match the section's required context
+    store.commit(
+      events.lessonContextSet({
+        currentContext: "social-network",
+        isLoading: false,
+        lastError: null,
+        lastLoadedAt: Date.now(),
       })
     );
 

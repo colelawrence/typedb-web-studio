@@ -12,12 +12,13 @@
  * @module curriculum/content
  */
 
-import type { ParsedSection, ParsedExample, ContextMeta } from './types';
+import type { ParsedSection, ParsedExample, ContextMeta, LoadedContext } from './types';
 
 // Import from virtual module (populated at build time by curriculum Vite plugin)
 import {
   curriculumSections,
   curriculumContexts,
+  curriculumLoadedContexts,
   curriculumMetadata,
   getCurriculumSection as _getCurriculumSection,
   getCurriculumSectionsByContext as _getCurriculumSectionsByContext,
@@ -34,6 +35,12 @@ export const sections: ParsedSection[] = curriculumSections;
  * All available contexts (schema + seed data configurations).
  */
 export const contexts: ContextMeta[] = curriculumContexts;
+
+/**
+ * Loaded contexts with schema and seed content, keyed by context name.
+ * Use this for runtime context loading (e.g., in the ContextManager).
+ */
+export const loadedContexts: Record<string, LoadedContext> = curriculumLoadedContexts;
 
 /**
  * Metadata about the curriculum content.

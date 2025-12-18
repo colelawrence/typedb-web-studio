@@ -14,7 +14,7 @@ import type { Plugin } from 'vite';
 import { readFile, readdir } from 'fs/promises';
 import { join, relative } from 'path';
 import { parseSection, validateSection } from './parser';
-import type { ParsedSection, ContextMeta } from './types';
+import type { ParsedSection, ContextMeta, LoadedContext } from './types';
 import * as yaml from 'yaml';
 
 const VIRTUAL_MODULE_ID = 'virtual:curriculum-content';
@@ -23,6 +23,8 @@ const RESOLVED_VIRTUAL_MODULE_ID = '\0' + VIRTUAL_MODULE_ID;
 interface CurriculumContent {
   sections: ParsedSection[];
   contexts: ContextMeta[];
+  /** Loaded contexts with schema and seed content, keyed by context name */
+  loadedContexts: Record<string, LoadedContext>;
   metadata: {
     generatedAt: string;
     totalExamples: number;
@@ -63,9 +65,14 @@ async function findMarkdownFiles(dir: string, basePath: string = ''): Promise<st
 
 /**
  * Load context definitions from _contexts directory.
+ * Returns both metadata and loaded content.
  */
-async function loadContexts(contextsDir: string): Promise<ContextMeta[]> {
+async function loadContexts(contextsDir: string): Promise<{
+  contexts: ContextMeta[];
+  loadedContexts: Record<string, LoadedContext>;
+}> {
   const contexts: ContextMeta[] = [];
+  const loadedContexts: Record<string, LoadedContext> = {};
 
   try {
     const entries = await readdir(contextsDir, { withFileTypes: true });
@@ -74,33 +81,52 @@ async function loadContexts(contextsDir: string): Promise<ContextMeta[]> {
       if (entry.isDirectory()) {
         const contextDir = join(contextsDir, entry.name);
         const contextYaml = join(contextDir, 'context.yaml');
+        const schemaFile = join(contextDir, 'schema.tql');
+        const seedFile = join(contextDir, 'seed.tql');
 
+        let description = '';
         try {
           const yamlContent = await readFile(contextYaml, 'utf-8');
           const meta = yaml.parse(yamlContent) as Partial<ContextMeta>;
-
-          contexts.push({
-            name: entry.name,
-            description: meta.description ?? '',
-            schemaFile: join(contextDir, 'schema.tql'),
-            seedFile: join(contextDir, 'seed.tql'),
-          });
+          description = meta.description ?? '';
         } catch {
           // Context without yaml - use defaults
-          contexts.push({
-            name: entry.name,
-            description: '',
-            schemaFile: join(contextDir, 'schema.tql'),
-            seedFile: join(contextDir, 'seed.tql'),
-          });
         }
+
+        // Load schema and seed file contents
+        let schema = '';
+        let seed = '';
+        try {
+          schema = await readFile(schemaFile, 'utf-8');
+        } catch {
+          console.warn(`[curriculum] Could not read schema file: ${schemaFile}`);
+        }
+        try {
+          seed = await readFile(seedFile, 'utf-8');
+        } catch {
+          console.warn(`[curriculum] Could not read seed file: ${seedFile}`);
+        }
+
+        contexts.push({
+          name: entry.name,
+          description,
+          schemaFile,
+          seedFile,
+        });
+
+        loadedContexts[entry.name] = {
+          name: entry.name,
+          description,
+          schema,
+          seed,
+        };
       }
     }
   } catch {
     // No contexts directory
   }
 
-  return contexts;
+  return { contexts, loadedContexts };
 }
 
 /**
@@ -110,7 +136,7 @@ async function parseCurriculumContent(curriculumDir: string): Promise<Curriculum
   const sections: ParsedSection[] = [];
   const mdFiles = await findMarkdownFiles(curriculumDir);
   const contextsDir = join(curriculumDir, '_contexts');
-  const contexts = await loadContexts(contextsDir);
+  const { contexts, loadedContexts } = await loadContexts(contextsDir);
 
   for (const filePath of mdFiles) {
     try {
@@ -138,6 +164,7 @@ async function parseCurriculumContent(curriculumDir: string): Promise<Curriculum
   return {
     sections,
     contexts,
+    loadedContexts,
     metadata: {
       generatedAt: new Date().toISOString(),
       totalExamples,
@@ -182,6 +209,9 @@ export function curriculumPlugin(options: { curriculumDir?: string } = {}): Plug
 export const curriculumSections = ${JSON.stringify(content.sections, null, 2)};
 
 export const curriculumContexts = ${JSON.stringify(content.contexts, null, 2)};
+
+/** Loaded contexts with schema and seed content, keyed by context name */
+export const curriculumLoadedContexts = ${JSON.stringify(content.loadedContexts, null, 2)};
 
 export const curriculumMetadata = ${JSON.stringify(content.metadata, null, 2)};
 

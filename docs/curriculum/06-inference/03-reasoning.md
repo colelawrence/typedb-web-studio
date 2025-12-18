@@ -1,65 +1,92 @@
 ---
 id: inf-reasoning
-title: Reasoning in Queries
-context: null
+title: Graph Traversal Patterns
+context: social-network
 requires: [inf-rule-patterns]
 ---
 
-# Reasoning in Queries
+# Graph Traversal Patterns
 
-When rules are defined, queries automatically include derived facts.
+Complex graph queries combine multiple patterns to discover relationships.
 
-## Querying Derived Facts
+## Following Chains
 
-With the ancestry rules defined, query all ancestors:
+Find all people connected through a chain of friendships:
 
-```typeql:readonly[id=inf-query-ancestors]
+```typeql:example[id=inf-chain-2hop, expect=results, min=1]
 match
-  $me isa person, has name "You";
-  (descendant: $me, ancestor: $a) isa ancestry;
+  $start isa person, has name "Alice";
+  (friend: $start, friend: $hop1) isa friendship;
+  (friend: $hop1, friend: $hop2) isa friendship;
+  not { $hop2 is $start; };
+  $hop2 has name $name;
 ```
 
-This returns ALL ancestors - parents, grandparents, great-grandparents - not just those explicitly stored.
+## Finding Mutual Connections
 
-## The Magic of Inference
+Find friends that two people have in common:
 
-Insert only parent relationships:
-
-```typeql:readonly[id=inf-insert-family]
-insert
+```typeql:example[id=inf-mutual-friends, expect=results, min=1]
+match
   $alice isa person, has name "Alice";
-  $bob isa person, has name "Bob";
   $carol isa person, has name "Carol";
-  (parent: $alice, child: $bob) isa parenthood;
-  (parent: $bob, child: $carol) isa parenthood;
+  (friend: $alice, friend: $mutual) isa friendship;
+  (friend: $carol, friend: $mutual) isa friendship;
+  $mutual has name $name;
 ```
 
-Query for ancestry:
+## Cross-Relationship Queries
 
-```typeql:readonly[id=inf-query-alice]
+Combine different relationship types:
+
+```typeql:example[id=inf-friend-employers, expect=results, min=1]
 match
-  $alice isa person, has name "Alice";
-  (ancestor: $alice, descendant: $d) isa ancestry;
+  $person isa person, has name $person-name;
+  $company isa company, has name $company-name;
+  (friend: $person, friend: $friend) isa friendship;
+  (employee: $friend, employer: $company) isa employment;
 ```
 
-Returns both Bob (direct child) AND Carol (grandchild) - Carol is derived!
+This finds which companies your friends work for.
 
-## Performance Considerations
+## Negation for Exclusion
 
-Rules are evaluated:
-- **At query time** - Not stored, computed on-demand
-- **Lazily** - Only patterns needed by your query
-- **Efficiently** - TypeDB optimizes rule evaluation
+Find people who are NOT friends:
 
-## When to Use Rules
+```typeql:example[id=inf-not-friends, expect=results, min=1]
+match
+  $p1 isa person, has name "Alice";
+  $p2 isa person, has name $other-name;
+  not { (friend: $p1, friend: $p2) isa friendship; };
+  not { $p1 is $p2; };
+```
 
-Rules excel at:
-- Graph traversal (friends-of-friends)
-- Inheritance hierarchies (permissions, classifications)
-- Derived relationships (co-workers from shared employer)
-- Domain logic (eligibility rules, risk assessment)
+## Optional Patterns with try
 
-Rules are less suited for:
-- Simple data transformations (use expressions)
-- One-off calculations (use reduce/aggregations)
-- External data lookups (use application code)
+Include data that might not exist:
+
+```typeql:example[id=inf-optional-data, expect=results, min=4]
+match
+  $p isa person, has name $name;
+  try { $p has age $age; };
+```
+
+Returns all people, with age when available.
+
+## Counting Relationships
+
+Count how many friends each person has:
+
+```typeql:example[id=inf-count-friends, expect=results, min=2]
+match
+  $p isa person, has name $name;
+  (friend: $p, friend: $f) isa friendship;
+reduce $friend-count = count groupby $p, $name;
+```
+
+## Best Practices
+
+1. **Start with specific matches** - Anchor your query with known entities
+2. **Use `not { $a is $b; }`** - Exclude self-matches in symmetric relations
+3. **Connect variables** - Every variable should connect to the pattern
+4. **Test incrementally** - Build complex queries step by step

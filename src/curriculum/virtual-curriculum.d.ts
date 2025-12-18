@@ -6,7 +6,7 @@
  */
 
 declare module 'virtual:curriculum-content' {
-  import type { ParsedSection, ParsedExample, ContextMeta } from './types';
+  import type { ParsedSection, ParsedExample, ContextMeta, LoadedContext } from './types';
 
   /**
    * All parsed curriculum sections.
@@ -17,6 +17,11 @@ declare module 'virtual:curriculum-content' {
    * All available contexts (schema + seed data configurations).
    */
   export const curriculumContexts: ContextMeta[];
+
+  /**
+   * Loaded contexts with schema and seed content, keyed by context name.
+   */
+  export const curriculumLoadedContexts: Record<string, LoadedContext>;
 
   /**
    * Metadata about the curriculum content.

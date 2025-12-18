@@ -175,9 +175,10 @@ export function onServiceReady(listener: (service: TypeDBService) => void): () =
 
 /**
  * Quick connect for WASM mode (no credentials needed).
- * Creates a default database and connects.
+ * Optionally creates a database if databaseName is provided.
+ * @param databaseName - Optional database to create on connect. If not provided, connects without a database.
  */
-export async function quickConnectWasm(databaseName = "playground"): Promise<TypeDBService> {
+export async function quickConnectWasm(databaseName?: string): Promise<TypeDBService> {
   await setServiceMode("wasm");
   const service = getService();
 
@@ -185,6 +186,7 @@ export async function quickConnectWasm(databaseName = "playground"): Promise<Typ
 
   try {
     // Connect (this loads WASM)
+    // If databaseName is provided, creates that database on connect
     await service.connect({
       address: "wasm://local",
       username: "browser",
@@ -199,7 +201,11 @@ export async function quickConnectWasm(databaseName = "playground"): Promise<Typ
       listener(service);
     }
 
-    console.log(`[ServiceProvider] WASM connected with database '${databaseName}'`);
+    if (databaseName) {
+      console.log(`[ServiceProvider] WASM connected with database '${databaseName}'`);
+    } else {
+      console.log(`[ServiceProvider] WASM connected (no database selected)`);
+    }
     return service;
   } catch (error) {
     updateConnectionStatus("disconnected");

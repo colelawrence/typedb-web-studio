@@ -18,6 +18,7 @@ import type { DocumentViewerVM } from "../document-viewer.vm";
 import { events, schema } from "../../../livestore/schema";
 import { readingProgressForSection$, executedExampleIds$ } from "../../../livestore/queries";
 import { createMockReplBridge } from "../../../learn/repl-bridge";
+import { lessonDatabaseNameForContext } from "../../../curriculum/lesson-db";
 import type { ParsedSection } from "../../../curriculum/types";
 
 // ============================================================================
@@ -549,10 +550,14 @@ describe("DocumentViewerScope with ContextManager", () => {
     clearContext: () => Promise<void>;
     getStatus: () => { isReady: boolean; isLoading: boolean; name: string | null; error: string | null };
     isContextLoaded: (name: string | null) => boolean;
+    setContext: (name: string | null) => void;
   };
 
   beforeEach(async () => {
-    // Create mock context manager
+    // Create context with context manager
+    const store = await createTestStore();
+
+    // Create mock context manager that updates LiveStore
     mockContextManager = {
       currentContext: null,
       isLoading: false,
@@ -561,10 +566,28 @@ describe("DocumentViewerScope with ContextManager", () => {
       loadContext: async (name: string) => {
         mockContextManager.loadContextCalls.push(name);
         mockContextManager.currentContext = name;
+        // Update LiveStore for reactive visibility
+        store.commit(events.lessonContextSet({
+          currentContext: name,
+          isLoading: false,
+          lastError: null,
+          lastLoadedAt: Date.now(),
+        }));
+        // Also set the active database and connection status to match
+        store.commit(events.connectionSessionSet({
+          status: "connected",
+          activeDatabase: lessonDatabaseNameForContext(name),
+        }));
       },
       resetContext: async () => {},
       clearContext: async () => {
         mockContextManager.currentContext = null;
+        store.commit(events.lessonContextSet({
+          currentContext: null,
+          isLoading: false,
+          lastError: null,
+          lastLoadedAt: null,
+        }));
       },
       getStatus: () => ({
         isReady: mockContextManager.currentContext !== null,
@@ -573,10 +596,24 @@ describe("DocumentViewerScope with ContextManager", () => {
         error: null,
       }),
       isContextLoaded: (name: string | null) => mockContextManager.currentContext === name,
+      // Helper to set context AND update LiveStore (including active database + connection status)
+      setContext: (name: string | null) => {
+        mockContextManager.currentContext = name;
+        store.commit(events.lessonContextSet({
+          currentContext: name,
+          isLoading: false,
+          lastError: null,
+          lastLoadedAt: name ? Date.now() : null,
+        }));
+        // Also set the active database and connection status, simulating what loadContext does
+        if (name) {
+          store.commit(events.connectionSessionSet({
+            status: "connected",
+            activeDatabase: lessonDatabaseNameForContext(name),
+          }));
+        }
+      },
     };
-
-    // Create context with context manager
-    const store = await createTestStore();
 
     store.commit(events.profileCreated({
       id: "test-profile-ctx",
@@ -617,7 +654,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("is not visible when context matches", async () => {
-      mockContextManager.currentContext = "social-network";
+      mockContextManager.setContext("social-network");
       ctx.viewerVM.openSection("first-queries");
       const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
       expect(isVisible).toBe(false);
@@ -630,7 +667,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("shows current context from manager", () => {
-      mockContextManager.currentContext = "e-commerce";
+      mockContextManager.setContext("e-commerce");
       const current = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.currentContext$);
       expect(current).toBe("e-commerce");
     });
@@ -655,6 +692,521 @@ describe("DocumentViewerScope with ContextManager", () => {
 
       await ctx.viewerVM.contextSwitchPrompt.switchContext();
       expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(false);
+    });
+  });
+
+  describe("Auto-Context Loading on Run", () => {
+    it("auto-loads context when running an example", async () => {
+      // Context is not loaded initially
+      expect(mockContextManager.currentContext).toBeNull();
+
+      // Open section and run an example
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      expect(section).not.toBeNull();
+      expect(section!.examples.length).toBeGreaterThan(0);
+
+      // Run the first example
+      const example = section!.examples[0];
+      await example.run();
+
+      // Context should have been auto-loaded
+      expect(mockContextManager.loadContextCalls).toContain("social-network");
+    });
+
+    it("does not reload context if already loaded", async () => {
+      // Pre-load the context
+      mockContextManager.setContext("social-network");
+      expect(mockContextManager.loadContextCalls).toHaveLength(0);
+
+      // Open section and run an example
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+      await example.run();
+
+      // Context should NOT have been loaded again (already matches)
+      expect(mockContextManager.loadContextCalls).toHaveLength(0);
+    });
+
+    it("loads correct context for section that requires it", async () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+
+      // Verify section requires social-network context
+      expect(section!.context).toBe("social-network");
+
+      // Run example - should trigger context load
+      await section!.examples[0].run();
+
+      // Verify the correct context was loaded
+      expect(mockContextManager.loadContextCalls).toEqual(["social-network"]);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Reactive Context Signals
+  // --------------------------------------------------------------------------
+
+  describe("Reactive Context Signals", () => {
+    it("example exposes requiredContext from section", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      // Should inherit context requirement from section
+      expect(example.requiredContext).toBe("social-network");
+    });
+
+    it("isContextReady$ is false when context not loaded", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      const isReady = ctx.store.query(example.isContextReady$);
+      expect(isReady).toBe(false);
+    });
+
+    it("isContextReady$ becomes true when matching context is loaded", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      // Initially not ready
+      expect(ctx.store.query(example.isContextReady$)).toBe(false);
+
+      // Load the required context
+      mockContextManager.setContext("social-network");
+
+      // Now should be ready
+      expect(ctx.store.query(example.isContextReady$)).toBe(true);
+    });
+
+    it("isContextReady$ stays false when wrong context is loaded", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      // Load a different context
+      mockContextManager.setContext("e-commerce");
+
+      // Should still not be ready (requires social-network)
+      expect(ctx.store.query(example.isContextReady$)).toBe(false);
+    });
+
+    it("canRun$ is true when not currently running", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      const canRun = ctx.store.query(example.canRun$);
+      expect(canRun).toBe(true);
+    });
+
+    it("canRun$ is false for non-interactive examples", async () => {
+      // Add a readonly example to test
+      const sectionsWithReadonly: Record<string, ParsedSection> = {
+        "readonly-section": {
+          id: "readonly-section",
+          title: "Readonly Section",
+          context: null,
+          requires: [],
+          headings: [],
+          examples: [
+            {
+              id: "readonly-example",
+              type: "readonly",
+              query: "# This is just for display",
+              sourceFile: "test.md",
+              lineNumber: 1,
+            },
+          ],
+          rawContent: "# Readonly\n\n```typeql:readonly[id=readonly-example]\n# This is just for display\n```",
+          sourceFile: "test.md",
+        },
+      };
+
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-ctx",
+        sections: sectionsWithReadonly,
+        replBridge,
+      });
+
+      vm.openSection("readonly-section");
+      const section = ctx.store.query(vm.currentSection$);
+      const readonlyExample = section!.examples[0];
+
+      // Readonly examples should not be runnable
+      expect(readonlyExample.isInteractive).toBe(false);
+      expect(ctx.store.query(readonlyExample.canRun$)).toBe(false);
+    });
+
+    it("isContextReady$ is true when no context is required", async () => {
+      // Create a section without context requirement
+      const sectionsNoContext: Record<string, ParsedSection> = {
+        "no-context-section": {
+          id: "no-context-section",
+          title: "No Context Needed",
+          context: null, // No context required
+          requires: [],
+          headings: [],
+          examples: [
+            {
+              id: "generic-example",
+              type: "example",
+              query: "match $x isa thing;",
+              expect: { results: true },
+              sourceFile: "test.md",
+              lineNumber: 1,
+            },
+          ],
+          rawContent: "# No Context\n\n```typeql:example[id=generic-example]\nmatch $x isa thing;\n```",
+          sourceFile: "test.md",
+        },
+      };
+
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-ctx",
+        sections: sectionsNoContext,
+        replBridge,
+        contextManager: mockContextManager,
+      });
+
+      vm.openSection("no-context-section");
+      const section = ctx.store.query(vm.currentSection$);
+      const example = section!.examples[0];
+
+      // Should be ready since no context is required
+      expect(example.requiredContext).toBeNull();
+      expect(ctx.store.query(example.isContextReady$)).toBe(true);
+    });
+
+    it("reactive signals update when context changes", () => {
+      ctx.viewerVM.openSection("first-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      // Initially not ready
+      expect(ctx.store.query(example.isContextReady$)).toBe(false);
+
+      // Load wrong context
+      mockContextManager.setContext("e-commerce");
+      expect(ctx.store.query(example.isContextReady$)).toBe(false);
+
+      // Load correct context
+      mockContextManager.setContext("social-network");
+      expect(ctx.store.query(example.isContextReady$)).toBe(true);
+
+      // Clear context
+      mockContextManager.setContext(null);
+      expect(ctx.store.query(example.isContextReady$)).toBe(false);
+    });
+
+    it("canRun$ is false when context is required but no contextManager provided (Query page scenario)", async () => {
+      // This simulates the Query page's document viewer which has no contextManager
+      // Examples that require a context should NOT be runnable
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+
+      // Create scope WITHOUT contextManager (like Query page)
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-no-cm",
+        sections: MOCK_SECTIONS, // first-queries requires "social-network" context
+        replBridge,
+        // NOTE: No contextManager provided!
+      });
+
+      vm.openSection("first-queries");
+      const section = store.query(vm.currentSection$);
+      expect(section).not.toBeNull();
+
+      const example = section!.examples[0];
+
+      // The example requires social-network context
+      expect(example.requiredContext).toBe("social-network");
+
+      // Without contextManager, canRun should be FALSE
+      // because we can't auto-load the context
+      const canRun = store.query(example.canRun$);
+      expect(canRun).toBe(false);
+
+      // Check the disabled reason
+      const reason = store.query(example.runDisabledReason$);
+      expect(reason).toContain("Requires");
+      expect(reason).toContain("social-network");
+    });
+
+    it("canRun$ is true when no context required even without contextManager", async () => {
+      // Sections without context requirements should be runnable
+      // even when there's no contextManager
+      const sectionsNoContext: Record<string, ParsedSection> = {
+        "generic-section": {
+          id: "generic-section",
+          title: "Generic Section",
+          context: null, // No context required
+          requires: [],
+          headings: [],
+          examples: [
+            {
+              id: "generic-query",
+              type: "example",
+              query: "match $x isa thing;",
+              expect: { results: true },
+              sourceFile: "test.md",
+              lineNumber: 1,
+            },
+          ],
+          rawContent: "# Generic\n\n```typeql:example[id=generic-query]\nmatch $x isa thing;\n```",
+          sourceFile: "test.md",
+        },
+      };
+
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+
+      // Create scope WITHOUT contextManager
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-no-cm-2",
+        sections: sectionsNoContext,
+        replBridge,
+        // NOTE: No contextManager provided!
+      });
+
+      // Set up connection status (required for running queries)
+      store.commit(events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: "some-db",
+      }));
+
+      vm.openSection("generic-section");
+      const section = store.query(vm.currentSection$);
+      const example = section!.examples[0];
+
+      // No context required
+      expect(example.requiredContext).toBeNull();
+
+      // Should be runnable (no context required, so contextManager doesn't matter)
+      const canRun = store.query(example.canRun$);
+      expect(canRun).toBe(true);
+
+      // No disabled reason
+      const reason = store.query(example.runDisabledReason$);
+      expect(reason).toBeNull();
+    });
+
+    it("canRun$ is false when connected but no database selected (Query page scenario)", async () => {
+      // This tests Bug 2: connected status but no activeDatabase
+      const sectionsNoContext: Record<string, ParsedSection> = {
+        "generic-section": {
+          id: "generic-section",
+          title: "Generic Section",
+          context: null, // No context required
+          requires: [],
+          headings: [],
+          examples: [
+            {
+              id: "generic-query",
+              type: "example",
+              query: "match $x isa thing;",
+              expect: { results: true },
+              sourceFile: "test.md",
+              lineNumber: 1,
+            },
+          ],
+          rawContent: "# Generic\n\n```typeql:example[id=generic-query]\nmatch $x isa thing;\n```",
+          sourceFile: "test.md",
+        },
+      };
+
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+
+      // Create scope WITHOUT contextManager (Query page scenario)
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-no-db",
+        sections: sectionsNoContext,
+        replBridge,
+      });
+
+      // Connected but NO database selected
+      store.commit(events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: null,
+      }));
+
+      vm.openSection("generic-section");
+      const section = store.query(vm.currentSection$);
+      const example = section!.examples[0];
+
+      // Should NOT be runnable - no database selected
+      expect(store.query(example.canRun$)).toBe(false);
+
+      // Should show database selection message
+      const reason = store.query(example.runDisabledReason$);
+      expect(reason).toBe("Select a database first");
+
+      // Now select a database
+      store.commit(events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: "test-db",
+      }));
+
+      // Now should be runnable
+      expect(store.query(example.canRun$)).toBe(true);
+      expect(store.query(example.runDisabledReason$)).toBeNull();
+    });
+
+    it("canRun$ is false for context-less sections when disconnected (even with contextManager)", async () => {
+      // This tests the fix: sections without context requirements should still
+      // check connection status, even when contextManager is present.
+      // The contextManager can only auto-load when there's a context to load.
+      const sectionsNoContext: Record<string, ParsedSection> = {
+        "intro-section": {
+          id: "intro-section",
+          title: "Introduction",
+          context: null, // No context required - intro lesson
+          requires: [],
+          headings: [],
+          examples: [
+            {
+              id: "intro-query",
+              type: "example",
+              query: "match $x isa thing;",
+              expect: { results: true },
+              sourceFile: "test.md",
+              lineNumber: 1,
+            },
+          ],
+          rawContent: "# Intro\n\n```typeql:example[id=intro-query]\nmatch $x isa thing;\n```",
+          sourceFile: "test.md",
+        },
+      };
+
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+
+      // Create scope WITH contextManager (Learn page scenario)
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-intro",
+        sections: sectionsNoContext,
+        replBridge,
+        contextManager: mockContextManager, // Has context manager, but section has no context
+      });
+
+      // Disconnected - should NOT be runnable even with contextManager
+      // because there's no context to auto-load
+      store.commit(events.connectionSessionSet({
+        status: "disconnected",
+        activeDatabase: null,
+      }));
+
+      vm.openSection("intro-section");
+      const section = store.query(vm.currentSection$);
+      const example = section!.examples[0];
+
+      // No context required
+      expect(example.requiredContext).toBeNull();
+
+      // Should NOT be runnable - not connected and contextManager can't help
+      expect(store.query(example.canRun$)).toBe(false);
+      expect(store.query(example.runDisabledReason$)).toBe("Not connected to database");
+
+      // Now connect but no database selected
+      store.commit(events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: null,
+      }));
+
+      // Still not runnable - no database selected
+      expect(store.query(example.canRun$)).toBe(false);
+      expect(store.query(example.runDisabledReason$)).toBe("Select a database first");
+
+      // Now select a database
+      store.commit(events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: "test-db",
+      }));
+
+      // Now should be runnable
+      expect(store.query(example.canRun$)).toBe(true);
+      expect(store.query(example.runDisabledReason$)).toBeNull();
+    });
+
+    it("dismiss is section-specific and resets when switching sections", () => {
+      // Create a second section to test dismissal across sections
+      const multiSections: Record<string, ParsedSection> = {
+        "section-a": {
+          id: "section-a",
+          title: "Section A",
+          context: "social-network",
+          requires: [],
+          headings: [],
+          examples: [{
+            id: "example-a",
+            type: "example",
+            query: "match $a isa person;",
+            sourceFile: "test.md",
+            lineNumber: 1,
+          }],
+          rawContent: "# A\n\n```typeql:example[id=example-a]\nmatch $a isa person;\n```",
+          sourceFile: "a.md",
+        },
+        "section-b": {
+          id: "section-b",
+          title: "Section B",
+          context: "social-network",
+          requires: [],
+          headings: [],
+          examples: [{
+            id: "example-b",
+            type: "example",
+            query: "match $b isa person;",
+            sourceFile: "test.md",
+            lineNumber: 1,
+          }],
+          rawContent: "# B\n\n```typeql:example[id=example-b]\nmatch $b isa person;\n```",
+          sourceFile: "b.md",
+        },
+      };
+
+      const { store } = ctx;
+      const replBridge = createMockReplBridge();
+
+      const { vm } = createDocumentViewerScope({
+        store,
+        profileId: "test-profile-dismiss",
+        sections: multiSections,
+        replBridge,
+        contextManager: mockContextManager,
+      });
+
+      // Open section A - prompt should be visible (context not loaded)
+      vm.openSection("section-a");
+      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(true);
+
+      // Dismiss the prompt for section A
+      vm.contextSwitchPrompt.dismiss();
+      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(false);
+
+      // Switch to section B - prompt should be visible again (different section)
+      // The dismissal state is reset when navigating to a different section
+      vm.openSection("section-b");
+      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(true);
+
+      // Go back to section A - prompt should reappear because dismissal was reset
+      // when we navigated to section B. This is the "reminder on revisit" behavior.
+      vm.openSection("section-a");
+      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(true);
     });
   });
 });

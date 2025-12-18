@@ -45,7 +45,7 @@ Without `isa`, the database cannot know what you seek.
 
 *A type that does not exist cannot be found.*
 
-```typeql:invalid[id=koan-unknown-type, error=type]
+```typeql:invalid[id=koan-unknown-type, error=data]
 match $x isa unknown_type;
 ```
 

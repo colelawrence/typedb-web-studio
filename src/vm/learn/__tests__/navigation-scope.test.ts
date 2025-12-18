@@ -4,7 +4,12 @@
  * Tests the navigation VM scope implementation.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { createStore, provideOtel } from "@livestore/livestore";
+import { makeInMemoryAdapter } from "@livestore/adapter-web";
+import { Effect } from "effect";
+
+import { schema } from "../../../livestore/schema";
 import {
   createNavigationScope,
   createMockNavigationScope,
@@ -17,6 +22,23 @@ import {
   createNavigationPath,
   type NavigationTarget,
 } from "../navigation.vm";
+
+// Counter to ensure unique store IDs
+let storeCounter = 0;
+
+async function createTestStore() {
+  return await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        return yield* createStore({
+          schema,
+          storeId: `navigation-test-${Date.now()}-${++storeCounter}`,
+          adapter: makeInMemoryAdapter(),
+        });
+      })
+    ).pipe(provideOtel({}))
+  );
+}
 
 // ============================================================================
 // NavigationHistory Tests
@@ -298,21 +320,31 @@ describe("createNavigationPath", () => {
 describe("createNavigationScope", () => {
   let navigate: ReturnType<typeof vi.fn>;
   let onSectionOpened: ReturnType<typeof vi.fn>;
-  let options: NavigationScopeOptions;
+  let store: Awaited<ReturnType<typeof createTestStore>>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     navigate = vi.fn();
     onSectionOpened = vi.fn();
-    options = {
+    store = await createTestStore();
+  });
+
+  afterEach(async () => {
+    // Cleanup is handled by Effect.scoped
+  });
+
+  function createOptions(overrides: Partial<NavigationScopeOptions> = {}): NavigationScopeOptions {
+    return {
+      store,
       navigate,
       onSectionOpened,
       useBrowserHistory: false, // Disable for tests
+      ...overrides,
     };
-  });
+  }
 
   describe("navigateToSection", () => {
     it("navigates to a section", () => {
-      const nav = createNavigationScope(options);
+      const nav = createNavigationScope(createOptions());
 
       nav.navigateToSection("first-queries");
 
@@ -321,7 +353,7 @@ describe("createNavigationScope", () => {
     });
 
     it("navigates to a section with heading", () => {
-      const nav = createNavigationScope(options);
+      const nav = createNavigationScope(createOptions());
 
       nav.navigateToSection("first-queries", "variables");
 
@@ -333,7 +365,7 @@ describe("createNavigationScope", () => {
   describe("navigateToReference", () => {
     it("navigates to a reference entry", () => {
       const onReferenceOpened = vi.fn();
-      const nav = createNavigationScope({ ...options, onReferenceOpened });
+      const nav = createNavigationScope(createOptions({ onReferenceOpened }));
 
       nav.navigateToReference("match");
 
@@ -344,7 +376,7 @@ describe("createNavigationScope", () => {
 
   describe("history navigation", () => {
     it("supports going back", () => {
-      const nav = createNavigationScope(options);
+      const nav = createNavigationScope(createOptions());
 
       nav.navigateToSection("a");
       nav.navigateToSection("b");
@@ -357,7 +389,7 @@ describe("createNavigationScope", () => {
     });
 
     it("supports going forward", () => {
-      const nav = createNavigationScope(options);
+      const nav = createNavigationScope(createOptions());
 
       nav.navigateToSection("a");
       nav.navigateToSection("b");
@@ -370,14 +402,13 @@ describe("createNavigationScope", () => {
 
   describe("initial target", () => {
     it("initializes with initial target", () => {
-      const nav = createNavigationScope({
-        ...options,
+      const nav = createNavigationScope(createOptions({
         initialTarget: {
           type: "learn",
           sectionId: "first-queries",
           headingId: null,
         },
-      });
+      }));
 
       // Should not navigate (already there)
       nav.navigateToSection("first-queries");

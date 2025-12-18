@@ -202,7 +202,7 @@ describe("ReplBridge", () => {
 
       expect(result.success).toBe(true);
       expect(result.resultCount).toBe(5);
-      expect(ctx.executeQuery).toHaveBeenCalledWith("match $p isa person;");
+      expect(ctx.executeQuery).toHaveBeenCalledWith({ query: "match $p isa person;", database: undefined });
     });
 
     it("sets query text before executing", async () => {

@@ -39,6 +39,7 @@ import {
   detectQueryType,
   onStatusChange as subscribeToStatusChange,
   onModeChange as subscribeToModeChange,
+  type TypeDBService,
   type QueryResponse,
   type ServiceMode,
 } from "../services";
@@ -141,12 +142,17 @@ import { createReplBridge } from "../learn/repl-bridge";
 import {
   sections as curriculumSections,
   contexts as curriculumContexts,
+  loadedContexts as curriculumLoadedContexts,
 } from "../curriculum/content";
 import type {
   ParsedSection,
   CurriculumMeta,
   SectionMeta,
 } from "../curriculum/types";
+import {
+  createContextManager,
+  createContextDatabaseAdapter,
+} from "../curriculum";
 import { constant } from "./learn/constant";
 
 // ============================================================================
@@ -376,6 +382,16 @@ function processQueryResults(
 }
 
 /**
+ * Arguments for query execution.
+ */
+interface ExecuteQueryArgs {
+  /** The TypeQL query to execute */
+  query: string;
+  /** Optional database to run against (overrides active database) */
+  database?: string | null;
+}
+
+/**
  * Factory to create a shared query execution function that:
  * 1. Executes queries against TypeDB
  * 2. Updates the results panel (queryResults state)
@@ -388,12 +404,14 @@ function createExecuteQueryAndUpdateResults(
   store: Store<typeof schema>,
   showSnackbar: (type: "success" | "warning" | "error", message: string) => void,
   refreshSchemaForDatabase: (database: string) => Promise<void>
-): (queryText: string) => Promise<QueryExecutionResult> {
+): (args: ExecuteQueryArgs) => Promise<QueryExecutionResult> {
   return async function executeQueryAndUpdateResults(
-    queryText: string
+    args: ExecuteQueryArgs
   ): Promise<QueryExecutionResult> {
+    const { query: queryText, database: overrideDatabase } = args;
     const session = store.query(connectionSession$);
-    const database = session.activeDatabase;
+    // Use override database if provided, otherwise fall back to active database
+    const database = overrideDatabase ?? session.activeDatabase;
 
     if (!database) {
       showSnackbar("error", "No database selected");
@@ -571,6 +589,11 @@ function handleServiceDisconnected(store: Store<typeof schema>): void {
     events.sessionDatabasesSet({
       isStale: true,
       lastError: null,
+      // Clear the databases array to prevent showing stale entries after reconnect
+      databases: [],
+      // Reset refresh state so next refresh attempt starts fresh
+      refreshRetryCount: 0,
+      nextAllowedRefreshAt: null,
     })
   );
 
@@ -579,6 +602,20 @@ function handleServiceDisconnected(store: Store<typeof schema>): void {
       entities: [],
       relations: [],
       attributes: [],
+    })
+  );
+
+  // Clear lesson context since the database no longer exists after disconnect.
+  // TypeDB WASM runs in-memory, so lesson databases are lost on disconnect/refresh.
+  // Without this, LiveStore could retain stale lessonContext claiming a context
+  // is loaded when the underlying database doesn't exist, causing "database not found"
+  // errors when running ExampleBlocks.
+  store.commit(
+    events.lessonContextSet({
+      currentContext: null,
+      isLoading: false,
+      lastError: null,
+      lastLoadedAt: null,
     })
   );
 }
@@ -674,6 +711,7 @@ export function createStudioScope(
     message: string,
     persistent = false
   ) => {
+    console.log(`[scope] Showing snackbar: [${type}] ${message}`);
     const notifications = store.query(snackbarNotifications$).notifications;
     const newNotification = {
       id: createID("snack"),
@@ -818,7 +856,7 @@ export function createStudioScope(
 
   // Connection Service (for use by other scopes)
   const connectionService: ConnectionService = {
-    async connectWasm(databaseName = "playground") {
+    async connectWasm(databaseName?: string) {
       store.commit(
         events.connectionSessionSet({
           status: "connecting",
@@ -833,7 +871,7 @@ export function createStudioScope(
         store.commit(
           events.connectionSessionSet({
             status: "connected",
-            activeDatabase: databaseName,
+            activeDatabase: databaseName ?? null,
             connectedAt: Date.now(),
             lastStatusChange: Date.now(),
           })
@@ -1702,13 +1740,17 @@ export function createStudioScope(
                   })
                 );
 
-                await quickConnectWasm(server.name);
+                // Create a default "playground" database for the local server
+                // This gives users something to work with immediately
+                // Note: The database is called "playground", NOT the server name
+                const defaultDatabaseName = "playground";
+                await quickConnectWasm(defaultDatabaseName);
 
                 store.commit(
                   events.connectionSessionSet({
                     status: "connected",
                     savedLocalServerId: server.id,
-                    activeDatabase: server.name,
+                    activeDatabase: defaultDatabaseName,
                     connectedAt: Date.now(),
                     lastStatusChange: Date.now(),
                   }),
@@ -2105,7 +2147,12 @@ export function createStudioScope(
     showSnackbar,
     curriculumSectionsData,
     sharedProfileId,
-    executeQueryAndUpdateResults
+    executeQueryAndUpdateResults,
+    {
+      getService,
+      refreshDatabaseList,
+      quickConnectWasm,
+    }
   );
 
   // ---------------------------------------------------------------------------
@@ -2264,7 +2311,7 @@ function createQueryPageVM(
   curriculumSectionsData: Record<string, ParsedSection>,
   profileId: string,
   curriculumMeta: CurriculumMeta,
-  executeQueryAndUpdateResults: (query: string) => Promise<QueryExecutionResult>,
+  executeQueryAndUpdateResults: (args: ExecuteQueryArgs) => Promise<QueryExecutionResult>,
   refreshSchemaForDatabase: (database: string) => Promise<void>
 ): QueryPageVM {
   // Helper to create schema tree item VMs
@@ -2325,7 +2372,7 @@ function createQueryPageVM(
         events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: false })
       );
       // Execute and update results panel
-      await executeQueryAndUpdateResults(query);
+      await executeQueryAndUpdateResults({ query });
     },
   });
 
@@ -2409,7 +2456,7 @@ function createQueryPageVM(
         events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: false })
       );
       // Execute and update results panel
-      await executeQueryAndUpdateResults(query);
+      await executeQueryAndUpdateResults({ query });
     },
   });
 
@@ -2440,7 +2487,7 @@ function createQueryPageVM(
         events.uiStateSet({ currentQueryText: query, hasUnsavedChanges: false })
       );
       // Execute and update results panel
-      await executeQueryAndUpdateResults(query);
+      await executeQueryAndUpdateResults({ query });
     },
   });
 
@@ -2738,7 +2785,8 @@ function createQueryPageVM(
       // Open the docs viewer in the query page instead of navigating to /learn
       docsViewerService.openSection(sectionId);
     },
-    getActiveSectionId: () => store.query(uiState$).queryDocsCurrentSectionId,
+    // Use the Query page's docs state keys so sidebar highlighting stays in sync
+    sectionIdKey: "queryDocsCurrentSectionId",
   });
 
   // Learn Section for Query Sidebar
@@ -2929,7 +2977,7 @@ function createQueryPageVM(
       }),
       click: () => {
         const queryText = store.query(uiState$).currentQueryText;
-        executeQueryAndUpdateResults(queryText);
+        executeQueryAndUpdateResults({ query: queryText });
       },
     },
   };
@@ -3358,12 +3406,17 @@ function createLearnPageVM(
   ) => void,
   sections: Record<string, ParsedSection>,
   profileId: string,
-  executeQueryWithResults: (query: string) => Promise<{
+  executeQueryWithResults: (args: { query: string; database?: string | null }) => Promise<{
     success: boolean;
     resultCount?: number;
     error?: string;
     executionTimeMs: number;
-  }>
+  }>,
+  contextDeps: {
+    getService: () => TypeDBService;
+    refreshDatabaseList: () => Promise<void>;
+    quickConnectWasm: () => Promise<TypeDBService>;
+  }
 ): LearnPageVM {
   // Group sections by folder path for curriculum structure
   const sectionsByFolder = new Map<string, ParsedSection[]>();
@@ -3404,9 +3457,6 @@ function createLearnPageVM(
       .join(" ");
   }
 
-  // Track current section for navigation
-  let currentSectionId: string | null = null;
-
   // Create REPL bridge using the shared factory
   const replBridge = createReplBridge({
     store,
@@ -3416,29 +3466,56 @@ function createLearnPageVM(
     showSnackbar,
   });
 
-  // Create navigation scope
-  const navigationVM = createNavigationScope({
-    navigate,
-    onSectionOpened: (sectionId, _headingId) => {
-      currentSectionId = sectionId;
-      // Document viewer will handle the actual opening
-    },
-    onReferenceOpened: (_refId, _headingId) => {
-      // Reference opening - can be handled similarly
-    },
-    useBrowserHistory: false, // Let the app handle history
-    initialTarget: null,
+  // Create context database adapter and context manager for lesson databases
+  const contextDatabaseOps = createContextDatabaseAdapter({
+    getService: contextDeps.getService,
+    store,
+    refreshDatabaseList: contextDeps.refreshDatabaseList,
+    quickConnectWasm: contextDeps.quickConnectWasm,
   });
 
-  // Create document viewer scope
+  // Log available contexts for debugging
+  console.log(`[createLearnPageVM] Available contexts:`, Object.keys(curriculumLoadedContexts));
+
+  const contextManager = createContextManager({
+    contexts: curriculumLoadedContexts,
+    dbOps: contextDatabaseOps,
+    onContextChanged: (contextName) => {
+      console.log(`[createLearnPageVM] Context changed to: ${contextName}`);
+      if (contextName) {
+        showSnackbar("success", `Loaded context: ${contextName}`);
+      }
+    },
+    // Commit context state changes to LiveStore for reactivity
+    onStateUpdate: (state) => {
+      console.log(`[createLearnPageVM] Context state update:`, state);
+      store.commit(events.lessonContextSet(state));
+    },
+  });
+
+  // Create document viewer scope first (navigation needs viewerService)
   const { vm: viewerVM, service: viewerService } = createDocumentViewerScope({
     store,
     profileId,
     sections,
     replBridge,
-    onSectionOpened: (sectionId) => {
-      currentSectionId = sectionId;
+    contextManager,
+  });
+
+  // Create navigation scope - drives viewerService.openSection for section changes
+  const navigationVM = createNavigationScope({
+    store,
+    navigate,
+    onSectionOpened: (sectionId, _headingId) => {
+      // Source of truth for section state goes through DocumentViewerService
+      // which updates uiState.learnCurrentSectionId
+      viewerService.openSection(sectionId);
     },
+    onReferenceOpened: (_refId, _headingId) => {
+      // Reference opening - can be handled similarly via viewerService
+    },
+    useBrowserHistory: false, // Let the app handle history
+    initialTarget: null,
   });
 
   // Create sidebar scope
@@ -3454,7 +3531,6 @@ function createLearnPageVM(
         navigationVM.navigateToSection(sectionId, headingId);
       }
     },
-    getActiveSectionId: () => currentSectionId,
   });
 
   return {
