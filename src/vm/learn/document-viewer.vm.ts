@@ -430,8 +430,19 @@ export type DocumentSectionContentBlockVM =
 export interface ContextSwitchPromptVM {
   /**
    * Whether the prompt should be visible.
+   * Hidden during loading, shown when contexts don't match.
    */
   isVisible$: Queryable<boolean>;
+
+  /**
+   * Whether the context is currently being loaded.
+   */
+  isLoading$: Queryable<boolean>;
+
+  /**
+   * Error message from the last failed context load, or null if no error.
+   */
+  error$: Queryable<string | null>;
 
   /**
    * Current context name (or null if none).

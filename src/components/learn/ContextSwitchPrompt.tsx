@@ -14,7 +14,7 @@
  * ```
  */
 
-import { AlertTriangle, Database } from "lucide-react";
+import { AlertTriangle, Database, Loader2 } from "lucide-react";
 import { Queryable } from "@/vm/components";
 import type { ContextSwitchPromptVM } from "@/vm/learn";
 import { Button } from "../ui/button";
@@ -64,6 +64,27 @@ export function ContextSwitchPrompt({ vm }: ContextSwitchPromptProps) {
                   }
                 </Queryable>
 
+                <Queryable query={vm.isLoading$}>
+                  {(isLoading) =>
+                    isLoading ? (
+                      <p className="text-dense-xs text-muted-foreground mt-1.5 flex items-center gap-1.5">
+                        <Loader2 className="size-3 animate-spin" />
+                        Loading context...
+                      </p>
+                    ) : null
+                  }
+                </Queryable>
+
+                <Queryable query={vm.error$}>
+                  {(error) =>
+                    error ? (
+                      <div className="bg-destructive/10 border border-destructive/30 rounded px-2 py-1.5 mt-2">
+                        <p className="text-dense-xs text-destructive">{error}</p>
+                      </div>
+                    ) : null
+                  }
+                </Queryable>
+
                 <div className="flex gap-2 mt-3">
                   <SwitchButton vm={vm} />
                   <Button
@@ -94,15 +115,24 @@ function SwitchButton({ vm }: { vm: ContextSwitchPromptVM }) {
   };
 
   return (
-    <Button
-      variant="primary"
-      density="compact"
-      onClick={handleClick}
-      className="text-dense-xs"
-    >
-      <Database className="size-3.5 mr-1.5" />
-      Load Context
-    </Button>
+    <Queryable query={vm.isLoading$}>
+      {(isLoading) => (
+        <Button
+          variant="primary"
+          density="compact"
+          onClick={handleClick}
+          disabled={isLoading}
+          className="text-dense-xs"
+        >
+          {isLoading ? (
+            <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <Database className="size-3.5 mr-1.5" />
+          )}
+          {isLoading ? "Loading..." : "Load Context"}
+        </Button>
+      )}
+    </Queryable>
   );
 }
 

@@ -672,6 +672,16 @@ export function createDocumentViewerScope(
     { label: `${labelPrefix}.contextSwitchPrompt.requiredContext` }
   );
 
+  const contextIsLoading$ = computed(
+    (get) => get(lessonContext$).isLoading,
+    { label: `${labelPrefix}.contextSwitchPrompt.isLoading` }
+  );
+
+  const contextError$ = computed(
+    (get) => get(lessonContext$).lastError,
+    { label: `${labelPrefix}.contextSwitchPrompt.error` }
+  );
+
   const switchContext = async () => {
     const section = getCurrentSection();
     if (!contextManager || !section?.context) return;
@@ -690,6 +700,8 @@ export function createDocumentViewerScope(
     isVisible$: contextPromptIsVisible$,
     currentContext$,
     requiredContext$,
+    isLoading$: contextIsLoading$,
+    error$: contextError$,
     switchContext,
     dismiss: dismissContextPrompt,
   };
