@@ -166,3 +166,65 @@ describe("Learn page lesson selection after Query page navigation", () => {
     console.log(`[Test] Second lesson loaded: ${lesson2.title}`);
   });
 });
+
+/**
+ * Tests for the stale lesson context bug.
+ *
+ * Bug: After loading a lesson context and then disconnecting, the
+ * lessonContext in LiveStore was not being cleared. This caused the UI
+ * to think a context was loaded when the underlying TypeDB WASM database
+ * didn't exist (because WASM runs in-memory and loses data on disconnect).
+ *
+ * Fix: handleServiceDisconnected now clears lessonContext alongside
+ * connectionSession and sessionDatabases.
+ */
+describe("Lesson context cleared on disconnect (stale context bug)", () => {
+  let studio: TestStudio | null = null;
+
+  afterEach(async () => {
+    if (studio) {
+      await studio.cleanup();
+      studio = null;
+    }
+  });
+
+  it("clears lessonContext when disconnecting from server", async () => {
+    studio = await bootstrapStudioForTest();
+    const { app, query, services } = studio;
+
+    // Setup: Connect to server
+    await setupConnectedServer(app, query);
+
+    // Verify we're connected
+    const connectionStatus = query(app.topBar.connectionStatus.state$);
+    expect(connectionStatus).toBe("connected");
+
+    // Check initial state - should be null since we haven't loaded a context
+    type LessonContextState = {
+      currentContext: string | null;
+      isLoading: boolean;
+      lastError: string | null;
+      lastLoadedAt: number | null;
+    };
+    const initialContext = query(lessonContext$) as LessonContextState;
+    expect(initialContext.currentContext).toBeNull();
+
+    // Disconnect from server
+    await services.connection.disconnect();
+
+    // Wait for disconnected state
+    await waitFor(
+      () => query(app.topBar.connectionStatus.state$),
+      (status) => status === "disconnected",
+      { label: "disconnected", timeoutMs: 3000 }
+    );
+
+    // Verify lessonContext is cleared on disconnect
+    // This is the key fix - without it, stale context could cause
+    // "database not found" errors when running ExampleBlocks
+    const afterDisconnect = query(lessonContext$) as LessonContextState;
+    expect(afterDisconnect.currentContext).toBeNull();
+    expect(afterDisconnect.isLoading).toBe(false);
+    expect(afterDisconnect.lastError).toBeNull();
+  });
+});
