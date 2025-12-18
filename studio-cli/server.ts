@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Server configuration options
  */
 export interface ServerOptions {
-  /** Port to listen on (default: 3000) */
+  /** Port to listen on (default: 3500) */
   port?: number;
   /** Host to bind to (default: "127.0.0.1") */
   host?: string;
@@ -72,7 +72,7 @@ const MIME_TYPES: Record<string, string> = {
  * ```
  */
 export function startServer(options: ServerOptions = {}): Promise<ServerInstance> {
-  const port = options.port ?? 3000;
+  const port = options.port ?? 3500;
   const host = options.host ?? "127.0.0.1";
   const distDir = options.distDir ?? path.join(__dirname, "dist");
 

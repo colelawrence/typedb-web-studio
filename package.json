@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "vite dev --port 3500",
     "build": "vite build",
     "preview": "vite preview",
     "build:cli": "vite build && rm -rf studio-cli/dist && cp -r dist/client studio-cli/dist",

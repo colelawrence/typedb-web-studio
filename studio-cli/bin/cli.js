@@ -27,7 +27,7 @@ const getArg = (name, defaultValue) => {
   return true;
 };
 
-const PORT = parseInt(getArg('port', process.env.PORT || '3000'), 10);
+const PORT = parseInt(getArg('port', process.env.PORT || '3500'), 10);
 const HOST = getArg('host', '127.0.0.1');
 const OPEN_BROWSER = !args.includes('--no-open');
 const HELP = args.includes('--help') || args.includes('-h');
@@ -40,7 +40,7 @@ Usage:
   typedb-studio [options]
 
 Options:
-  --port <port>   Port to listen on (default: 3000)
+  --port <port>   Port to listen on (default: 3500)
   --host <host>   Host to bind to (default: 127.0.0.1)
   --no-open       Don't open browser automatically
   --help, -h      Show this help message

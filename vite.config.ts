@@ -82,6 +82,7 @@ const config = defineConfig({
     ],
   },
   server: {
+    port: 3500,
     fs: {
       // Allow serving files from the linked wasm-playground package
       // This is needed because the WASM module loads its .wasm file using import.meta.url

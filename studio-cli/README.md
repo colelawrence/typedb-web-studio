@@ -15,7 +15,7 @@ npm install -g @typedb/studio
 typedb-studio
 ```
 
-The studio will open in your default browser at http://localhost:3000
+The studio will open in your default browser at http://localhost:3500
 
 ## Features
 
@@ -31,7 +31,7 @@ The studio will open in your default browser at http://localhost:3000
 typedb-studio [options]
 
 Options:
-  --port <port>   Port to listen on (default: 3000)
+  --port <port>   Port to listen on (default: 3500)
   --host <host>   Host to bind to (default: 127.0.0.1)
   --no-open       Don't open browser automatically
   --help, -h      Show help message

@@ -9,8 +9,8 @@
  * ```ts
  * import { startServer } from "@phosphor/typedb-studio";
  *
- * const server = await startServer({ port: 3000 });
- * console.log("Server running on port 3000");
+ * const server = await startServer({ port: 3500 });
+ * console.log("Server running on port 3500");
  * ```
  */
 
