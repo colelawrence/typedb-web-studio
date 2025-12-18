@@ -1108,11 +1108,11 @@ export function createStudioScope(
     displayText$: computed(
       (get) => {
         const db = get(activeDatabase$);
+        // Prioritize showing the active database name if we have one
+        if (db) return db;
         const catalog = get(sessionDatabases$);
         if (catalog.isLoading) return "Loading...";
-        if (catalog.isStale && catalog.databases.length === 0)
-          return "Select database...";
-        return db ?? "Select database...";
+        return "Select database...";
       },
       { label: "databaseSelector.displayText" }
     ),
