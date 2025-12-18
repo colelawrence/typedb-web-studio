@@ -5,7 +5,7 @@
  * This is the main "business logic" layer that connects LiveStore state to VM interfaces.
  */
 
-import { computed, nanoid } from "@livestore/livestore";
+import { computed, nanoid, signal } from "@livestore/livestore";
 import type { Queryable, Store } from "@livestore/livestore";
 import {
   Home,
@@ -57,7 +57,11 @@ import type {
 } from "./top-bar/database-selector.vm";
 import type { ConnectionStatusVM } from "./top-bar/connection-status.vm";
 import type { SnackbarVM } from "./snackbar.vm";
-import type { DialogsVM } from "./dialogs/dialogs.vm";
+import type {
+  DialogsVM,
+  ActiveDialogVM,
+  CreateDatabaseDialogVM,
+} from "./dialogs/dialogs.vm";
 import type {
   HomePageVM,
   HomeNavigationCardVM,
@@ -110,7 +114,6 @@ import type {
   SavedQueriesTreeVM,
   SavedQueryTreeItemVM,
 } from "./pages/query/sidebar/saved-queries.vm";
-import type { ActiveDialogVM } from "./dialogs/dialogs.vm";
 import type {
   AutocompleteSuggestionVM,
   ChatMessageVM,
@@ -2222,8 +2225,95 @@ export function createStudioScope(
   // Dialogs
   // ---------------------------------------------------------------------------
 
+  // Signals for create database dialog state
+  const createDatabaseName$ = signal<string>("", { label: "createDatabase.name" });
+  const createDatabaseError$ = signal<string | null>(null, { label: "createDatabase.error" });
+  const createDatabaseIsCreating$ = signal<boolean>(false, { label: "createDatabase.isCreating" });
+
+  // Create database dialog VM (reusable instance)
+  const createDatabaseDialogVM: CreateDatabaseDialogVM = {
+    nameInput: {
+      value$: createDatabaseName$,
+      update: (value: string) => {
+        store.setSignal(createDatabaseName$, value);
+        // Clear error when user types
+        store.setSignal(createDatabaseError$, null);
+      },
+      error$: createDatabaseError$,
+      placeholder: "my_database",
+      label: "Database Name",
+    },
+    createDisabled$: computed(
+      (get): DisabledState => {
+        const name = get(createDatabaseName$);
+        if (!name.trim()) {
+          return { displayReason: "Name is required" };
+        }
+        // Validate database name format
+        if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) {
+          return { displayReason: "Must start with letter, only letters/numbers/underscores" };
+        }
+        if (get(createDatabaseIsCreating$)) {
+          return { displayReason: "Creating..." };
+        }
+        return null;
+      },
+      { label: "createDatabase.disabled" }
+    ),
+    isCreating$: createDatabaseIsCreating$,
+    cancel: () => {
+      store.commit(events.uiStateSet({ activeDialog: null }));
+      // Reset state
+      store.setSignal(createDatabaseName$, "");
+      store.setSignal(createDatabaseError$, null);
+      store.setSignal(createDatabaseIsCreating$, false);
+    },
+    create: async () => {
+      const name = store.query(createDatabaseName$).trim();
+      if (!name) return;
+
+      store.setSignal(createDatabaseIsCreating$, true);
+      store.setSignal(createDatabaseError$, null);
+
+      try {
+        const service = getService();
+        await service.createDatabase(name);
+
+        // Success - close dialog, select new database, refresh list
+        store.commit(
+          events.uiStateSet({ activeDialog: null }),
+          events.connectionSessionSet({ activeDatabase: name })
+        );
+        store.setSignal(createDatabaseName$, "");
+        store.setSignal(createDatabaseIsCreating$, false);
+
+        showSnackbar("success", `Database '${name}' created`);
+        refreshDatabaseList();
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        store.setSignal(createDatabaseError$, errorMessage);
+        store.setSignal(createDatabaseIsCreating$, false);
+        showSnackbar("error", `Failed to create database: ${errorMessage}`);
+      }
+    },
+  };
+
   const dialogsVM: DialogsVM = {
-    active$: constant<ActiveDialogVM | null>(null, "dialogs.active"),
+    active$: computed(
+      (get): ActiveDialogVM | null => {
+        const activeDialog = get(uiState$).activeDialog;
+        if (!activeDialog) return null;
+
+        switch (activeDialog) {
+          case "createDatabase":
+            return { type: "createDatabase", vm: createDatabaseDialogVM };
+          // Other dialog types would be added here as needed
+          default:
+            return null;
+        }
+      },
+      { label: "dialogs.active" }
+    ),
     closeAll: () => {
       store.commit(events.uiStateSet({ activeDialog: null }));
     },
