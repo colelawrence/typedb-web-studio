@@ -20,7 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { events, type schema } from "../livestore/schema";
+import { events, tables, type schema } from "../livestore/schema";
 import {
   connectionSession$,
   uiState$,
@@ -626,6 +626,213 @@ function handleServiceDisconnected(store: Store<typeof schema>): void {
   );
 }
 
+/**
+ * Schedules an async auto-reconnect attempt using the persisted session hint.
+ * Called when LiveStore has a "connected" state but the WASM service is fresh.
+ */
+function scheduleAutoReconnect(
+  store: Store<typeof schema>,
+  serverInfo: { id: string; name: string; isDemo: boolean; demoId: string | null },
+  activeDatabase: string | null,
+  lessonContext: string | null
+): void {
+  // Use setTimeout(0) to schedule after the current sync completes
+  setTimeout(async () => {
+    const now = Date.now();
+
+    console.log(
+      `[scope] Auto-reconnect: Starting reconnection attempt`,
+      `\n  Server: ${serverInfo.name} (${serverInfo.id})`,
+      `\n  isDemo: ${serverInfo.isDemo}, demoId: ${serverInfo.demoId}`,
+      `\n  activeDatabase: ${activeDatabase}`,
+      `\n  lessonContext: ${lessonContext}`
+    );
+
+    // Show "reconnecting" status
+    store.commit(
+      events.connectionSessionSet({
+        status: "reconnecting",
+        mode: "wasm",
+        lastStatusChange: now,
+      })
+    );
+
+    try {
+      // Determine what database to create/connect to
+      const databaseToConnect = serverInfo.isDemo && serverInfo.demoId
+        ? serverInfo.demoId
+        : (activeDatabase || "playground");
+
+      console.log(`[scope] Auto-reconnect: Connecting to database '${databaseToConnect}'`);
+
+      // Connect via WASM
+      await quickConnectWasm(databaseToConnect);
+
+      // If this was a demo, reload the demo data
+      if (serverInfo.isDemo && serverInfo.demoId) {
+        const demo = getDemoById(serverInfo.demoId);
+        if (demo) {
+          console.log(`[scope] Auto-reconnect: Reloading demo data for '${demo.name}'`);
+
+          // Parse and load schema
+          const parsedSchema = parseSchema(demo.schema);
+          store.commit(
+            events.schemaTypesSet({
+              entities: parsedSchema.entities.map((e) => ({
+                label: e.label,
+                isAbstract: e.isAbstract,
+                supertype: e.supertype,
+                ownedAttributes: e.ownedAttributes,
+                playedRoles: e.playedRoles,
+              })),
+              relations: parsedSchema.relations.map((r) => ({
+                label: r.label,
+                isAbstract: r.isAbstract,
+                supertype: r.supertype,
+                ownedAttributes: r.ownedAttributes,
+                relatedRoles: r.relatedRoles,
+              })),
+              attributes: parsedSchema.attributes.map((a) => ({
+                label: a.label,
+                valueType: a.valueType,
+              })),
+            })
+          );
+
+          // Load schema definition
+          const service = getService();
+          const cleanSchema = demo.schema
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0 && !line.startsWith("#"))
+            .join("\n");
+
+          try {
+            await service.executeQuery(databaseToConnect, cleanSchema, {
+              transactionType: "schema",
+            });
+          } catch (e) {
+            console.warn(`[scope] Auto-reconnect: Schema loading warning:`, e);
+          }
+
+          // Load sample data
+          const dataStatements = demo.sampleData
+            .split(/;\s*\n/)
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0 && !s.startsWith("#"));
+
+          for (const statement of dataStatements) {
+            if (statement.trim()) {
+              try {
+                await service.executeQuery(databaseToConnect, statement + ";", {
+                  transactionType: "write",
+                });
+              } catch (e) {
+                console.warn(`[scope] Auto-reconnect: Data statement warning:`, e);
+              }
+            }
+          }
+
+          console.log(`[scope] Auto-reconnect: Demo '${demo.name}' reloaded successfully`);
+        }
+      }
+
+      // Restore the session state
+      store.commit(
+        events.connectionSessionSet({
+          status: "connected",
+          mode: "wasm",
+          savedLocalServerId: serverInfo.id,
+          activeDatabase: databaseToConnect,
+          connectedAt: now,
+          lastStatusChange: Date.now(),
+        }),
+        events.localServerUpdated({
+          id: serverInfo.id,
+          lastUsedAt: new Date(),
+        })
+      );
+
+      // If there was a lesson context, try to restore it
+      if (lessonContext) {
+        console.log(`[scope] Auto-reconnect: Will restore lesson context '${lessonContext}' (requires Learn page logic)`);
+        // Note: Full lesson context restoration would require calling the Learn page's
+        // context loading logic. For now, we just note that it should be restored.
+        // The Learn page will handle this when it mounts.
+      }
+
+      console.log(`[scope] Auto-reconnect: SUCCESS - Reconnected to ${serverInfo.name}`);
+
+      // Show success snackbar (using same pattern as showSnackbar in createStudioScope)
+      const successSnackId = `snack_${nanoid(12)}`;
+      const successNotifications = store.query(snackbarNotifications$).notifications;
+      store.commit(
+        events.snackbarSet({
+          notifications: [
+            ...successNotifications,
+            {
+              id: successSnackId,
+              type: "success" as const,
+              message: `Restored session: ${serverInfo.name}`,
+              persistent: false,
+              createdAt: Date.now(),
+            },
+          ],
+        })
+      );
+
+      // Auto-dismiss after 4 seconds (same pattern as dismissSnackbar)
+      setTimeout(() => {
+        const currentNotifications = store.query(snackbarNotifications$).notifications;
+        store.commit(
+          events.snackbarSet({
+            notifications: currentNotifications.filter((n) => n.id !== successSnackId),
+          })
+        );
+      }, 4000);
+
+    } catch (error) {
+      console.error(`[scope] Auto-reconnect: FAILED -`, error);
+
+      // Reset to disconnected state
+      store.commit(
+        events.connectionSessionSet({
+          status: "disconnected",
+          lastStatusChange: Date.now(),
+        })
+      );
+
+      // Show warning snackbar
+      const warningSnackId = `snack_${nanoid(12)}`;
+      const warningNotifications = store.query(snackbarNotifications$).notifications;
+      store.commit(
+        events.snackbarSet({
+          notifications: [
+            ...warningNotifications,
+            {
+              id: warningSnackId,
+              type: "warning" as const,
+              message: `Could not restore previous session. Please reconnect.`,
+              persistent: false,
+              createdAt: Date.now(),
+            },
+          ],
+        })
+      );
+
+      // Auto-dismiss warning after 4 seconds
+      setTimeout(() => {
+        const currentNotifications = store.query(snackbarNotifications$).notifications;
+        store.commit(
+          events.snackbarSet({
+            notifications: currentNotifications.filter((n) => n.id !== warningSnackId),
+          })
+        );
+      }, 4000);
+    }
+  }, 0);
+}
+
 // ============================================================================
 // Main Scope
 // ============================================================================
@@ -691,14 +898,16 @@ export function createStudioScope(
   });
 
   // ---------------------------------------------------------------------------
-  // Initial Service Status Sync
+  // Initial Service Status Sync + Auto-Reconnect
   // ---------------------------------------------------------------------------
-  // On page load, LiveStore may restore stale "connected" state from persistence.
-  // But the TypeDB WASM service starts fresh with no databases.
-  // We must sync the actual service status to LiveStore on startup to prevent
-  // stale state bugs like:
-  // - Play button enabled when service is disconnected
-  // - Context switch prompt hidden when context DB doesn't exist
+  // On page load, LiveStore may restore "connected" state from persistence.
+  // But the TypeDB WASM service starts fresh (in-memory, no databases).
+  //
+  // Strategy:
+  // 1. Capture the persisted session as a "resume hint" before clearing
+  // 2. Sync LiveStore to actual service status (disconnected)
+  // 3. Attempt to auto-reconnect using the resume hint
+  // 4. On success, restore the session; on failure, show connect page
   {
     const actualStatus = getConnectionStatus();
     const storedSession = store.query(connectionSession$);
@@ -708,14 +917,55 @@ export function createStudioScope(
       `\n  Service status: ${actualStatus}`,
       `\n  LiveStore connectionSession.status: ${storedSession.status}`,
       `\n  LiveStore lessonContext.currentContext: ${storedLessonContext.currentContext}`,
-      `\n  LiveStore connectionSession.activeDatabase: ${storedSession.activeDatabase}`
+      `\n  LiveStore connectionSession.activeDatabase: ${storedSession.activeDatabase}`,
+      `\n  LiveStore connectionSession.savedLocalServerId: ${storedSession.savedLocalServerId}`
     );
+
     if (storedSession.status !== actualStatus) {
+      // Capture resume hint BEFORE clearing state
+      const resumeHint = {
+        savedLocalServerId: storedSession.savedLocalServerId,
+        activeDatabase: storedSession.activeDatabase,
+        mode: storedSession.mode,
+        lessonContext: storedLessonContext.currentContext,
+      };
+
       console.log(
-        `[scope] Initial status sync: LiveStore says '${storedSession.status}' but service is '${actualStatus}' - SYNCING`
+        `[scope] Initial status sync: LiveStore says '${storedSession.status}' but service is '${actualStatus}'`,
+        `\n  Resume hint captured:`,
+        `\n    savedLocalServerId: ${resumeHint.savedLocalServerId}`,
+        `\n    activeDatabase: ${resumeHint.activeDatabase}`,
+        `\n    mode: ${resumeHint.mode}`,
+        `\n    lessonContext: ${resumeHint.lessonContext}`
       );
+
       if (actualStatus === "disconnected") {
         handleServiceDisconnected(store);
+
+        // Check if we have a resume hint for auto-reconnect
+        if (resumeHint.savedLocalServerId && resumeHint.mode === "wasm") {
+          // Look up the server info to determine if it's a demo
+          const serverInfo = store.query(
+            tables.localServers.where({ id: resumeHint.savedLocalServerId }).first({ behaviour: "undefined" })
+          );
+
+          console.log(
+            `[scope] Auto-reconnect: Found server info:`,
+            serverInfo
+              ? `\n    name: ${serverInfo.name}, isDemo: ${serverInfo.isDemo}, demoId: ${serverInfo.demoId}`
+              : `\n    (server not found in localServers table)`
+          );
+
+          if (serverInfo) {
+            // Schedule auto-reconnect (async, after sync completes)
+            scheduleAutoReconnect(
+              store,
+              serverInfo,
+              resumeHint.activeDatabase,
+              resumeHint.lessonContext
+            );
+          }
+        }
       } else {
         store.commit(
           events.connectionSessionSet({
@@ -724,6 +974,7 @@ export function createStudioScope(
           })
         );
       }
+
       // Log the state after sync
       const afterSync = store.query(connectionSession$);
       const afterSyncContext = store.query(lessonContext$);
