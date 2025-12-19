@@ -20,7 +20,7 @@
  */
 
 import { useState } from "react";
-import { Play, Copy, Loader2, Database } from "lucide-react";
+import { Play, Copy, Loader2, Database, Check } from "lucide-react";
 import { Queryable } from "@/vm/components";
 import type { DocumentExampleVM, ExampleExecutionState } from "@/vm/learn";
 import { mapExampleResultToDisplayVM } from "@/vm/query-results.adapters";
@@ -45,50 +45,72 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
     <div
       id={vm.id}
       className={`
-        relative rounded-md border overflow-hidden
+        rounded-md border
         ${getBlockStyle(vm.type)}
       `}
       data-interactive={isInteractive ? "true" : "false"}
     >
-      {/* Code display */}
-      <pre className="p-3 pr-24 overflow-x-auto text-dense-sm font-mono bg-muted/30">
-        <TypeQLHighlighter code={vm.query} className="text-foreground" />
-      </pre>
+      <div className="group relative">
+        {/* Code display */}
+        <pre className="p-2 overflow-x-auto text-dense-sm font-mono bg-muted/30">
+          <TypeQLHighlighter code={vm.query} className="text-foreground" />
+        </pre>
 
-      {/* Action buttons */}
-      {isInteractive && (
-        <div className="absolute top-2 right-2 flex gap-1">
+        {/* Executed indicator - overlaid on block (always visible when executed) */}
+        {isInteractive && (
           <Queryable query={vm.wasExecuted$}>
-            {(wasExecuted) => (
+            {(wasExecuted) =>
+              wasExecuted ? (
+                <div
+                  className="absolute top-1 right-1 size-4 flex items-center justify-center rounded-full bg-beacon-ok/20 text-beacon-ok"
+                  title="Executed"
+                >
+                  <Check className="size-2.5" strokeWidth={3} />
+                </div>
+              ) : null
+            }
+          </Queryable>
+        )}
+
+        {/* Hover-reveal chin - floats over content below */}
+        {isInteractive && (
+          <div className="relative">
+            <div
+              className={`
+              absolute -top-3 right-0 z-10
+              flex justify-end gap-0.5 px-1.5 py-px
+              bg-muted/90 backdrop-blur-sm rounded-md border border-border/30
+              opacity-0 group-hover:opacity-100
+              transition-opacity duration-150
+              pointer-events-none group-hover:pointer-events-auto
+            `}
+            >
               <Button
                 variant="ghost"
                 density="compact"
                 onClick={vm.copyToRepl}
                 title="Copy to REPL"
-                className="h-6 px-2 text-dense-xs"
+                className="h-5 px-1.5 text-[10px] gap-0.5"
               >
-                <Copy className="size-3.5 mr-1" />
+                <Copy className="size-3" />
                 REPL
-                {wasExecuted && (
-                  <span className="ml-1 text-beacon-ok">✓</span>
-                )}
               </Button>
-            )}
-          </Queryable>
 
-          <Queryable query={[vm.runReadiness$, vm.executionState$]}>
-            {([runReadiness, state]) => (
-              <RunButton
-                state={state}
-                runReadiness={runReadiness}
-                requiredContext={vm.requiredContext}
-                onRun={() => vm.run()}
-                onBlockedClick={handleBlockedClick}
-              />
-            )}
-          </Queryable>
-        </div>
-      )}
+              <Queryable query={[vm.runReadiness$, vm.executionState$]}>
+                {([runReadiness, state]) => (
+                  <RunButton
+                    state={state}
+                    runReadiness={runReadiness}
+                    requiredContext={vm.requiredContext}
+                    onRun={() => vm.run()}
+                    onBlockedClick={handleBlockedClick}
+                  />
+                )}
+              </Queryable>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Blocked state inline prompt - revealed when muted Run button is clicked */}
       {isInteractive && showBlockedPrompt && (
@@ -157,9 +179,9 @@ function RunButton({
         density="compact"
         onClick={onBlockedClick}
         title="Cannot run - click for details"
-        className="h-6 px-2 text-dense-xs opacity-50"
+        className="h-5 px-1.5 text-[10px] opacity-50"
       >
-        <Play className="size-3.5" />
+        <Play className="size-3" />
       </Button>
     );
   }
@@ -176,17 +198,17 @@ function RunButton({
         onClick={onRun}
         disabled={isRunning}
         title={title}
-        className="h-6 px-2 text-dense-xs gap-1"
+        className="h-5 px-1.5 text-[10px] gap-0.5"
       >
         {isRunning ? (
-          <Loader2 className="size-3.5 animate-spin" />
+          <Loader2 className="size-3 animate-spin" />
         ) : (
           <>
-            <Database className="size-3" />
-            <Play className="size-3" />
+            <Database className="size-2.5" />
+            <Play className="size-2.5" />
           </>
         )}
-        <span className="text-[10px]">Load & Run</span>
+        <span>Load & Run</span>
       </Button>
     );
   }
@@ -200,12 +222,12 @@ function RunButton({
       onClick={onRun}
       disabled={isRunning}
       title={title}
-      className="h-6 px-2 text-dense-xs"
+      className="h-5 px-1.5 text-[10px]"
     >
       {isRunning ? (
-        <Loader2 className="size-3.5 animate-spin" />
+        <Loader2 className="size-3 animate-spin" />
       ) : (
-        <Play className="size-3.5" />
+        <Play className="size-3" />
       )}
     </Button>
   );
