@@ -361,18 +361,6 @@ export interface DocumentExampleVM {
    * Used to show inline prompts instead of disabled buttons with tooltips.
    */
   blockedState$: Queryable<ExampleBlockedState | null>;
-
-  /**
-   * Navigate to the connection page.
-   * Used when blocked due to "not connected" state.
-   */
-  navigateToConnect(): void;
-
-  /**
-   * Open the database selector.
-   * Used when blocked due to "no database selected" state.
-   */
-  openDatabaseSelector(): void;
 }
 
 /**
@@ -396,11 +384,12 @@ export type ExampleRunReadiness = "ready" | "needs-context" | "blocked";
 /**
  * Describes an action that can resolve a blocked example state.
  * Used to show inline prompts instead of relying on tooltips.
+ * Each action includes its own onClick handler for self-contained behavior.
  */
 export type ExampleBlockedAction =
-  | { type: "connect"; message: string }
-  | { type: "selectDatabase"; message: string }
-  | { type: "loadContext"; message: string; contextName: string };
+  | { type: "connect"; message: string; onClick(): void }
+  | { type: "selectDatabase"; message: string; onClick(): void }
+  | { type: "loadContext"; message: string; contextName: string; onClick(): void };
 
 /**
  * Describes why an example cannot run and what action can fix it.

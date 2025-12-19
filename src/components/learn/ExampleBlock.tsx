@@ -37,6 +37,10 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
   const isInteractive = vm.isInteractive;
   const [showBlockedPrompt, setShowBlockedPrompt] = useState(false);
 
+  const handleBlockedClick = () => {
+    setShowBlockedPrompt((v) => !v);
+  };
+
   return (
     <div
       id={vm.id}
@@ -44,6 +48,7 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
         relative rounded-md border overflow-hidden
         ${getBlockStyle(vm.type)}
       `}
+      data-interactive={isInteractive ? "true" : "false"}
     >
       {/* Code display */}
       <pre className="p-3 pr-24 overflow-x-auto text-dense-sm font-mono bg-muted/30">
@@ -78,7 +83,7 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
                 runReadiness={runReadiness}
                 requiredContext={vm.requiredContext}
                 onRun={() => vm.run()}
-                onBlockedClick={() => setShowBlockedPrompt((v) => !v)}
+                onBlockedClick={handleBlockedClick}
               />
             )}
           </Queryable>
@@ -88,17 +93,21 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
       {/* Blocked state inline prompt - revealed when muted Run button is clicked */}
       {isInteractive && showBlockedPrompt && (
         <Queryable query={vm.blockedState$}>
-          {(blockedState) =>
-            blockedState?.action ? (
+          {(blockedState) => {
+            if (!blockedState?.action) {
+              console.warn(
+                `[ExampleBlock] Blocked prompt requested but no action available for ${vm.id}`,
+                { blockedState, requiredContext: vm.requiredContext }
+              );
+              return null;
+            }
+            return (
               <ExampleBlockedPrompt
                 blockedState={blockedState}
-                onConnect={() => vm.navigateToConnect()}
-                onSelectDatabase={() => vm.openDatabaseSelector()}
-                onLoadContext={() => vm.loadContext()}
                 onDismiss={() => setShowBlockedPrompt(false)}
               />
-            ) : null
-          }
+            );
+          }}
         </Queryable>
       )}
 

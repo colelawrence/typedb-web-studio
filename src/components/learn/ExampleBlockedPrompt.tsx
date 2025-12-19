@@ -1,6 +1,9 @@
 /**
  * Inline prompt shown below code block when example is blocked.
  * Revealed by clicking the muted Run button.
+ *
+ * The action's onClick handler is embedded directly in the blockedState,
+ * so this component doesn't need separate callback props.
  */
 
 import {
@@ -24,17 +27,11 @@ const actionConfig: Record<
 
 export interface ExampleBlockedPromptProps {
   blockedState: ExampleBlockedState;
-  onConnect: () => void;
-  onSelectDatabase: () => void;
-  onLoadContext: () => void;
   onDismiss?: () => void;
 }
 
 export function ExampleBlockedPrompt({
   blockedState,
-  onConnect,
-  onSelectDatabase,
-  onLoadContext,
   onDismiss,
 }: ExampleBlockedPromptProps) {
   const { action } = blockedState;
@@ -42,11 +39,6 @@ export function ExampleBlockedPrompt({
 
   const config = actionConfig[action.type];
   const Icon = config.icon;
-  const handlers: Record<ExampleBlockedAction["type"], () => void> = {
-    connect: onConnect,
-    selectDatabase: onSelectDatabase,
-    loadContext: onLoadContext,
-  };
 
   return (
     <div className="border-t border-border bg-muted/50 px-3 py-2 flex items-center gap-3">
@@ -57,7 +49,7 @@ export function ExampleBlockedPrompt({
       <Button
         variant="ghost"
         density="compact"
-        onClick={handlers[action.type]}
+        onClick={action.onClick}
         className="text-dense-xs shrink-0"
       >
         <Icon className="size-3.5 mr-1" />

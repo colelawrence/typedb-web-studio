@@ -273,7 +273,7 @@ export function createDocumentViewerScope(
         },
         {
           label: `example.isContextReady:${exampleKey}`,
-          deps: [exampleKey, requiredContext],
+          deps: [exampleKey, requiredContext, "isContextReady"],
         }
       );
 
@@ -301,7 +301,7 @@ export function createDocumentViewerScope(
         },
         {
           label: `example.isLessonReady:${exampleKey}`,
-          deps: [exampleKey, requiredContext],
+          deps: [exampleKey, requiredContext, "isLessonReady"],
         }
       );
 
@@ -361,6 +361,7 @@ export function createDocumentViewerScope(
             requiredContext,
             hasContextManager ? 1 : 0,
             isInteractive ? 1 : 0,
+            "runDisabledReason",
           ],
         }
       );
@@ -370,7 +371,7 @@ export function createDocumentViewerScope(
         (get) => {
           return get(runDisabledReason$) === null;
         },
-        { label: `example.canRun:${exampleKey}`, deps: [exampleKey] }
+        { label: `example.canRun:${exampleKey}`, deps: [exampleKey, "canRun"] }
       );
 
       const wasExecuted$ = computed(
@@ -378,7 +379,7 @@ export function createDocumentViewerScope(
           const executed = get(executedQuery$);
           return executed.some((e) => e.exampleId === example.id);
         },
-        { label: `example.wasExecuted:${exampleKey}`, deps: [exampleKey] }
+        { label: `example.wasExecuted:${exampleKey}`, deps: [exampleKey, "wasExecuted"] }
       );
 
       const copyToReplAction = () => {
@@ -524,16 +525,13 @@ export function createDocumentViewerScope(
         (get) => {
           if (!requiredContext) return false;
           if (!contextManager) return false;
-
           const ctx = get(lessonContext$);
-          // Don't claim we can load while a load is already in progress
           if (ctx.isLoading) return false;
-
           return true;
         },
         {
           label: `example.canLoadContext:${exampleKey}`,
-          deps: [exampleKey, requiredContext],
+          deps: [exampleKey, requiredContext, "canLoadContext"],
         }
       );
 
@@ -562,9 +560,22 @@ export function createDocumentViewerScope(
         },
         {
           label: `example.runReadiness:${exampleKey}`,
-          deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0],
+          deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0, "runReadiness"],
         }
       );
+
+      // Action handlers for blocked states (embedded in blockedState$ actions)
+      const navigateToConnect = () => navigate?.("/connect");
+      const openDatabaseSelector = () => toggleDatabaseSelector?.();
+      const loadContextAction = async (): Promise<void> => {
+        if (!contextManager || !requiredContext) {
+          console.warn("[loadContext] Called without contextManager or requiredContext", { hasContextManager, requiredContext });
+          return;
+        }
+        const ctx = store.query(lessonContext$);
+        if (ctx.currentContext === requiredContext && !ctx.isLoading) return;
+        await contextManager.switchOrLoadContext(requiredContext);
+      };
 
       // Blocked state with actionable fix (for inline prompts instead of tooltips)
       const blockedState$ = computed<ExampleBlockedState | null>(
@@ -578,14 +589,22 @@ export function createDocumentViewerScope(
           if (session.status !== "connected" && !canAutoLoad) {
             return {
               reason: "Not connected to database",
-              action: { type: "connect", message: "Connect to a database server" },
+              action: {
+                type: "connect",
+                message: "Connect to a database server",
+                onClick: navigateToConnect,
+              },
             };
           }
 
           if (session.status === "connected" && !session.activeDatabase && !canAutoLoad) {
             return {
               reason: "No database selected",
-              action: { type: "selectDatabase", message: "Select a database to run queries" },
+              action: {
+                type: "selectDatabase",
+                message: "Select a database to run queries",
+                onClick: openDatabaseSelector,
+              },
             };
           }
 
@@ -596,6 +615,7 @@ export function createDocumentViewerScope(
                 type: "loadContext",
                 message: `Load the "${requiredContext}" context`,
                 contextName: requiredContext,
+                onClick: loadContextAction,
               },
             };
           }
@@ -604,22 +624,9 @@ export function createDocumentViewerScope(
         },
         {
           label: `example.blockedState:${exampleKey}`,
-          deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0, isInteractive ? 1 : 0],
+          deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0, isInteractive ? 1 : 0, "blockedState"],
         }
       );
-
-      const navigateToConnect = () => navigate?.("/connect");
-      const openDatabaseSelector = () => toggleDatabaseSelector?.();
-
-      const loadContextAction = async (): Promise<void> => {
-        if (!contextManager || !requiredContext) {
-          console.warn("[loadContext] Called without contextManager or requiredContext", { hasContextManager, requiredContext });
-          return;
-        }
-        const ctx = store.query(lessonContext$);
-        if (ctx.currentContext === requiredContext && !ctx.isLoading) return;
-        await contextManager.switchOrLoadContext(requiredContext);
-      };
 
       return {
         id: example.id,
@@ -643,8 +650,6 @@ export function createDocumentViewerScope(
         canLoadContext$,
         loadContext: loadContextAction,
         blockedState$,
-        navigateToConnect,
-        openDatabaseSelector,
       };
     });
 

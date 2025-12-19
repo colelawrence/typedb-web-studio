@@ -16,7 +16,7 @@ import { Effect } from "effect";
 import { createDocumentViewerScope, type DocumentViewerService } from "../document-viewer-scope";
 import type { DocumentViewerVM } from "../document-viewer.vm";
 import { events, schema } from "../../../livestore/schema";
-import { readingProgressForSection$, executedExampleIds$ } from "../../../livestore/queries";
+import { readingProgressForSection$, executedExampleIds$, lessonContext$ } from "../../../livestore/queries";
 import { createMockReplBridge } from "../../../learn/repl-bridge";
 import { lessonDatabaseNameForContext } from "../../../curriculum/lesson-db";
 import type { ParsedSection } from "../../../curriculum/types";
@@ -1195,5 +1195,91 @@ describe("DocumentViewerScope with ContextManager", () => {
       expect(store.query(example.runDisabledReason$)).toBeNull();
     });
 
+  });
+
+  describe("runReadiness$ and blockedState$", () => {
+    it("returns 'needs-context' when section requires context and contextManager exists but context not loaded", () => {
+      // This tests the scenario where:
+      // - Section requires context "S1"
+      // - contextManager is provided
+      // - Context is NOT loaded yet
+      // Expected: runReadiness should be "needs-context", not "blocked"
+      ctx.viewerVM.openSection("context-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      expect(section).not.toBeNull();
+
+      const example = section!.examples[0];
+      expect(example.requiredContext).toBe("S1");
+
+      // Context is NOT loaded yet (default state)
+      const lessonCtx = ctx.store.query(lessonContext$);
+      expect(lessonCtx.currentContext).toBeNull();
+      expect(lessonCtx.isLoading).toBe(false);
+
+      // canLoadContext$ should be true (we have contextManager, section requires context, not loading)
+      const canLoad = ctx.store.query(example.canLoadContext$);
+      expect(canLoad).toBe(true);
+
+      // runReadiness should be "needs-context"
+      const runReadiness = ctx.store.query(example.runReadiness$);
+      expect(runReadiness).toBe("needs-context");
+
+      // blockedState should be null (since we can auto-load)
+      const blockedState = ctx.store.query(example.blockedState$);
+      expect(blockedState).toBeNull();
+    });
+
+    it("returns 'ready' when context is fully loaded", () => {
+      // Load the context first
+      mockContextManager.setContext("S1");
+
+      ctx.viewerVM.openSection("context-queries");
+      const section = ctx.store.query(ctx.viewerVM.currentSection$);
+      const example = section!.examples[0];
+
+      // isLessonReady should be true
+      const isLessonReady = ctx.store.query(example.isLessonReady$);
+      expect(isLessonReady).toBe(true);
+
+      // runReadiness should be "ready"
+      const runReadiness = ctx.store.query(example.runReadiness$);
+      expect(runReadiness).toBe("ready");
+    });
+
+    it("returns 'blocked' with action when no contextManager and context not ready", async () => {
+      // Create a viewer WITHOUT contextManager (simulates Query page without context support)
+      const replBridge = createMockReplBridge();
+      const { vm } = createDocumentViewerScope({
+        store: ctx.store,
+        profileId: "test-profile-blocked",
+        sections: MOCK_SECTIONS,
+        replBridge,
+        // NOTE: No contextManager provided!
+      });
+
+      // Ensure we're connected but on wrong database
+      ctx.store.commit(events.connectionSessionSet({
+        status: "connected",
+        activeDatabase: "wrong-db",
+      }));
+
+      vm.openSection("context-queries");
+      const section = ctx.store.query(vm.currentSection$);
+      const example = section!.examples[0];
+
+      // canLoadContext$ should be false (no contextManager)
+      const canLoad = ctx.store.query(example.canLoadContext$);
+      expect(canLoad).toBe(false);
+
+      // runReadiness should be "blocked"
+      const runReadiness = ctx.store.query(example.runReadiness$);
+      expect(runReadiness).toBe("blocked");
+
+      // blockedState should have an action
+      const blockedState = ctx.store.query(example.blockedState$);
+      expect(blockedState).not.toBeNull();
+      expect(blockedState?.reason).toContain("Requires");
+      expect(blockedState?.action?.type).toBe("loadContext");
+    });
   });
 });

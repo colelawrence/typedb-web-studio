@@ -1,20 +1,18 @@
 /**
- * Query Page Example Block Disabled State Test
+ * Query Page Example Block State Test
  *
- * Tests that example blocks on the Query page are properly disabled
- * when they require a lesson context that isn't loaded.
+ * Tests that example blocks on the Query page correctly handle context requirements.
  *
- * Bug scenario reproduced:
+ * Both Learn and Query pages share the same contextManager, so examples that
+ * require context are NOT disabled - they show "needs-context" state (Load & Run).
+ *
+ * Scenario:
  * 1. User connects to a server (Query page is shown)
  * 2. Query page's docs viewer opens a section that requires "S1" context
- * 3. The context isn't loaded (no lessonContext set)
- * 4. The example block's play button should be DISABLED
- *
- * The Query page's document viewer does NOT have a contextManager (that's only
- * available on the Learn page), so examples that require context should:
- * - Have canRun$ = false
- * - Have a runDisabledReason$ explaining why
- * - Not allow run() to execute
+ * 3. The context isn't loaded yet
+ * 4. The example block shows "needs-context" state (can auto-load context)
+ * 5. canRun$ = true (because contextManager can handle loading)
+ * 6. runReadiness$ = "needs-context" (context not loaded but can be loaded)
  */
 
 import { describe, it, expect, afterEach } from "vitest";
@@ -74,8 +72,8 @@ describe("Query page example block disabled state", () => {
     );
 
     // 6. THE KEY ASSERTIONS:
-    // Since Query page has no contextManager and the section requires context,
-    // the example should be disabled
+    // Query page shares contextManager with Learn page, so examples can auto-load context
+    // When context is not loaded, runReadiness should be "needs-context" (not "blocked")
 
     const canRun = query(exampleVM.canRun$);
     const disabledReason = query(exampleVM.runDisabledReason$);
@@ -97,31 +95,19 @@ describe("Query page example block disabled state", () => {
     const runReadiness = query(exampleVM.runReadiness$);
     console.log(`[Test] runReadiness$: ${runReadiness}`);
 
-    // The example should NOT be runnable
-    expect(canRun).toBe(false);
+    // With contextManager available, examples CAN run (context will be auto-loaded)
+    expect(canRun).toBe(true);
 
-    // There should be a disabled reason explaining why
-    expect(disabledReason).not.toBeNull();
-    expect(disabledReason).toContain("context");
+    // No disabled reason - contextManager handles context loading
+    expect(disabledReason).toBeNull();
 
-    // runReadiness should be "blocked" so the UI disables the button
-    expect(runReadiness).toBe("blocked");
+    // runReadiness should be "needs-context" since context isn't loaded yet
+    // (UI shows "Load & Run" button instead of disabled button)
+    expect(runReadiness).toBe("needs-context");
 
-    // 7. Attempting to run should be blocked by the guard
-    // (the guard logs a warning and returns early)
-    const resultBefore = query(exampleVM.currentResult$);
-    expect(resultBefore).toBeNull();
-
-    // Try to run - this should be blocked
-    await exampleVM.run();
-
-    // Result should still be null (run was blocked)
-    const resultAfter = query(exampleVM.currentResult$);
-    expect(resultAfter).toBeNull();
-
-    // Execution state should still be idle (never started)
-    const executionState = query(exampleVM.executionState$);
-    expect(executionState.type).toBe("idle");
+    // 7. Verify context is not loaded yet
+    expect(isLessonReady).toBe(false);
+    expect(canLoadContext).toBe(true);
   });
 
   it("example blocks without context requirement can run on Query page", async () => {
