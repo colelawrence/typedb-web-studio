@@ -220,7 +220,7 @@ export const tables = {
       name: State.SQLite.text({ default: "" }),
       /** Whether this is a demo server (read-only, pre-loaded data) */
       isDemo: State.SQLite.boolean({ default: false }),
-      /** Demo identifier if isDemo=true (e.g., "social-network") */
+      /** Demo identifier if isDemo=true (e.g., "S1") */
       demoId: State.SQLite.text({ nullable: true }),
       /** Last time this server was used/connected */
       lastUsedAt: State.SQLite.integer({

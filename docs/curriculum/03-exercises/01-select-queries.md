@@ -1,7 +1,7 @@
 ---
 id: exercises-select
 title: "Exercise: Finding Data"
-context: social-network
+context: S1
 requires: [first-queries]
 ---
 

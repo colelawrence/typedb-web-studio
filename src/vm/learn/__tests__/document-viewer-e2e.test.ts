@@ -46,7 +46,7 @@ const SOCIAL_NETWORK_SEED = `insert
 const TEST_SECTION: ParsedSection = {
   id: "e2e-test-section",
   title: "End-to-End Test Section",
-  context: "social-network",
+  context: "S1",
   requires: [],
   headings: [
     { id: "finding-people", text: "Finding People", level: 2, line: 5 },
@@ -118,7 +118,7 @@ async function createTestStore() {
 describe("Document Viewer End-to-End", () => {
   let service: TypeDBEmbeddedService;
   // Use the lesson database name so queries run against the correct database
-  const testDbName = lessonDatabaseNameForContext("social-network");
+  const testDbName = lessonDatabaseNameForContext("S1");
 
   beforeAll(async () => {
     // Create and connect to TypeDB WASM
@@ -173,7 +173,7 @@ describe("Document Viewer End-to-End", () => {
     // Set lesson context to match the section's required context
     store.commit(
       events.lessonContextSet({
-        currentContext: "social-network",
+        currentContext: "S1",
         isLoading: false,
         lastError: null,
         lastLoadedAt: Date.now(),
@@ -346,7 +346,7 @@ describe("Document Viewer End-to-End", () => {
     // Set lesson context to match the section's required context
     store.commit(
       events.lessonContextSet({
-        currentContext: "social-network",
+        currentContext: "S1",
         isLoading: false,
         lastError: null,
         lastLoadedAt: Date.now(),
@@ -445,7 +445,7 @@ describe("Document Viewer End-to-End", () => {
     // Set lesson context to match the section's required context
     store.commit(
       events.lessonContextSet({
-        currentContext: "social-network",
+        currentContext: "S1",
         isLoading: false,
         lastError: null,
         lastLoadedAt: Date.now(),

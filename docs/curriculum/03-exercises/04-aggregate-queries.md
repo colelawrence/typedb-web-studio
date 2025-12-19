@@ -1,7 +1,7 @@
 ---
 id: exercises-aggregates
 title: "Exercise: Combining Patterns"
-context: social-network
+context: S1
 requires: [exercises-relations]
 ---
 

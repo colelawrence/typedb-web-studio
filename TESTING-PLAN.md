@@ -124,7 +124,7 @@ export class TypeDBEmbeddedService implements TypeDBService {
 Create `src/test/fixtures/` directory with reusable schemas and data:
 
 ```typescript
-// src/test/fixtures/social-network.ts
+// src/test/fixtures/S1.ts
 export const socialNetworkSchema = `
   define
   attribute name value string;
@@ -294,7 +294,7 @@ describe('Connection Flow', () => {
 
 ```typescript
 import { describe, test, expect, beforeEach } from 'vitest';
-import { createSocialNetworkDb } from '../../test/fixtures/social-network';
+import { createSocialNetworkDb } from '../../test/fixtures/S1';
 
 describe('Query Execution', () => {
   let ctx: TestContext;

@@ -150,17 +150,17 @@ Acceptance criteria: selecting a database updates only the current session, stal
 
 **Database Naming Convention:**
 - Lesson databases: `learn_[context_name]` (hyphens → underscores)
-- Example: `"social-network"` → `"learn_social_network"`
+- Example: `"S1"` → `"learn_social_network"`
 
 **Flow:**
-1. User opens lesson requiring context (e.g., "social-network")
+1. User opens lesson requiring context (e.g., "S1")
 2. Context switch prompt appears in document viewer
-3. Clicking "Load Context" triggers `contextManager.loadContext("social-network")`
+3. Clicking "Load Context" triggers `contextManager.loadContext("S1")`
 4. Adapter auto-connects to WASM if disconnected
 5. Creates database `learn_social_network`
 6. Applies schema and seed data
 7. Sets as active database, refreshes database list
-8. Snackbar shows "Loaded context: social-network"
+8. Snackbar shows "Loaded context: S1"
 
 ### Verification
 - **Test file:** `src/curriculum/__tests__/context-database-adapter.test.ts` (12 tests)

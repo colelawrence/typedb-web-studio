@@ -1,7 +1,7 @@
 ---
 id: exercises-relations
 title: "Exercise: Querying Relations"
-context: social-network
+context: S1
 requires: [exercises-filtering]
 ---
 

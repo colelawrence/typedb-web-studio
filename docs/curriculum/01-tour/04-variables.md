@@ -1,7 +1,7 @@
 ---
 id: tour-variables
 title: Using Variables
-context: social-network
+context: S1
 requires: [tour-attributes]
 ---
 

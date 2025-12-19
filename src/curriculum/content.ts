@@ -64,7 +64,7 @@ export function getCurriculumSection(id: string): ParsedSection | null {
 /**
  * Get all sections that use a specific context.
  *
- * @param contextName - Context name (e.g., 'social-network')
+ * @param contextName - Context name (e.g., 'S1')
  * @returns Array of sections using that context
  */
 export function getCurriculumSectionsByContext(contextName: string): ParsedSection[] {

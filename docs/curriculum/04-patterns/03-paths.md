@@ -1,7 +1,7 @@
 ---
 id: patterns-paths
 title: Paths Through the Graph
-context: social-network
+context: S1
 requires: [patterns-edges]
 ---
 

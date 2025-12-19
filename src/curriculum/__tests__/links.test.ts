@@ -43,7 +43,7 @@ const MOCK_SECTIONS: ParsedSection[] = [
   {
     id: "first-queries",
     title: "Your First Queries",
-    context: "social-network",
+    context: "S1",
     requires: [],
     headings: [
       { id: "introduction", text: "Introduction", level: 1, line: 1 },
@@ -57,7 +57,7 @@ const MOCK_SECTIONS: ParsedSection[] = [
   {
     id: "variables",
     title: "Working with Variables",
-    context: "social-network",
+    context: "S1",
     requires: ["first-queries"],
     headings: [
       { id: "basics", text: "Basics", level: 2, line: 3 },
@@ -69,7 +69,7 @@ const MOCK_SECTIONS: ParsedSection[] = [
   {
     id: "advanced-patterns",
     title: "Advanced Patterns",
-    context: "social-network",
+    context: "S1",
     requires: ["variables"],
     headings: [
       { id: "relations", text: "Relations", level: 2, line: 3 },

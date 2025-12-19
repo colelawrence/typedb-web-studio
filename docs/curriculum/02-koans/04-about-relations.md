@@ -1,7 +1,7 @@
 ---
 id: koans-relations
 title: About Relations
-context: social-network
+context: S1
 requires: [koans-variables]
 ---
 

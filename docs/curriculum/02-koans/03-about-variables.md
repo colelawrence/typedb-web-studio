@@ -1,7 +1,7 @@
 ---
 id: koans-variables
 title: About Variables
-context: social-network
+context: S1
 requires: [koans-attributes]
 ---
 

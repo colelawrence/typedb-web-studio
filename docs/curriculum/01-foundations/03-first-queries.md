@@ -1,7 +1,7 @@
 ---
 id: first-queries
 title: Your First Queries
-context: social-network
+context: S1
 requires: [types-intro]
 ---
 

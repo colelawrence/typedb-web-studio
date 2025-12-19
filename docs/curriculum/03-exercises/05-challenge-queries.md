@@ -1,7 +1,7 @@
 ---
 id: exercises-challenge
 title: "Exercise: Challenge Queries"
-context: social-network
+context: S1
 requires: [exercises-aggregates]
 ---
 

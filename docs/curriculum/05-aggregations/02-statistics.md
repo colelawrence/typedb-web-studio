@@ -1,7 +1,7 @@
 ---
 id: agg-statistics
 title: Statistical Functions
-context: social-network
+context: S1
 requires: [agg-counting]
 ---
 

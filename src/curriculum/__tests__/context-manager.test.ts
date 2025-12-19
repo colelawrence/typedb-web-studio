@@ -22,8 +22,8 @@ import type { LoadedContext } from "../types";
 // ============================================================================
 
 const MOCK_CONTEXTS: Record<string, LoadedContext> = {
-  "social-network": {
-    name: "social-network",
+  "S1": {
+    name: "S1",
     description: "Social network with people and friendships",
     schema: `
       define
@@ -147,27 +147,27 @@ describe("ContextManager", () => {
 
   describe("loadContext", () => {
     it("loads a context by name", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
-      expect(manager.currentContext).toBe("social-network");
+      expect(manager.currentContext).toBe("S1");
     });
 
     it("creates database with prefixed name", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
-      expect(dbOps.createDatabaseCalls).toContain("learn_social_network");
+      expect(dbOps.createDatabaseCalls).toContain("learn_S1");
     });
 
     it("executes schema", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
       expect(dbOps.executeSchemaCalls.length).toBe(1);
-      expect(dbOps.executeSchemaCalls[0].database).toBe("learn_social_network");
+      expect(dbOps.executeSchemaCalls[0].database).toBe("learn_S1");
       expect(dbOps.executeSchemaCalls[0].schema).toContain("person sub entity");
     });
 
     it("executes seed data", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
       // Should have two insert statements
       expect(dbOps.executeWriteCalls.length).toBe(2);
@@ -176,9 +176,9 @@ describe("ContextManager", () => {
     });
 
     it("sets active database", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
-      expect(dbOps.activeDatabase).toBe("learn_social_network");
+      expect(dbOps.activeDatabase).toBe("learn_S1");
     });
 
     it("throws for unknown context", async () => {
@@ -188,16 +188,16 @@ describe("ContextManager", () => {
     });
 
     it("skips if already loaded", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
       dbOps.createDatabaseCalls.length = 0;
 
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
       expect(dbOps.createDatabaseCalls.length).toBe(0);
     });
 
     it("switches to different context", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
       await manager.loadContext("e-commerce");
 
       expect(manager.currentContext).toBe("e-commerce");
@@ -205,11 +205,11 @@ describe("ContextManager", () => {
     });
 
     it("reports ready status after loading", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
       const status = manager.getStatus();
       expect(status.isReady).toBe(true);
-      expect(status.name).toBe("social-network");
+      expect(status.name).toBe("S1");
     });
   });
 
@@ -226,9 +226,9 @@ describe("ContextManager", () => {
         onContextChanged,
       });
 
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
-      expect(onContextChanged).toHaveBeenCalledWith("social-network");
+      expect(onContextChanged).toHaveBeenCalledWith("S1");
     });
 
     it("calls onStatusChanged during loading", async () => {
@@ -239,7 +239,7 @@ describe("ContextManager", () => {
         onStatusChanged,
       });
 
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
       // Should be called at least twice: loading start, loading end
       expect(onStatusChanged.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -252,12 +252,12 @@ describe("ContextManager", () => {
 
   describe("resetContext", () => {
     it("reloads current context", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
       dbOps.createDatabaseCalls.length = 0;
 
       await manager.resetContext();
 
-      expect(dbOps.createDatabaseCalls).toContain("learn_social_network");
+      expect(dbOps.createDatabaseCalls).toContain("learn_S1");
     });
 
     it("throws if no context loaded", async () => {
@@ -267,10 +267,10 @@ describe("ContextManager", () => {
     });
 
     it("preserves context name after reset", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
       await manager.resetContext();
 
-      expect(manager.currentContext).toBe("social-network");
+      expect(manager.currentContext).toBe("S1");
     });
   });
 
@@ -280,7 +280,7 @@ describe("ContextManager", () => {
 
   describe("clearContext", () => {
     it("clears current context", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
       await manager.clearContext();
 
       expect(manager.currentContext).toBeNull();
@@ -294,7 +294,7 @@ describe("ContextManager", () => {
         onContextChanged,
       });
 
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
       await manager.clearContext();
 
       expect(onContextChanged).toHaveBeenLastCalledWith(null);
@@ -307,17 +307,17 @@ describe("ContextManager", () => {
 
   describe("isContextLoaded", () => {
     it("returns false when no context loaded", () => {
-      expect(manager.isContextLoaded("social-network")).toBe(false);
+      expect(manager.isContextLoaded("S1")).toBe(false);
     });
 
     it("returns true when context matches", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
-      expect(manager.isContextLoaded("social-network")).toBe(true);
+      expect(manager.isContextLoaded("S1")).toBe(true);
     });
 
     it("returns false when context differs", async () => {
-      await manager.loadContext("social-network");
+      await manager.loadContext("S1");
 
       expect(manager.isContextLoaded("e-commerce")).toBe(false);
     });
@@ -343,7 +343,7 @@ describe("ContextManager", () => {
         dbOps: failingDbOps,
       });
 
-      await expect(manager.loadContext("social-network")).rejects.toThrow(
+      await expect(manager.loadContext("S1")).rejects.toThrow(
         "Schema error"
       );
       expect(manager.lastError).toBe("Schema error");
@@ -361,7 +361,7 @@ describe("ContextManager", () => {
       });
 
       try {
-        await manager.loadContext("social-network");
+        await manager.loadContext("S1");
       } catch {
         // Expected
       }
@@ -381,18 +381,18 @@ describe("createMockContextManager", () => {
   it("tracks loadContext calls", async () => {
     const mock = createMockContextManager();
 
-    await mock.loadContext("social-network");
+    await mock.loadContext("S1");
     await mock.loadContext("e-commerce");
 
-    expect(mock.loadContextCalls).toEqual(["social-network", "e-commerce"]);
+    expect(mock.loadContextCalls).toEqual(["S1", "e-commerce"]);
   });
 
   it("updates currentContext", async () => {
     const mock = createMockContextManager();
 
-    await mock.loadContext("social-network");
+    await mock.loadContext("S1");
 
-    expect(mock.currentContext).toBe("social-network");
+    expect(mock.currentContext).toBe("S1");
   });
 
   it("allows setting context directly", () => {
@@ -406,9 +406,9 @@ describe("createMockContextManager", () => {
   it("isContextLoaded works correctly", async () => {
     const mock = createMockContextManager();
 
-    await mock.loadContext("social-network");
+    await mock.loadContext("S1");
 
-    expect(mock.isContextLoaded("social-network")).toBe(true);
+    expect(mock.isContextLoaded("S1")).toBe(true);
     expect(mock.isContextLoaded("other")).toBe(false);
   });
 });

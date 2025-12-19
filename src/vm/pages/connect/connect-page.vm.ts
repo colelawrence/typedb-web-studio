@@ -89,7 +89,7 @@ export interface DemoItemVM {
   key: string;
 
   /**
-   * Demo identifier (e.g., "social-network", "e-commerce").
+   * Demo identifier (e.g., "S1", "e-commerce").
    */
   id: string;
 

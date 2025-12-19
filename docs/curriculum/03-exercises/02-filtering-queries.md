@@ -1,7 +1,7 @@
 ---
 id: exercises-filtering
 title: "Exercise: Filtering Data"
-context: social-network
+context: S1
 requires: [exercises-select]
 ---
 

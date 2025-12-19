@@ -35,13 +35,13 @@ const TEST_META: CurriculumMeta = {
           id: "first-queries",
           title: "First Queries",
           file: "03-first-queries.md",
-          context: "social-network",
+          context: "S1",
         },
         {
           id: "variables",
           title: "Variables and Patterns",
           file: "04-variables.md",
-          context: "social-network",
+          context: "S1",
         },
       ],
     },
@@ -54,7 +54,7 @@ const TEST_META: CurriculumMeta = {
           id: "match-patterns",
           title: "Match Patterns",
           file: "01-match-patterns.md",
-          context: "social-network",
+          context: "S1",
         },
       ],
     },
@@ -66,7 +66,7 @@ const TEST_SECTIONS: Record<string, ParsedSection> = {
   "first-queries": {
     id: "first-queries",
     title: "First Queries",
-    context: "social-network",
+    context: "S1",
     requires: [],
     headings: [
       { id: "introduction", text: "Introduction", level: 2, line: 10 },
@@ -96,7 +96,7 @@ const TEST_SECTIONS: Record<string, ParsedSection> = {
   variables: {
     id: "variables",
     title: "Variables and Patterns",
-    context: "social-network",
+    context: "S1",
     requires: ["first-queries"],
     headings: [
       { id: "variable-basics", text: "Variable Basics", level: 2, line: 10 },
@@ -125,7 +125,7 @@ const TEST_SECTIONS: Record<string, ParsedSection> = {
   "match-patterns": {
     id: "match-patterns",
     title: "Match Patterns",
-    context: "social-network",
+    context: "S1",
     requires: ["variables"],
     headings: [
       { id: "advanced-patterns", text: "Advanced Patterns", level: 2, line: 10 },

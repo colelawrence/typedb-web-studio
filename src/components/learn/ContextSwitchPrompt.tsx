@@ -6,7 +6,7 @@
  *
  * ```
  * ┌─────────────────────────────────────────────────────────────┐
- * │ ⚠ This lesson requires the "social-network" context.       │
+ * │ ⚠ This lesson requires the "S1" context.                   │
  * │   Current: e-commerce                                       │
  * │                                                             │
  * │   [Load Context]  [Keep Current]                            │
@@ -87,14 +87,6 @@ export function ContextSwitchPrompt({ vm }: ContextSwitchPromptProps) {
 
                 <div className="flex gap-2 mt-3">
                   <SwitchButton vm={vm} />
-                  <Button
-                    variant="ghost"
-                    density="compact"
-                    onClick={vm.dismiss}
-                    className="text-dense-xs"
-                  >
-                    Keep Current
-                  </Button>
                 </div>
               </div>
             </div>

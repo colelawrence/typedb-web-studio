@@ -15,9 +15,9 @@ import {
   curriculumSections,
 } from 'virtual:curriculum-content';
 
-// Context database setup for koans (uses social-network context)
+// Context database setup for koans (uses S1 context)
 const CONTEXT_SETUP: Record<string, { schema: string; seed: string[] }> = {
-  'social-network': {
+  'S1': {
     schema: `define
 attribute name value string;
 attribute age value integer;

@@ -1,7 +1,7 @@
 ---
 id: inf-reasoning
 title: Graph Traversal Patterns
-context: social-network
+context: S1
 requires: [inf-rule-patterns]
 ---
 

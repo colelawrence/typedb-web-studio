@@ -58,7 +58,7 @@ export interface ParsedSection {
   id: string;
   /** Display title from frontmatter */
   title: string;
-  /** Which DB context to use (e.g., "social-network") */
+  /** Which DB context to use (e.g., "S1") */
   context: string | null;
   /** Prerequisite section IDs */
   requires: string[];

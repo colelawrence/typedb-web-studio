@@ -1,7 +1,7 @@
 ---
 id: tour-entities
 title: Finding Entities
-context: social-network
+context: S1
 requires: [tour-welcome]
 ---
 

@@ -1,7 +1,7 @@
 ---
 id: koans-filtering
 title: About Filtering
-context: social-network
+context: S1
 requires: [koans-relations]
 ---
 

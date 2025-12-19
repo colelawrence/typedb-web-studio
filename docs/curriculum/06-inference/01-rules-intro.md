@@ -1,7 +1,7 @@
 ---
 id: inf-rules-intro
 title: Introduction to Inference
-context: social-network
+context: S1
 ---
 
 # Introduction to Inference

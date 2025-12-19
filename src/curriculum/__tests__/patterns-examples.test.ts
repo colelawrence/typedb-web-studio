@@ -31,7 +31,7 @@ describe('Patterns Curriculum Examples', () => {
       password: '',
     });
 
-    // Create database with social-network schema
+    // Create database with S1 schema
     await service.createDatabase(database);
 
     // Apply schema

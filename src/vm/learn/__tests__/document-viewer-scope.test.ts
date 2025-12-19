@@ -91,7 +91,7 @@ match $p person;
 const MOCK_SECTION_WITH_CONTEXT: ParsedSection = {
   ...MOCK_SECTION,
   id: "context-queries",
-  context: "social-network", // Requires context for loading tests
+  context: "S1", // Requires context for loading tests
 };
 
 const MOCK_SECTIONS: Record<string, ParsedSection> = {
@@ -530,15 +530,7 @@ describe("DocumentViewerScope", () => {
     it("returns required context when section loaded", () => {
       ctx.viewerVM.openSection("context-queries");
       const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
-      expect(required).toBe("social-network");
-    });
-
-    it("dismiss does nothing without manager", () => {
-      ctx.viewerVM.openSection("first-queries");
-      // Should not throw
-      ctx.viewerVM.contextSwitchPrompt.dismiss();
-      const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
-      expect(isVisible).toBe(false);
+      expect(required).toBe("S1");
     });
 
     it("switchContext resolves without manager", async () => {
@@ -669,7 +661,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("is not visible when context matches", async () => {
-      mockContextManager.setContext("social-network");
+      mockContextManager.setContext("S1");
       ctx.viewerVM.openSection("context-queries");
       const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
       expect(isVisible).toBe(false);
@@ -678,7 +670,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     it("shows required context from section", () => {
       ctx.viewerVM.openSection("context-queries");
       const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
-      expect(required).toBe("social-network");
+      expect(required).toBe("S1");
     });
 
     it("shows current context from manager", () => {
@@ -690,15 +682,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     it("switchContext calls context manager", async () => {
       ctx.viewerVM.openSection("context-queries");
       await ctx.viewerVM.contextSwitchPrompt.switchContext();
-      expect(mockContextManager.loadContextCalls).toContain("social-network");
-    });
-
-    it("dismiss hides the prompt", () => {
-      ctx.viewerVM.openSection("context-queries");
-      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(true);
-
-      ctx.viewerVM.contextSwitchPrompt.dismiss();
-      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(false);
+      expect(mockContextManager.loadContextCalls).toContain("S1");
     });
 
     it("is not visible after switching context", async () => {
@@ -764,12 +748,12 @@ describe("DocumentViewerScope with ContextManager", () => {
       await example.run();
 
       // Context should have been auto-loaded
-      expect(mockContextManager.loadContextCalls).toContain("social-network");
+      expect(mockContextManager.loadContextCalls).toContain("S1");
     });
 
     it("does not reload context if already loaded", async () => {
       // Pre-load the context
-      mockContextManager.setContext("social-network");
+      mockContextManager.setContext("S1");
       expect(mockContextManager.loadContextCalls).toHaveLength(0);
 
       // Open section and run an example
@@ -786,14 +770,14 @@ describe("DocumentViewerScope with ContextManager", () => {
       ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
 
-      // Verify section requires social-network context
-      expect(section!.context).toBe("social-network");
+      // Verify section requires S1 context
+      expect(section!.context).toBe("S1");
 
       // Run example - should trigger context load
       await section!.examples[0].run();
 
       // Verify the correct context was loaded
-      expect(mockContextManager.loadContextCalls).toEqual(["social-network"]);
+      expect(mockContextManager.loadContextCalls).toEqual(["S1"]);
     });
   });
 
@@ -808,7 +792,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       const example = section!.examples[0];
 
       // Should inherit context requirement from section
-      expect(example.requiredContext).toBe("social-network");
+      expect(example.requiredContext).toBe("S1");
     });
 
     it("isContextReady$ is false when context not loaded", () => {
@@ -829,7 +813,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       expect(ctx.store.query(example.isContextReady$)).toBe(false);
 
       // Load the required context
-      mockContextManager.setContext("social-network");
+      mockContextManager.setContext("S1");
 
       // Now should be ready
       expect(ctx.store.query(example.isContextReady$)).toBe(true);
@@ -843,7 +827,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       // Load a different context
       mockContextManager.setContext("e-commerce");
 
-      // Should still not be ready (requires social-network)
+      // Should still not be ready (requires S1)
       expect(ctx.store.query(example.isContextReady$)).toBe(false);
     });
 
@@ -953,7 +937,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       expect(ctx.store.query(example.isContextReady$)).toBe(false);
 
       // Load correct context
-      mockContextManager.setContext("social-network");
+      mockContextManager.setContext("S1");
       expect(ctx.store.query(example.isContextReady$)).toBe(true);
 
       // Clear context
@@ -971,7 +955,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       const { vm } = createDocumentViewerScope({
         store,
         profileId: "test-profile-no-cm",
-        sections: MOCK_SECTIONS, // context-queries requires "social-network" context
+        sections: MOCK_SECTIONS, // context-queries requires "S1" context
         replBridge,
         // NOTE: No contextManager provided!
       });
@@ -982,8 +966,8 @@ describe("DocumentViewerScope with ContextManager", () => {
 
       const example = section!.examples[0];
 
-      // The example requires social-network context
-      expect(example.requiredContext).toBe("social-network");
+      // The example requires S1 context
+      expect(example.requiredContext).toBe("S1");
 
       // Without contextManager, canRun should be FALSE
       // because we can't auto-load the context
@@ -993,7 +977,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       // Check the disabled reason
       const reason = store.query(example.runDisabledReason$);
       expect(reason).toContain("Requires");
-      expect(reason).toContain("social-network");
+      expect(reason).toContain("S1");
     });
 
     it("canRun$ is true when no context required even without contextManager", async () => {
@@ -1195,71 +1179,5 @@ describe("DocumentViewerScope with ContextManager", () => {
       expect(store.query(example.runDisabledReason$)).toBeNull();
     });
 
-    it("dismiss is section-specific and resets when switching sections", () => {
-      // Create a second section to test dismissal across sections
-      const multiSections: Record<string, ParsedSection> = {
-        "section-a": {
-          id: "section-a",
-          title: "Section A",
-          context: "social-network",
-          requires: [],
-          headings: [],
-          examples: [{
-            id: "example-a",
-            type: "example",
-            query: "match $a isa person;",
-            sourceFile: "test.md",
-            lineNumber: 1,
-          }],
-          rawContent: "# A\n\n```typeql:example[id=example-a]\nmatch $a isa person;\n```",
-          sourceFile: "a.md",
-        },
-        "section-b": {
-          id: "section-b",
-          title: "Section B",
-          context: "social-network",
-          requires: [],
-          headings: [],
-          examples: [{
-            id: "example-b",
-            type: "example",
-            query: "match $b isa person;",
-            sourceFile: "test.md",
-            lineNumber: 1,
-          }],
-          rawContent: "# B\n\n```typeql:example[id=example-b]\nmatch $b isa person;\n```",
-          sourceFile: "b.md",
-        },
-      };
-
-      const { store } = ctx;
-      const replBridge = createMockReplBridge();
-
-      const { vm } = createDocumentViewerScope({
-        store,
-        profileId: "test-profile-dismiss",
-        sections: multiSections,
-        replBridge,
-        contextManager: mockContextManager,
-      });
-
-      // Open section A - prompt should be visible (context not loaded)
-      vm.openSection("section-a");
-      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(true);
-
-      // Dismiss the prompt for section A
-      vm.contextSwitchPrompt.dismiss();
-      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(false);
-
-      // Switch to section B - prompt should be visible again (different section)
-      // The dismissal state is reset when navigating to a different section
-      vm.openSection("section-b");
-      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(true);
-
-      // Go back to section A - prompt should reappear because dismissal was reset
-      // when we navigated to section B. This is the "reminder on revisit" behavior.
-      vm.openSection("section-a");
-      expect(store.query(vm.contextSwitchPrompt.isVisible$)).toBe(true);
-    });
   });
 });

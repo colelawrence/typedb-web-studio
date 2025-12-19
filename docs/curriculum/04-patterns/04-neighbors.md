@@ -1,7 +1,7 @@
 ---
 id: patterns-neighbors
 title: Finding Neighbors
-context: social-network
+context: S1
 requires: [patterns-paths]
 ---
 

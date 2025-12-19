@@ -17,7 +17,7 @@ import {
 
 // Same context setup as all-examples.test.ts
 const CONTEXT_SETUP: Record<string, { schema: string; seed: string[] }> = {
-  'social-network': {
+  'S1': {
     schema: `define
 attribute name value string;
 attribute age value integer;

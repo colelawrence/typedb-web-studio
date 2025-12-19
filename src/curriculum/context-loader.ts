@@ -45,7 +45,7 @@ export function registerContext(name: string, files: ContextFiles): void {
  * Load a context by name.
  * Returns the schema and seed queries as strings.
  *
- * @param contextName - Name of the context (e.g., 'social-network')
+ * @param contextName - Name of the context (e.g., 'S1')
  * @returns Loaded context with schema and seed content
  * @throws Error if context is not registered
  */

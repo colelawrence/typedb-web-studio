@@ -330,7 +330,7 @@ Curriculum markdown files use this format:
 ---
 id: match-basics
 title: Basic Pattern Matching
-context: social-network
+context: S1
 requires: [types-intro]
 ---
 
@@ -507,7 +507,7 @@ docs/
 ├── curriculum/
 │   ├── _meta.yaml                    # Curriculum structure
 │   ├── _contexts/
-│   │   ├── social-network/
+│   │   ├── S1/
 │   │   │   ├── context.yaml          # Name, description
 │   │   │   ├── schema.tql            # TypeQL schema
 │   │   │   └── seed.tql              # Initial data
@@ -545,7 +545,7 @@ import { parseSection } from '../parser';
 const SAMPLE_MARKDOWN = `---
 id: match-basics
 title: Basic Pattern Matching
-context: social-network
+context: S1
 requires: [types-intro]
 ---
 
@@ -575,7 +575,7 @@ describe('Curriculum Parser', () => {
 
     expect(section.id).toBe('match-basics');
     expect(section.title).toBe('Basic Pattern Matching');
-    expect(section.context).toBe('social-network');
+    expect(section.context).toBe('S1');
     expect(section.requires).toEqual(['types-intro']);
   });
 
@@ -704,7 +704,7 @@ match $x isa thing;
 
 #### Sample curriculum content:
 - `docs/curriculum/01-foundations/03-first-queries.md` - Sample lesson with 7 examples
-- `docs/curriculum/_contexts/social-network/` - Context with schema.tql, seed.tql, context.yaml
+- `docs/curriculum/_contexts/S1/` - Context with schema.tql, seed.tql, context.yaml
 
 #### Implementation notes:
 - **Browser/Node split**: gray-matter requires Node.js Buffer, so parsing happens at build time via Vite plugin. Browser code imports pre-parsed JSON from the `virtual:curriculum-content` module.
@@ -976,8 +976,8 @@ pnpm vitest run src/curriculum/__tests__/all-examples.test.ts --environment node
 
 Should produce output like:
 ```
-✓ Curriculum Examples > Context: social-network > Basic Pattern Matching > [first-match] match $p isa person; get $p;... (15ms)
-✓ Curriculum Examples > Context: social-network > Basic Pattern Matching > [bad-syntax] match $p person;... (8ms)
+✓ Curriculum Examples > Context: S1 > Basic Pattern Matching > [first-match] match $p isa person; get $p;... (15ms)
+✓ Curriculum Examples > Context: S1 > Basic Pattern Matching > [bad-syntax] match $p person;... (8ms)
 ✓ Curriculum Examples > Context: e-commerce > Products > [find-products] match $p isa product;... (12ms)
 ...
 
@@ -1001,9 +1001,9 @@ Tests       47 passed (47)
 
 #### Test output sample:
 ```
-✓ |browser (chromium)| all-examples.test.ts > Curriculum Examples > Context: social-network > Section: Your First Queries > [find-all-people] match $p isa person;... 27ms
-✓ |browser (chromium)| all-examples.test.ts > Curriculum Examples > Context: social-network > Section: Your First Queries > [find-all-companies] match $company isa company;... 1ms
-✓ |browser (chromium)| all-examples.test.ts > Curriculum Examples > Context: social-network > Section: Your First Queries > [find-alice] match $p isa person, has name "Alice";... 4ms
+✓ |browser (chromium)| all-examples.test.ts > Curriculum Examples > Context: S1 > Section: Your First Queries > [find-all-people] match $p isa person;... 27ms
+✓ |browser (chromium)| all-examples.test.ts > Curriculum Examples > Context: S1 > Section: Your First Queries > [find-all-companies] match $company isa company;... 1ms
+✓ |browser (chromium)| all-examples.test.ts > Curriculum Examples > Context: S1 > Section: Your First Queries > [find-alice] match $p isa person, has name "Alice";... 4ms
 ...
 Test Files  2 passed (2)
 Tests  44 passed (44)
@@ -1803,7 +1803,7 @@ Created `src/vm/learn/__tests__/navigation-scope.test.ts` with 35 tests covering
 
 ### Social Network Context
 
-`docs/curriculum/_contexts/social-network/schema.tql`:
+`docs/curriculum/_contexts/S1/schema.tql`:
 ```typeql
 define
 
@@ -1828,7 +1828,7 @@ employment sub relation,
   relates employer;
 ```
 
-`docs/curriculum/_contexts/social-network/seed.tql`:
+`docs/curriculum/_contexts/S1/seed.tql`:
 ```typeql
 insert
   $alice isa person, has name "Alice", has age 30;
@@ -1849,7 +1849,7 @@ insert
 ---
 id: first-queries
 title: Your First Queries
-context: social-network
+context: S1
 requires: [types-intro, entities-intro]
 ---
 
@@ -1908,7 +1908,7 @@ get $p;
 | Term | Definition |
 |------|------------|
 | Profile ID | Unique identifier isolating all user state (progress, executions, DB) |
-| Context | A schema + seed data setup for lessons (e.g., "social-network") |
+| Context | A schema + seed data setup for lessons (e.g., "S1") |
 | Example | An interactive TypeQL code block in curriculum |
 | Section | A curriculum markdown file with frontmatter |
 | Heading | An H1-H6 within a section, trackable for read progress |

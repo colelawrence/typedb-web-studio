@@ -34,7 +34,7 @@ export interface ContextManager {
    * Loads a context by name.
    * Resets the database and applies schema + seed data.
    *
-   * @param contextName The context to load (e.g., "social-network")
+   * @param contextName The context to load (e.g., "S1")
    * @returns Promise that resolves when context is loaded
    */
   loadContext(contextName: string): Promise<void>;
@@ -190,13 +190,22 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
   };
 
   const loadContext = async (contextName: string): Promise<void> => {
+    console.log(`[context-manager] loadContext called:`, {
+      contextName,
+      currentContext,
+      lastError,
+      availableContexts: Object.keys(contexts),
+    });
+
     // Skip if already loaded
     if (contextName === currentContext && !lastError) {
+      console.log(`[context-manager] Skipping - already loaded`);
       return;
     }
 
     const context = contexts[contextName];
     if (!context) {
+      console.error(`[context-manager] Context not found: ${contextName}`);
       throw new Error(`Context not found: ${contextName}`);
     }
 
@@ -207,6 +216,7 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
     try {
       // Create/reset the database for this context
       const dbName = lessonDatabaseNameForContext(contextName);
+      console.log(`[context-manager] Creating database: ${dbName}`);
       await dbOps.createDatabase(dbName);
 
       // Apply schema

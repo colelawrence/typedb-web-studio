@@ -20,7 +20,7 @@ import {
 const SAMPLE_MARKDOWN = `---
 id: match-basics
 title: Basic Pattern Matching
-context: social-network
+context: S1
 requires: [types-intro]
 ---
 
@@ -50,7 +50,7 @@ describe('Curriculum Parser', () => {
 
       expect(section.id).toBe('match-basics');
       expect(section.title).toBe('Basic Pattern Matching');
-      expect(section.context).toBe('social-network');
+      expect(section.context).toBe('S1');
       expect(section.requires).toEqual(['types-intro']);
     });
 
@@ -576,7 +576,7 @@ describe('Real Curriculum File', () => {
 
     expect(section.id).toBe('first-queries');
     expect(section.title).toBe('Your First Queries');
-    expect(section.context).toBe('social-network');
+    expect(section.context).toBe('S1');
     expect(section.requires).toContain('types-intro');
 
     // Should have multiple examples

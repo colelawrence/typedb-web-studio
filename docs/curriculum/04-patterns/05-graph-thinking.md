@@ -1,7 +1,7 @@
 ---
 id: patterns-graph-thinking
 title: Graph Pattern Thinking
-context: social-network
+context: S1
 requires: [patterns-neighbors]
 ---
 

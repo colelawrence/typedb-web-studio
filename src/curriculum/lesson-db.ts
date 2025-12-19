@@ -14,7 +14,7 @@
  * - DocumentViewerScope to verify the correct database is selected
  *
  * @example
- * lessonDatabaseNameForContext("social-network") // => "learn_social_network"
+ * lessonDatabaseNameForContext("S1") // => "learn_S1"
  */
 export function lessonDatabaseNameForContext(contextName: string): string {
   return `learn_${contextName.replace(/-/g, "_")}`;

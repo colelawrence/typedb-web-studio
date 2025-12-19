@@ -107,7 +107,7 @@ export interface DocumentSectionVM {
   title: string;
 
   /**
-   * Context this section requires (e.g., "social-network"), or null if none.
+   * Context this section requires (e.g., "S1"), or null if none.
    */
   context: string | null;
 
@@ -373,6 +373,26 @@ export type ExampleExecutionState =
 export type ExampleRunReadiness = "ready" | "needs-context" | "blocked";
 
 /**
+ * Describes an action that can resolve a blocked example state.
+ * Used to show inline prompts instead of relying on tooltips.
+ */
+export type ExampleBlockedAction =
+  | { type: "connect"; message: string }
+  | { type: "selectDatabase"; message: string }
+  | { type: "loadContext"; message: string; contextName: string };
+
+/**
+ * Describes why an example cannot run and what action can fix it.
+ * Returns null from blockedState$ when the example can run.
+ */
+export interface ExampleBlockedState {
+  /** Human-readable reason why the example is blocked */
+  reason: string;
+  /** Action that can resolve the blocked state, or null if not fixable */
+  action: ExampleBlockedAction | null;
+}
+
+/**
  * Result of running an example.
  */
 export interface ExampleRunResultVM {
@@ -458,9 +478,4 @@ export interface ContextSwitchPromptVM {
    * Switches to the required context.
    */
   switchContext(): Promise<void>;
-
-  /**
-   * Dismisses the prompt without switching.
-   */
-  dismiss(): void;
 }

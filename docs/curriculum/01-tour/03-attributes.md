@@ -1,7 +1,7 @@
 ---
 id: tour-attributes
 title: Filtering by Attributes
-context: social-network
+context: S1
 requires: [tour-entities]
 ---
 

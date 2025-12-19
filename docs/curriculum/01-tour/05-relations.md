@@ -1,7 +1,7 @@
 ---
 id: tour-relations
 title: Querying Relations
-context: social-network
+context: S1
 requires: [tour-variables]
 ---
 

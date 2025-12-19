@@ -9,7 +9,7 @@
  *
  * Test Strategy:
  * 1. Load examples from the virtual:curriculum-content module (parsed from markdown)
- * 2. Group examples by context (e.g., 'social-network')
+ * 2. Group examples by context (e.g., 'S1')
  * 3. For each context, create a fresh database with schema + seed data
  * 4. Run all examples from sections using that context
  * 5. Verify results match expectations
@@ -31,7 +31,7 @@ import {
 // Context database setup - schema and seed data for each context
 // This must include ALL types used by ANY curriculum example
 const CONTEXT_SETUP: Record<string, { schema: string; seed: string[] }> = {
-  'social-network': {
+  'S1': {
     schema: `define
 attribute name value string;
 attribute age value integer;

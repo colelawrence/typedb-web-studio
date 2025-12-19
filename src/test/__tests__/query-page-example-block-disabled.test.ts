@@ -6,7 +6,7 @@
  *
  * Bug scenario reproduced:
  * 1. User connects to a server (Query page is shown)
- * 2. Query page's docs viewer opens a section that requires "social-network" context
+ * 2. Query page's docs viewer opens a section that requires "S1" context
  * 3. The context isn't loaded (no lessonContext set)
  * 4. The example block's play button should be DISABLED
  *
@@ -23,7 +23,7 @@ import { setupConnectedServer, waitForPage, waitFor } from "../vm-test-helpers";
 import type { QueryPageVM } from "../../vm/pages/query/query-page.vm";
 
 // Known section IDs from the curriculum
-const SECTION_WITH_CONTEXT = "tour-entities"; // Requires social-network context
+const SECTION_WITH_CONTEXT = "tour-entities"; // Requires S1 context
 const SECTION_WITHOUT_CONTEXT = "tour-welcome"; // No context required
 
 describe("Query page example block disabled state", () => {
@@ -61,7 +61,7 @@ describe("Query page example block disabled state", () => {
     );
 
     expect(currentSection).not.toBeNull();
-    expect(currentSection!.context).toBe("social-network");
+    expect(currentSection!.context).toBe("S1");
     console.log(`[Test] Section loaded: ${currentSection!.id}, context: ${currentSection!.context}`);
 
     // 5. Get the first example from the section
@@ -208,7 +208,7 @@ describe("Learn page example blocks with context manager", () => {
     );
 
     expect(currentSection).not.toBeNull();
-    expect(currentSection!.context).toBe("social-network");
+    expect(currentSection!.context).toBe("S1");
     console.log(`[Test] Section loaded: ${currentSection!.id}, context: ${currentSection!.context}`);
 
     // 4. Get the first interactive example

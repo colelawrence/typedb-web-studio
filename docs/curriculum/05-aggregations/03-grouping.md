@@ -1,7 +1,7 @@
 ---
 id: agg-grouping
 title: Grouping Results
-context: social-network
+context: S1
 requires: [agg-statistics]
 ---
 

@@ -7,9 +7,9 @@ version: 0.2.0
 
 # Contexts available for lessons
 contexts:
-  - name: social-network
+  - name: S1
     description: A simple social network with people, friendships, and companies
-    path: _contexts/social-network
+    path: _contexts/S1
 
 # Learning Approaches
 # Each approach represents a different teaching style to accommodate various learning preferences.
@@ -34,25 +34,25 @@ sections:
       - id: tour-entities
         title: Finding Entities
         file: 02-entities.md
-        context: social-network
+        context: S1
         requires: [tour-welcome]
 
       - id: tour-attributes
         title: Filtering by Attributes
         file: 03-attributes.md
-        context: social-network
+        context: S1
         requires: [tour-entities]
 
       - id: tour-variables
         title: Using Variables
         file: 04-variables.md
-        context: social-network
+        context: S1
         requires: [tour-attributes]
 
       - id: tour-relations
         title: Querying Relations
         file: 05-relations.md
-        context: social-network
+        context: S1
         requires: [tour-variables]
 
   # =============================================================================
@@ -68,30 +68,30 @@ sections:
       - id: koans-matching
         title: About Matching
         file: 01-about-matching.md
-        context: social-network
+        context: S1
 
       - id: koans-attributes
         title: About Attributes
         file: 02-about-attributes.md
-        context: social-network
+        context: S1
         requires: [koans-matching]
 
       - id: koans-variables
         title: About Variables
         file: 03-about-variables.md
-        context: social-network
+        context: S1
         requires: [koans-attributes]
 
       - id: koans-relations
         title: About Relations
         file: 04-about-relations.md
-        context: social-network
+        context: S1
         requires: [koans-variables]
 
       - id: koans-filtering
         title: About Filtering
         file: 05-about-filtering.md
-        context: social-network
+        context: S1
         requires: [koans-relations]
 
   # =============================================================================
@@ -107,30 +107,30 @@ sections:
       - id: exercises-select
         title: "Exercise: Finding Data"
         file: 01-select-queries.md
-        context: social-network
+        context: S1
 
       - id: exercises-filtering
         title: "Exercise: Filtering"
         file: 02-filtering-queries.md
-        context: social-network
+        context: S1
         requires: [exercises-select]
 
       - id: exercises-relations
         title: "Exercise: Relations"
         file: 03-multi-table-queries.md
-        context: social-network
+        context: S1
         requires: [exercises-filtering]
 
       - id: exercises-aggregates
         title: "Exercise: Combining Patterns"
         file: 04-aggregate-queries.md
-        context: social-network
+        context: S1
         requires: [exercises-relations]
 
       - id: exercises-challenges
         title: "Exercise: Challenges"
         file: 05-challenge-queries.md
-        context: social-network
+        context: S1
         requires: [exercises-aggregates]
 
   # =============================================================================
@@ -146,30 +146,30 @@ sections:
       - id: patterns-nodes
         title: Nodes in the Graph
         file: 01-nodes.md
-        context: social-network
+        context: S1
 
       - id: patterns-edges
         title: Edges and Relations
         file: 02-edges.md
-        context: social-network
+        context: S1
         requires: [patterns-nodes]
 
       - id: patterns-paths
         title: Following Paths
         file: 03-paths.md
-        context: social-network
+        context: S1
         requires: [patterns-edges]
 
       - id: patterns-neighbors
         title: Finding Neighbors
         file: 04-neighbors.md
-        context: social-network
+        context: S1
         requires: [patterns-paths]
 
       - id: patterns-advanced
         title: Advanced Graph Patterns
         file: 05-graph-thinking.md
-        context: social-network
+        context: S1
         requires: [patterns-neighbors]
 
   # =============================================================================
@@ -185,18 +185,18 @@ sections:
       - id: agg-counting
         title: Counting Results
         file: 01-counting.md
-        context: social-network
+        context: S1
 
       - id: agg-statistics
         title: Statistical Functions
         file: 02-statistics.md
-        context: social-network
+        context: S1
         requires: [agg-counting]
 
       - id: agg-grouping
         title: Grouping Results
         file: 03-grouping.md
-        context: social-network
+        context: S1
         requires: [agg-statistics]
 
   # =============================================================================
@@ -264,4 +264,4 @@ sections:
       - id: first-queries
         title: Your First Queries
         file: 03-first-queries.md
-        context: social-network
+        context: S1

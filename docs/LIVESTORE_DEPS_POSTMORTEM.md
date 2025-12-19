@@ -13,9 +13,9 @@ Console logs showed:
 ```
 [ExampleBlock.run] Pre-flight check:
   exampleId: tour-find-people
-  runDisabledReason: Requires "social-network" lesson context (open Learn page to load it)
+  runDisabledReason: Requires "S1" lesson context (open Learn page to load it)
   hasContextManager: false
-[ExampleBlock.run] Cannot run: Requires "social-network" lesson context...
+[ExampleBlock.run] Cannot run: Requires "S1" lesson context...
 ```
 
 The guard worked, but user asked: "How am I even able to hit the run button?"
@@ -48,7 +48,7 @@ Created `src/test/__tests__/query-page-example-block-disabled.test.ts` to reprod
 The test showed these signals worked correctly:
 ```
 [Test] canRun$: false           ✓
-[Test] runDisabledReason$: Requires "social-network"...  ✓
+[Test] runDisabledReason$: Requires "S1"...  ✓
 [Test] isLessonReady$: false    ✓
 [Test] canLoadContext$: false   ✓
 ```

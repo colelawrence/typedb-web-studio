@@ -1,4 +1,4 @@
-# Seed data for social-network context
+# Seed data for S1 context
 # This provides a small but interesting dataset for learning
 # TypeQL 3: Use match to find existing entities, then insert relationships
 

@@ -1,7 +1,7 @@
 # Social Network Context
 # A simple social network for teaching basic TypeQL concepts
 
-name: social-network
+name: S1
 description: |
   A social network with people, friendships, and employment relationships.
   Used for teaching basic querying, pattern matching, and relations.

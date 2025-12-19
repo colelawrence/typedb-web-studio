@@ -7,7 +7,7 @@
 import { Database } from '@typedb/embedded'
 
 // Re-export fixtures
-export * from './social-network'
+export * from './S1'
 
 /**
  * Cached fixture snapshots for faster test setup.

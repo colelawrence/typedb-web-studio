@@ -1,7 +1,7 @@
 ---
 id: patterns-nodes
 title: Nodes in the Graph
-context: social-network
+context: S1
 requires: []
 ---
 

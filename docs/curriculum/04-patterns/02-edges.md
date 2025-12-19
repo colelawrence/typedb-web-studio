@@ -1,7 +1,7 @@
 ---
 id: patterns-edges
 title: Edges in the Graph
-context: social-network
+context: S1
 requires: [patterns-nodes]
 ---
 

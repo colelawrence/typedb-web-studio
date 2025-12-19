@@ -1,7 +1,7 @@
 ---
 id: inf-rule-patterns
 title: Modeling Derived Relationships
-context: social-network
+context: S1
 requires: [inf-rules-intro]
 ---
 

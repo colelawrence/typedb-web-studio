@@ -1,7 +1,7 @@
 ---
 id: koans-attributes
 title: About Attributes
-context: social-network
+context: S1
 requires: [koans-matching]
 ---
 
