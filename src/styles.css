@@ -1,3 +1,28 @@
+/*
+ * TypeDB Web Studio - Dense-Core Design System
+ * ============================================
+ *
+ * PHILOSOPHY: Information-dense professional tool UI.
+ * Inspired by Linear, VS Code, Vercel dashboards.
+ *
+ * WHY TAILWIND v4 CSS-FIRST:
+ * - All tokens live here, not JS config (v4 best practice)
+ * - @theme inline exposes tokens to Tailwind utilities
+ * - Semantic colors adapt to dark mode automatically
+ *
+ * SPACING: 8px base, compact scale (2-4-6-8-12-16-24-32px)
+ * TYPOGRAPHY: Dense scale (11-13-15-17-20-24-30px)
+ * HEIGHTS: Semantic tiers (compact 28, default 36, row 40, header 48)
+ *
+ * COLOR SEMANTICS:
+ * - beacon-*: Connection status (error/warn/ok)
+ * - graph-*: Schema visualization (entity/relation/attribute)
+ * - op-*: TypeQL operations (read=cyan, write=amber, schema=violet)
+ * - syntax-*: Code highlighting by token category
+ *
+ * See DENSE-UI-CATALOG.md for full component inventory.
+ */
+
 @import 'tailwindcss';
 
 @import 'tw-animate-css';
@@ -18,6 +43,7 @@ code {
     source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
+/* Light mode tokens (shadcn/ui base + TypeQL syntax) */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -53,7 +79,7 @@ code {
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.871 0.006 286.286);
 
-  /* TypeQL Syntax Highlighting Colors - Light Mode (Task 1.7) */
+  /* Syntax: TypeQL code highlighting (light) */
   --syntax-keyword-read: oklch(0.50 0.18 220);       /* cyan - match, fetch, get */
   --syntax-keyword-write: oklch(0.55 0.18 60);       /* amber - insert, delete, update */
   --syntax-keyword-schema: oklch(0.50 0.18 290);     /* violet - define, undefine, redefine */
@@ -67,6 +93,7 @@ code {
   --syntax-punctuation: var(--muted-foreground);     /* muted - ;, :, {, } */
 }
 
+/* Dark mode tokens (auto-applied via .dark class) */
 .dark {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
@@ -101,7 +128,7 @@ code {
   --sidebar-border: oklch(0.274 0.006 286.033);
   --sidebar-ring: oklch(0.442 0.017 285.786);
 
-  /* TypeQL Syntax Highlighting Colors - Dark Mode (Task 1.7) */
+  /* Syntax: TypeQL code highlighting (dark, higher lightness) */
   --syntax-keyword-read: oklch(0.75 0.18 220);
   --syntax-keyword-write: oklch(0.80 0.18 60);
   --syntax-keyword-schema: oklch(0.75 0.18 290);
@@ -115,12 +142,14 @@ code {
   --syntax-punctuation: var(--muted-foreground);
 }
 
+/*
+ * @theme inline: Expose tokens to Tailwind utilities (v4 pattern)
+ * Usage: bg-beacon-ok, text-op-write, h-compact, text-dense-sm, etc.
+ */
 @theme inline {
-  /* =====================================================================
-   * Dense-Core Design System Tokens
-   * ===================================================================== */
+  /* Dense-Core Design System Tokens */
 
-  /* Dense-Core Spacing Scale (compact, 8px base) - Task 1.1 */
+  /* Spacing: compact 8px base */
   --spacing-0: 0;
   --spacing-0-5: 0.125rem;  /* 2px */
   --spacing-1: 0.25rem;     /* 4px */
@@ -131,7 +160,7 @@ code {
   --spacing-6: 1.5rem;      /* 24px */
   --spacing-8: 2rem;        /* 32px */
 
-  /* Dense-Core Typography (compact sizes) - Task 1.2 */
+  /* Typography: dense scale */
   --font-size-dense-xs: 0.6875rem;   /* 11px */
   --font-size-dense-sm: 0.8125rem;   /* 13px */
   --font-size-dense-base: 0.9375rem; /* 15px */
@@ -140,16 +169,13 @@ code {
   --font-size-dense-2xl: 1.5rem;     /* 24px */
   --font-size-dense-3xl: 1.875rem;   /* 30px */
 
-  /* Dense-Core Interactive Heights - Task 1.3 */
+  /* Heights: semantic tiers */
   --height-compact: 1.5rem;  /* 28px - inline actions, small buttons */
   --height-default: 2rem;  /* 36px - form inputs, standard buttons */
   --height-row: 2rem;       /* 40px - table rows, list items */
   --height-header: 2.5rem;      /* 48px - section headers, top bar */
 
-  /* =====================================================================
-   * Existing Color Tokens
-   * ===================================================================== */
-
+  /* Colors: shadcn/ui semantic tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -187,21 +213,17 @@ code {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* =====================================================================
-   * Dense-Core Semantic Color Tokens
-   * ===================================================================== */
-
-  /* Connection Beacon Colors (semantic) - Task 1.4 */
+  /* Beacon: connection status */
   --color-beacon-error: var(--destructive);
   --color-beacon-warn: var(--chart-4);
   --color-beacon-ok: var(--chart-2);
 
-  /* Schema Graph Node Colors (OKLCH for wide gamut) - Task 1.5 */
+  /* Graph: schema visualization nodes */
   --color-graph-entity: oklch(0.65 0.15 250);     /* blue */
   --color-graph-relation: oklch(0.65 0.15 320);   /* magenta */
   --color-graph-attribute: oklch(0.65 0.15 140);  /* green */
 
-  /* TypeQL Operation Colors (semantic by operation type) - Task 1.6 */
+  /* Operations: TypeQL query type semantics */
   --color-op-read: oklch(0.65 0.18 220);          /* cyan - match, fetch */
   --color-op-write: oklch(0.70 0.18 60);          /* amber - insert, delete, update */
   --color-op-schema: oklch(0.65 0.18 290);        /* violet - define, undefine, redefine */
@@ -218,11 +240,10 @@ code {
   }
 }
 
-/* =====================================================================
- * Dense-Core Custom Utilities
- * ===================================================================== */
-
-/* Dense Typography Utilities (Task 1.2) */
+/*
+ * Custom @utility definitions for Dense-Core classes
+ * These create utilities like text-dense-sm, h-compact, text-syntax-*
+ */
 @utility text-dense-xs {
   font-size: 0.6875rem; /* 11px */
   line-height: 1rem; /* 16px */
@@ -258,7 +279,6 @@ code {
   line-height: 2.375rem; /* 38px */
 }
 
-/* Dense Height Utilities (Task 1.3) */
 @utility h-compact {
   height: 1.75rem; /* 28px */
 }
@@ -291,7 +311,6 @@ code {
   min-height: 3rem; /* 48px */
 }
 
-/* Syntax Highlighting Text Utilities (Task 1.7) */
 @utility text-syntax-keyword-read {
   color: var(--syntax-keyword-read);
 }
