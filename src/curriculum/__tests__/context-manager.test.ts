@@ -65,22 +65,27 @@ function createMockDbOps(): ContextDatabaseOps & {
   executeSchemaCalls: Array<{ database: string; schema: string }>;
   executeWriteCalls: Array<{ database: string; query: string }>;
   activeDatabase: string | null;
+  existingDatabases: Set<string>;
 } {
   const createDatabaseCalls: string[] = [];
   const executeSchemaCalls: Array<{ database: string; schema: string }> = [];
   const executeWriteCalls: Array<{ database: string; query: string }> = [];
   let activeDatabase: string | null = null;
+  // Track existing databases separately from calls (survives clearing createDatabaseCalls)
+  const existingDatabases = new Set<string>();
 
   return {
     createDatabaseCalls,
     executeSchemaCalls,
     executeWriteCalls,
+    existingDatabases,
     get activeDatabase() {
       return activeDatabase;
     },
 
     async createDatabase(name: string) {
       createDatabaseCalls.push(name);
+      existingDatabases.add(name);
     },
 
     async executeSchema(database: string, schema: string) {
@@ -97,6 +102,10 @@ function createMockDbOps(): ContextDatabaseOps & {
 
     setActiveDatabase(name: string) {
       activeDatabase = name;
+    },
+
+    async databaseExists(name: string) {
+      return existingDatabases.has(name);
     },
   };
 }
@@ -324,6 +333,105 @@ describe("ContextManager", () => {
 
     it("returns true for null when no context loaded", () => {
       expect(manager.isContextLoaded(null)).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // switchOrLoadContext
+  // --------------------------------------------------------------------------
+
+  describe("switchOrLoadContext", () => {
+    it("uses fast path when database already exists", async () => {
+      // First load creates the database
+      await manager.loadContext("S1");
+      expect(dbOps.createDatabaseCalls).toEqual(["learn_S1"]);
+
+      // Clear calls to track only the next operation
+      dbOps.createDatabaseCalls.length = 0;
+      dbOps.executeSchemaCalls.length = 0;
+      dbOps.executeWriteCalls.length = 0;
+
+      // Simulate switching away and back
+      await manager.loadContext("e-commerce");
+      dbOps.createDatabaseCalls.length = 0;
+
+      // switchOrLoadContext should use fast path (no createDatabase call)
+      await manager.switchOrLoadContext("S1");
+
+      expect(dbOps.createDatabaseCalls).toEqual([]); // No DB recreation
+      expect(manager.currentContext).toBe("S1");
+      expect(dbOps.activeDatabase).toBe("learn_S1");
+    });
+
+    it("uses slow path when database does not exist", async () => {
+      // switchOrLoadContext on fresh context should call loadContext
+      await manager.switchOrLoadContext("S1");
+
+      expect(dbOps.createDatabaseCalls).toEqual(["learn_S1"]);
+      expect(dbOps.executeSchemaCalls.length).toBe(1);
+      expect(dbOps.executeWriteCalls.length).toBe(2); // Two insert statements
+      expect(manager.currentContext).toBe("S1");
+    });
+
+    it("calls onContextChanged on fast path", async () => {
+      const onContextChanged = vi.fn();
+      manager = createContextManager({
+        contexts: MOCK_CONTEXTS,
+        dbOps,
+        onContextChanged,
+      });
+
+      // Load and switch away
+      await manager.loadContext("S1");
+      await manager.loadContext("e-commerce");
+      onContextChanged.mockClear();
+
+      // Fast path switch back
+      await manager.switchOrLoadContext("S1");
+
+      expect(onContextChanged).toHaveBeenCalledWith("S1");
+    });
+
+    it("calls onStatusChanged on fast path", async () => {
+      const onStatusChanged = vi.fn();
+      manager = createContextManager({
+        contexts: MOCK_CONTEXTS,
+        dbOps,
+        onStatusChanged,
+      });
+
+      // Load and switch away
+      await manager.loadContext("S1");
+      await manager.loadContext("e-commerce");
+      onStatusChanged.mockClear();
+
+      // Fast path switch back
+      await manager.switchOrLoadContext("S1");
+
+      expect(onStatusChanged).toHaveBeenCalled();
+    });
+
+    it("skips when already on correct context and database", async () => {
+      await manager.loadContext("S1");
+      dbOps.createDatabaseCalls.length = 0;
+
+      // Should be a no-op
+      await manager.switchOrLoadContext("S1");
+
+      expect(dbOps.createDatabaseCalls).toEqual([]);
+      expect(manager.currentContext).toBe("S1");
+    });
+
+    it("switches database when context matches but wrong DB selected", async () => {
+      await manager.loadContext("S1");
+
+      // Manually change the active database (simulating user switching in UI)
+      dbOps.setActiveDatabase("some_other_db");
+
+      await manager.switchOrLoadContext("S1");
+
+      // Should just switch back without reloading
+      expect(dbOps.activeDatabase).toBe("learn_S1");
     });
   });
 

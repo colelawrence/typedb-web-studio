@@ -200,7 +200,7 @@ function LocalServersSection({ vm }: { vm: ConnectPageVM["localServers"] }) {
 
 function LocalServerItem({ vm }: { vm: LocalServerItemVM }) {
   return (
-    <div className="flex items-center gap-4 h-row px-4 rounded-lg border border-border bg-card hover:border-primary/50 group">
+    <div className="flex items-center gap-4 h-row rounded-lg group">
       <div className="flex items-center justify-center size-8 rounded-lg bg-accent text-foreground">
         <Server className="size-4" />
       </div>
@@ -356,20 +356,16 @@ function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] 
           Fill example
         </Button>
         <div className="flex-1" />
-        <Queryable query={vm.connectDisabled$}>
-          {(disabled) => (
-            <Queryable query={vm.isConnecting$}>
-              {(isConnecting) => (
-                <Button
-                  onClick={vm.connect}
-                  disabled={disabled !== null || isConnecting}
-                  loading={isConnecting}
-                  title={disabled?.displayReason}
-                >
-                  {isConnecting ? "Connecting..." : "Connect"}
-                </Button>
-              )}
-            </Queryable>
+        <Queryable query={[vm.connectDisabled$, vm.isConnecting$]}>
+          {([disabled, isConnecting]) => (
+            <Button
+              onClick={vm.connect}
+              disabled={disabled !== null || isConnecting}
+              loading={isConnecting}
+              title={disabled?.displayReason}
+            >
+              {isConnecting ? "Connecting..." : "Connect"}
+            </Button>
           )}
         </Queryable>
       </div>
@@ -383,19 +379,15 @@ function ConnectionForm({ vm }: { vm: ConnectPageVM["remoteConnection"]["form"] 
 
 function FormInputField({ vm }: { vm: import("@/vm").FormInputVM }) {
   return (
-    <Queryable query={vm.error$}>
-      {(error) => (
+    <Queryable query={[vm.error$, vm.value$]}>
+      {([error, value]) => (
         <FormField label={vm.label} error={error ?? undefined}>
-          <Queryable query={vm.value$}>
-            {(value) => (
-              <Input
-                type="text"
-                value={value}
-                onChange={(e) => vm.update(e.target.value)}
-                placeholder={vm.placeholder}
-              />
-            )}
-          </Queryable>
+          <Input
+            type="text"
+            value={value}
+            onChange={(e) => vm.update(e.target.value)}
+            placeholder={vm.placeholder}
+          />
         </FormField>
       )}
     </Queryable>
@@ -404,24 +396,16 @@ function FormInputField({ vm }: { vm: import("@/vm").FormInputVM }) {
 
 function PasswordInputField({ vm }: { vm: import("@/vm").PasswordInputVM }) {
   return (
-    <Queryable query={vm.error$}>
-      {(error) => (
+    <Queryable query={[vm.error$, vm.value$, vm.showPassword$]}>
+      {([error, value, showPassword]) => (
         <FormField label={vm.label} error={error ?? undefined}>
-          <Queryable query={vm.value$}>
-            {(value) => (
-              <Queryable query={vm.showPassword$}>
-                {(showPassword) => (
-                  <PasswordInputPrimitive
-                    value={value}
-                    onChange={(e) => vm.update(e.target.value)}
-                    placeholder={vm.placeholder}
-                    showPassword={showPassword}
-                    onToggleVisibility={vm.toggleVisibility}
-                  />
-                )}
-              </Queryable>
-            )}
-          </Queryable>
+          <PasswordInputPrimitive
+            value={value}
+            onChange={(e) => vm.update(e.target.value)}
+            placeholder={vm.placeholder}
+            showPassword={showPassword}
+            onToggleVisibility={vm.toggleVisibility}
+          />
         </FormField>
       )}
     </Queryable>

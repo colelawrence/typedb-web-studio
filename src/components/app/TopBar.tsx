@@ -14,6 +14,7 @@ import {
   Circle,
   Plus,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 
 export function TopBar({ vm }: { vm: TopBarVM }) {
@@ -93,43 +94,34 @@ function DatabaseSelector({ vm }: { vm: TopBarVM["databaseSelector"] }) {
 
         return (
           <div className="relative mr-4">
-            <Queryable query={vm.disabled$}>
-              {(disabled) => (
-                <Queryable query={vm.isOpen$}>
-                  {(isOpen) => (
-                    <>
-                      <button
-                        onClick={vm.toggle}
-                        disabled={disabled !== null}
-                        className={`
-                          flex items-center gap-2 h-default px-3 rounded-md border border-input
-                          bg-background text-dense-sm font-medium transition-colors
-                          hover:bg-accent hover:text-accent-foreground
-                          ${disabled !== null ? "opacity-50 cursor-not-allowed" : ""}
-                        `}
-                        title={disabled?.displayReason}
-                      >
-                        <Database className="size-4" />
-                        <Queryable query={vm.displayText$}>
-                          {(text) => (
-                            <span className={cn(
-                              "word-break truncate max-w-[150px]",
-                              text === "Select database..." ? "text-muted-foreground italic" : "",
-                            )
-                            }>
-                              {text}
-                            </span>
-                          )}
-                        </Queryable>
-                        <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                      </button>
+            <Queryable query={[vm.disabled$, vm.isOpen$, vm.displayText$]}>
+              {([disabled, isOpen, text]) => (
+                <>
+                  <button
+                    onClick={vm.toggle}
+                    disabled={disabled !== null}
+                    className={`
+                      flex items-center gap-2 h-default px-3 rounded-md border border-input
+                      bg-background text-dense-sm font-medium transition-colors
+                      hover:bg-accent hover:text-accent-foreground
+                      ${disabled !== null ? "opacity-50 cursor-not-allowed" : ""}
+                    `}
+                    title={disabled?.displayReason}
+                  >
+                    <Database className="size-4" />
+                    <span className={cn(
+                      "word-break truncate max-w-[150px]",
+                      text === "Select database..." ? "text-muted-foreground italic" : "",
+                    )}>
+                      {text}
+                    </span>
+                    <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                  </button>
 
-                      {isOpen && (
-                        <DatabaseSelectorDropdown vm={vm} />
-                      )}
-                    </>
+                  {isOpen && (
+                    <DatabaseSelectorDropdown vm={vm} />
                   )}
-                </Queryable>
+                </>
               )}
             </Queryable>
           </div>
@@ -162,12 +154,31 @@ function DatabaseSelectorDropdown({ vm }: { vm: TopBarVM["databaseSelector"] }) 
             </button>
           </div>
 
-          <Queryable query={vm.databases$}>
-            {(databases) => (
+          <Queryable query={vm.groupedDatabases$}>
+            {({ regularDatabases, lessonDatabases }) => (
               <div className="px-1">
-                {databases.map((db) => (
+                {/* Regular databases */}
+                {regularDatabases.map((db) => (
                   <DatabaseOption key={db.key} vm={db} />
                 ))}
+
+                {/* Lesson databases section */}
+                {lessonDatabases.length > 0 && (
+                  <>
+                    {regularDatabases.length > 0 && (
+                      <div className="border-t border-border my-1" />
+                    )}
+                    <div className="flex items-center gap-2 px-2 py-1">
+                      <BookOpen className="size-3 text-muted-foreground" />
+                      <span className="text-dense-xs text-muted-foreground">
+                        Lesson Databases
+                      </span>
+                    </div>
+                    {lessonDatabases.map((db) => (
+                      <DatabaseOption key={db.key} vm={db} showContextBadge />
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </Queryable>
@@ -187,7 +198,19 @@ function DatabaseSelectorDropdown({ vm }: { vm: TopBarVM["databaseSelector"] }) 
   );
 }
 
-function DatabaseOption({ vm }: { vm: { key: string; label: string; isSelected$: import("@/vm").Queryable<boolean>; select: () => void } }) {
+function DatabaseOption({
+  vm,
+  showContextBadge,
+}: {
+  vm: {
+    key: string;
+    label: string;
+    lessonContextName: string | null;
+    isSelected$: import("@/vm").Queryable<boolean>;
+    select: () => void;
+  };
+  showContextBadge?: boolean;
+}) {
   return (
     <Queryable query={vm.isSelected$}>
       {(isSelected) => (
@@ -200,6 +223,11 @@ function DatabaseOption({ vm }: { vm: { key: string; label: string; isSelected$:
         >
           <Database className="size-4" />
           <span className="flex-1 truncate">{vm.label}</span>
+          {showContextBadge && vm.lessonContextName && (
+            <span className="text-dense-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+              {vm.lessonContextName}
+            </span>
+          )}
           {isSelected && <Circle className="size-2 fill-current" />}
         </button>
       )}
@@ -217,30 +245,22 @@ function ConnectionStatus({ vm }: { vm: TopBarVM["connectionStatus"] }) {
   };
 
   return (
-    <Queryable query={vm.isClickable$}>
-      {(isClickable) => (
-        <Queryable query={vm.beaconVariant$}>
-          {(variant) => (
-            <Queryable query={vm.displayText$}>
-              {(displayText) => (
-                <button
-                  onClick={isClickable ? vm.click : undefined}
-                  className={`
-                    flex items-center gap-2 h-compact px-3 rounded-md text-dense-sm transition-colors
-                    ${isClickable ? "hover:bg-accent cursor-pointer" : "cursor-default"}
-                  `}
-                  title={`Connection: ${variant}`}
-                >
-                  <span
-                    className={`size-2 rounded-full ${beaconClasses[variant]}`}
-                    aria-label={`Connection status: ${variant}`}
-                  />
-                  <span className="text-muted-foreground">{displayText}</span>
-                </button>
-              )}
-            </Queryable>
-          )}
-        </Queryable>
+    <Queryable query={[vm.isClickable$, vm.beaconVariant$, vm.displayText$]}>
+      {([isClickable, variant, displayText]) => (
+        <button
+          onClick={isClickable ? vm.click : undefined}
+          className={`
+            flex items-center gap-2 h-compact px-3 rounded-md text-dense-sm transition-colors
+            ${isClickable ? "hover:bg-accent cursor-pointer" : "cursor-default"}
+          `}
+          title={`Connection: ${variant}`}
+        >
+          <span
+            className={`size-2 rounded-full ${beaconClasses[variant]}`}
+            aria-label={`Connection status: ${variant}`}
+          />
+          <span className="text-muted-foreground">{displayText}</span>
+        </button>
       )}
     </Queryable>
   );

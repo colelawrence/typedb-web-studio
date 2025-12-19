@@ -24,6 +24,10 @@ export {
 // Document viewer components
 export { DocumentViewer, type DocumentViewerProps } from "./DocumentViewer";
 export { ExampleBlock, type ExampleBlockProps } from "./ExampleBlock";
+export {
+  ExampleBlockedPrompt,
+  type ExampleBlockedPromptProps,
+} from "./ExampleBlockedPrompt";
 
 // Context components
 export {

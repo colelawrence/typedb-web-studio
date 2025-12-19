@@ -671,21 +671,17 @@ function QueryEditor({ vm, schemaViewer }: { vm: QueryPageVM["editor"]; schemaVi
             <Network className="size-4" />
           </Button>
 
-          <Queryable query={vm.actions.run.disabled$}>
-            {(disabled) => (
-              <Queryable query={vm.actions.run.isRunning$}>
-                {(isRunning) => (
-                  <Button
-                    density="compact"
-                    onClick={vm.actions.run.click}
-                    disabled={disabled !== null}
-                    loading={isRunning}
-                  >
-                    <Play className="size-4" />
-                    Run
-                  </Button>
-                )}
-              </Queryable>
+          <Queryable query={[vm.actions.run.disabled$, vm.actions.run.isRunning$]}>
+            {([disabled, isRunning]) => (
+              <Button
+                density="compact"
+                onClick={vm.actions.run.click}
+                disabled={disabled !== null}
+                loading={isRunning}
+              >
+                <Play className="size-4" />
+                Run
+              </Button>
             )}
           </Queryable>
         </div>

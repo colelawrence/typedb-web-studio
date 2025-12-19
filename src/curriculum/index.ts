@@ -65,7 +65,7 @@ export {
 } from './context-database-adapter';
 
 // Re-export lesson database utilities
-export { lessonDatabaseNameForContext } from './lesson-db';
+export { lessonDatabaseNameForContext, LESSON_DB_PREFIX } from './lesson-db';
 
 // Re-export link utilities
 export {

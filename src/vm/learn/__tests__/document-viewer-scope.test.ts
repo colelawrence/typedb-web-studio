@@ -553,6 +553,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     lastError: string | null;
     loadContextCalls: string[];
     loadContext: (name: string) => Promise<void>;
+    switchOrLoadContext: (name: string) => Promise<void>;
     resetContext: () => Promise<void>;
     clearContext: () => Promise<void>;
     getStatus: () => { isReady: boolean; isLoading: boolean; name: string | null; error: string | null };
@@ -581,6 +582,21 @@ describe("DocumentViewerScope with ContextManager", () => {
           lastLoadedAt: Date.now(),
         }));
         // Also set the active database and connection status to match
+        store.commit(events.connectionSessionSet({
+          status: "connected",
+          activeDatabase: lessonDatabaseNameForContext(name),
+        }));
+      },
+      switchOrLoadContext: async (name: string) => {
+        // In tests, just delegate to loadContext
+        mockContextManager.loadContextCalls.push(name);
+        mockContextManager.currentContext = name;
+        store.commit(events.lessonContextSet({
+          currentContext: name,
+          isLoading: false,
+          lastError: null,
+          lastLoadedAt: Date.now(),
+        }));
         store.commit(events.connectionSessionSet({
           status: "connected",
           activeDatabase: lessonDatabaseNameForContext(name),

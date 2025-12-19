@@ -80,6 +80,12 @@ export interface DatabaseSelectorVM {
   databases$: Queryable<DatabaseOptionVM[]>;
 
   /**
+   * Databases grouped by type for sectioned display.
+   * Lesson databases (learn_*) are shown separately from regular databases.
+   */
+  groupedDatabases$: Queryable<GroupedDatabasesVM>;
+
+  /**
    * Opens the create database dialog.
    *
    * **Dialog flow:**
@@ -110,6 +116,17 @@ export interface DatabaseOptionVM {
   label: string;
 
   /**
+   * Whether this is a lesson database (name starts with "learn_").
+   */
+  isLessonDatabase: boolean;
+
+  /**
+   * Context name for lesson databases (e.g., "S1" from "learn_S1").
+   * Null for non-lesson databases.
+   */
+  lessonContextName: string | null;
+
+  /**
    * Whether this database is currently selected.
    * Visual: Checkmark icon or highlighted background.
    */
@@ -136,4 +153,14 @@ export interface DatabaseOptionVM {
    * - Toast shows "Database '{name}' deleted"
    */
   openDeleteDialog(): void;
+}
+
+/**
+ * Databases grouped by type for display.
+ */
+export interface GroupedDatabasesVM {
+  /** Regular (non-lesson) databases */
+  regularDatabases: DatabaseOptionVM[];
+  /** Lesson databases (learn_* pattern) */
+  lessonDatabases: DatabaseOptionVM[];
 }

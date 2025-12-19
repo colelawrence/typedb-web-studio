@@ -149,5 +149,11 @@ export function createContextDatabaseAdapter(
         );
       });
     },
+
+    async databaseExists(name: string): Promise<boolean> {
+      const service = await ensureConnected();
+      const databases = await service.getDatabases();
+      return databases.some((db) => db.name === name);
+    },
   };
 }

@@ -40,6 +40,17 @@ export interface ContextManager {
   loadContext(contextName: string): Promise<void>;
 
   /**
+   * Switches to a context, reusing the existing database if it exists.
+   * This is faster than loadContext when the database already exists.
+   *
+   * - If the database exists: just switches to it (fast path)
+   * - If the database doesn't exist: falls back to full loadContext (slow path)
+   *
+   * @param contextName The context to switch to (e.g., "S1")
+   */
+  switchOrLoadContext(contextName: string): Promise<void>;
+
+  /**
    * Resets the current context to its initial state.
    * Re-applies schema and seed data.
    */
@@ -114,6 +125,11 @@ export interface ContextDatabaseOps {
    * Sets the active database.
    */
   setActiveDatabase(name: string): void;
+
+  /**
+   * Checks if a database exists on the server.
+   */
+  databaseExists(name: string): Promise<boolean>;
 }
 
 /**
@@ -260,6 +276,41 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
     }
   };
 
+  const switchOrLoadContext = async (contextName: string): Promise<void> => {
+    // Skip if already loaded and selected
+    if (contextName === currentContext && !lastError) {
+      const expectedDb = lessonDatabaseNameForContext(contextName);
+      const activeDb = dbOps.getActiveDatabase();
+      if (activeDb === expectedDb) {
+        console.log(`[context-manager] Already on correct context/database`);
+        return;
+      }
+      // Context matches but wrong database selected - just switch
+      console.log(`[context-manager] Switching to existing database: ${expectedDb}`);
+      dbOps.setActiveDatabase(expectedDb);
+      return;
+    }
+
+    const dbName = lessonDatabaseNameForContext(contextName);
+
+    // Fast path: if database exists, just switch to it
+    const exists = await dbOps.databaseExists(dbName);
+    if (exists) {
+      console.log(`[context-manager] Fast path - switching to existing database: ${dbName}`);
+      dbOps.setActiveDatabase(dbName);
+      currentContext = contextName;
+      lastLoadedAt = Date.now();
+      lastError = null;
+      notifyStatusChange(); // Use notifyStatusChange for consistency with loadContext
+      onContextChanged?.(contextName);
+      return;
+    }
+
+    // Slow path: full load (create DB, apply schema/seed)
+    console.log(`[context-manager] Slow path - database doesn't exist, doing full load`);
+    await loadContext(contextName);
+  };
+
   const resetContext = async (): Promise<void> => {
     if (!currentContext) {
       throw new Error("No context loaded to reset");
@@ -301,6 +352,7 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
       return lastError;
     },
     loadContext,
+    switchOrLoadContext,
     resetContext,
     clearContext,
     getStatus,
@@ -336,6 +388,11 @@ export function createMockContextManager(): ContextManager & {
     },
 
     async loadContext(contextName: string) {
+      loadContextCalls.push(contextName);
+      currentContext = contextName;
+    },
+
+    async switchOrLoadContext(contextName: string) {
       loadContextCalls.push(contextName);
       currentContext = contextName;
     },

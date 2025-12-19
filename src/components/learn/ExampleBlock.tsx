@@ -16,15 +16,18 @@
  * - Running: Shows spinner, buttons disabled
  * - Success: Shows checkmark with result count
  * - Error: Shows error message
+ * - Blocked: Muted Run button that reveals inline prompt on click
  */
 
+import { useState } from "react";
 import { Play, Copy, Loader2, Database } from "lucide-react";
 import { Queryable } from "@/vm/components";
-import type { DocumentExampleVM, ExampleExecutionState, ExampleRunReadiness } from "@/vm/learn";
+import type { DocumentExampleVM, ExampleExecutionState } from "@/vm/learn";
 import { mapExampleResultToDisplayVM } from "@/vm/query-results.adapters";
 import { QueryResultsDisplay } from "../query/QueryResultsDisplay";
 import { Button } from "../ui/button";
 import { TypeQLHighlighter } from "../editor";
+import { ExampleBlockedPrompt } from "./ExampleBlockedPrompt";
 
 export interface ExampleBlockProps {
   vm: DocumentExampleVM;
@@ -32,6 +35,7 @@ export interface ExampleBlockProps {
 
 export function ExampleBlock({ vm }: ExampleBlockProps) {
   const isInteractive = vm.isInteractive;
+  const [showBlockedPrompt, setShowBlockedPrompt] = useState(false);
 
   return (
     <div
@@ -67,39 +71,44 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
             )}
           </Queryable>
 
-          <Queryable query={vm.runReadiness$}>
-            {(runReadiness) => (
-              <Queryable query={vm.executionState$}>
-                {(state) => (
-                  <Queryable query={vm.runDisabledReason$}>
-                    {(runDisabledReason) => (
-                      <RunButton
-                        state={state}
-                        runReadiness={runReadiness}
-                        requiredContext={vm.requiredContext}
-                        runDisabledReason={runDisabledReason}
-                        onRun={() => vm.run()}
-                      />
-                    )}
-                  </Queryable>
-                )}
-              </Queryable>
+          <Queryable query={[vm.runReadiness$, vm.executionState$]}>
+            {([runReadiness, state]) => (
+              <RunButton
+                state={state}
+                runReadiness={runReadiness}
+                requiredContext={vm.requiredContext}
+                onRun={() => vm.run()}
+                onBlockedClick={() => setShowBlockedPrompt((v) => !v)}
+              />
             )}
           </Queryable>
         </div>
       )}
 
-      {/* Execution result panel */}
-      <Queryable query={vm.executionState$}>
-        {(state) => (
-          <Queryable query={vm.currentResult$}>
-            {(result) => (
-              <QueryResultsDisplay
-                mode="compact"
-                result={mapExampleResultToDisplayVM(state, result)}
+      {/* Blocked state inline prompt - revealed when muted Run button is clicked */}
+      {isInteractive && showBlockedPrompt && (
+        <Queryable query={vm.blockedState$}>
+          {(blockedState) =>
+            blockedState?.action ? (
+              <ExampleBlockedPrompt
+                blockedState={blockedState}
+                onConnect={() => vm.navigateToConnect()}
+                onSelectDatabase={() => vm.openDatabaseSelector()}
+                onLoadContext={() => vm.loadContext()}
+                onDismiss={() => setShowBlockedPrompt(false)}
               />
-            )}
-          </Queryable>
+            ) : null
+          }
+        </Queryable>
+      )}
+
+      {/* Execution result panel */}
+      <Queryable query={[vm.executionState$, vm.currentResult$]}>
+        {([state, result]) => (
+          <QueryResultsDisplay
+            mode="compact"
+            result={mapExampleResultToDisplayVM(state, result)}
+          />
         )}
       </Queryable>
     </div>
@@ -112,7 +121,7 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
  * Based on `runReadiness`:
  * - "ready": Enabled Run button (just Play icon)
  * - "needs-context": "Load & Run" button with Database + Play icons
- * - "blocked": Disabled Run button with reason in tooltip
+ * - "blocked": Muted button that reveals inline prompt on click
  *
  * During execution (`state.type === "running"`), shows spinner and disables.
  */
@@ -120,38 +129,43 @@ function RunButton({
   state,
   runReadiness,
   requiredContext,
-  runDisabledReason,
   onRun,
+  onBlockedClick,
 }: {
   state: ExampleExecutionState;
-  runReadiness: ExampleRunReadiness;
+  runReadiness: "ready" | "needs-context" | "blocked";
   requiredContext: string | null;
-  runDisabledReason: string | null;
   onRun: () => void;
+  onBlockedClick: () => void;
 }) {
   const isRunning = state.type === "running";
-  const isBlocked = runReadiness === "blocked";
-  const needsContext = runReadiness === "needs-context";
-  const isDisabled = isBlocked || isRunning;
 
-  // Build title based on state
-  let title = "Run query";
-  if (isBlocked && runDisabledReason) {
-    title = runDisabledReason;
-  } else if (isRunning) {
-    title = "Running...";
-  } else if (needsContext && requiredContext) {
-    title = `Load "${requiredContext}" database and run`;
+  // Blocked state: muted button that reveals prompt
+  if (runReadiness === "blocked") {
+    return (
+      <Button
+        variant="ghost"
+        density="compact"
+        onClick={onBlockedClick}
+        title="Cannot run - click for details"
+        className="h-6 px-2 text-dense-xs opacity-50"
+      >
+        <Play className="size-3.5" />
+      </Button>
+    );
   }
 
-  // For "needs-context", show a combined button that loads context then runs
-  if (needsContext && requiredContext) {
+  // "needs-context": combined button that loads context then runs
+  if (runReadiness === "needs-context" && requiredContext) {
+    const title = isRunning
+      ? "Running..."
+      : `Load "${requiredContext}" database and run`;
     return (
       <Button
         variant="ghost"
         density="compact"
         onClick={onRun}
-        disabled={isDisabled}
+        disabled={isRunning}
         title={title}
         className="h-6 px-2 text-dense-xs gap-1"
       >
@@ -168,13 +182,14 @@ function RunButton({
     );
   }
 
-  // Standard run button (ready or blocked)
+  // Standard run button (ready state)
+  const title = isRunning ? "Running..." : "Run query";
   return (
     <Button
       variant="ghost"
       density="compact"
       onClick={onRun}
-      disabled={isDisabled}
+      disabled={isRunning}
       title={title}
       className="h-6 px-2 text-dense-xs"
     >

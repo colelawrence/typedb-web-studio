@@ -8,6 +8,12 @@
  */
 
 /**
+ * Prefix used for lesson database names.
+ * Used to identify lesson databases in the database selector.
+ */
+export const LESSON_DB_PREFIX = "learn_";
+
+/**
  * Converts a context name to its corresponding database name.
  * This mapping is used by both:
  * - ContextManager.loadContext() to create the database
@@ -17,5 +23,5 @@
  * lessonDatabaseNameForContext("S1") // => "learn_S1"
  */
 export function lessonDatabaseNameForContext(contextName: string): string {
-  return `learn_${contextName.replace(/-/g, "_")}`;
+  return `${LESSON_DB_PREFIX}${contextName.replace(/-/g, "_")}`;
 }

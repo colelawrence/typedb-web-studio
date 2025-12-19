@@ -128,20 +128,16 @@ function StrongConfirmationDialog({
         <Button variant="secondary" onClick={vm.cancel}>
           Cancel
         </Button>
-        <Queryable query={vm.confirmEnabled$}>
-          {(enabled) => (
-            <Queryable query={vm.isProcessing$}>
-              {(isProcessing) => (
-                <Button
-                  variant="destructive"
-                  onClick={vm.confirm}
-                  disabled={!enabled}
-                  loading={isProcessing}
-                >
-                  Delete
-                </Button>
-              )}
-            </Queryable>
+        <Queryable query={[vm.confirmEnabled$, vm.isProcessing$]}>
+          {([enabled, isProcessing]) => (
+            <Button
+              variant="destructive"
+              onClick={vm.confirm}
+              disabled={!enabled}
+              loading={isProcessing}
+            >
+              Delete
+            </Button>
           )}
         </Queryable>
       </DialogFooter>
@@ -169,19 +165,15 @@ function CreateDatabaseDialog({
         <Button variant="secondary" onClick={vm.cancel}>
           Cancel
         </Button>
-        <Queryable query={vm.createDisabled$}>
-          {(disabled) => (
-            <Queryable query={vm.isCreating$}>
-              {(isCreating) => (
-                <Button
-                  onClick={vm.create}
-                  disabled={disabled !== null}
-                  loading={isCreating}
-                >
-                  Create
-                </Button>
-              )}
-            </Queryable>
+        <Queryable query={[vm.createDisabled$, vm.isCreating$]}>
+          {([disabled, isCreating]) => (
+            <Button
+              onClick={vm.create}
+              disabled={disabled !== null}
+              loading={isCreating}
+            >
+              Create
+            </Button>
           )}
         </Queryable>
       </DialogFooter>
@@ -221,19 +213,15 @@ function CreateUserDialog({
         <Button variant="secondary" onClick={vm.cancel}>
           Cancel
         </Button>
-        <Queryable query={vm.createDisabled$}>
-          {(disabled) => (
-            <Queryable query={vm.isCreating$}>
-              {(isCreating) => (
-                <Button
-                  onClick={vm.create}
-                  disabled={disabled !== null}
-                  loading={isCreating}
-                >
-                  Create User
-                </Button>
-              )}
-            </Queryable>
+        <Queryable query={[vm.createDisabled$, vm.isCreating$]}>
+          {([disabled, isCreating]) => (
+            <Button
+              onClick={vm.create}
+              disabled={disabled !== null}
+              loading={isCreating}
+            >
+              Create User
+            </Button>
           )}
         </Queryable>
       </DialogFooter>
@@ -270,19 +258,15 @@ function EditPasswordDialog({
         <Button variant="secondary" onClick={vm.cancel}>
           Cancel
         </Button>
-        <Queryable query={vm.saveDisabled$}>
-          {(disabled) => (
-            <Queryable query={vm.isSaving$}>
-              {(isSaving) => (
-                <Button
-                  onClick={vm.save}
-                  disabled={disabled !== null}
-                  loading={isSaving}
-                >
-                  Save Password
-                </Button>
-              )}
-            </Queryable>
+        <Queryable query={[vm.saveDisabled$, vm.isSaving$]}>
+          {([disabled, isSaving]) => (
+            <Button
+              onClick={vm.save}
+              disabled={disabled !== null}
+              loading={isSaving}
+            >
+              Save Password
+            </Button>
           )}
         </Queryable>
       </DialogFooter>
@@ -498,19 +482,15 @@ function ImportQueriesDialog({
         <Button variant="secondary" onClick={vm.cancel}>
           Cancel
         </Button>
-        <Queryable query={vm.importDisabled$}>
-          {(disabled) => (
-            <Queryable query={vm.isImporting$}>
-              {(isImporting) => (
-                <Button
-                  onClick={vm.import}
-                  disabled={disabled !== null}
-                  loading={isImporting}
-                >
-                  Import
-                </Button>
-              )}
-            </Queryable>
+        <Queryable query={[vm.importDisabled$, vm.isImporting$]}>
+          {([disabled, isImporting]) => (
+            <Button
+              onClick={vm.import}
+              disabled={disabled !== null}
+              loading={isImporting}
+            >
+              Import
+            </Button>
           )}
         </Queryable>
       </DialogFooter>
@@ -530,21 +510,17 @@ interface FormFieldFromVMProps {
 
 function FormFieldFromVM({ input, label, autoFocus }: FormFieldFromVMProps) {
   return (
-    <Queryable query={input.value$}>
-      {(value) => (
-        <Queryable query={input.error$}>
-          {(error) => (
-            <FormField label={label} error={error ?? undefined} htmlFor={`input-${label}`}>
-              <Input
-                id={`input-${label}`}
-                value={value}
-                onChange={(e) => input.update(e.target.value)}
-                error={!!error}
-                autoFocus={autoFocus}
-              />
-            </FormField>
-          )}
-        </Queryable>
+    <Queryable query={[input.value$, input.error$]}>
+      {([value, error]) => (
+        <FormField label={label} error={error ?? undefined} htmlFor={`input-${label}`}>
+          <Input
+            id={`input-${label}`}
+            value={value}
+            onChange={(e) => input.update(e.target.value)}
+            error={!!error}
+            autoFocus={autoFocus}
+          />
+        </FormField>
       )}
     </Queryable>
   );
@@ -559,25 +535,21 @@ interface PasswordFieldFromVMProps {
 
 function PasswordFieldFromVM({ input, label, error, autoFocus }: PasswordFieldFromVMProps) {
   return (
-    <Queryable query={input.value$}>
-      {(value) => (
-        <Queryable query={input.error$}>
-          {(vmError) => (
-            <FormField
-              label={label}
-              error={error ?? vmError ?? undefined}
-              htmlFor={`input-${label}`}
-            >
-              <PasswordInput
-                id={`input-${label}`}
-                value={value}
-                onChange={(e) => input.update(e.target.value)}
-                error={!!(error ?? vmError)}
-                autoFocus={autoFocus}
-              />
-            </FormField>
-          )}
-        </Queryable>
+    <Queryable query={[input.value$, input.error$]}>
+      {([value, vmError]) => (
+        <FormField
+          label={label}
+          error={error ?? vmError ?? undefined}
+          htmlFor={`input-${label}`}
+        >
+          <PasswordInput
+            id={`input-${label}`}
+            value={value}
+            onChange={(e) => input.update(e.target.value)}
+            error={!!(error ?? vmError)}
+            autoFocus={autoFocus}
+          />
+        </FormField>
       )}
     </Queryable>
   );
@@ -595,31 +567,27 @@ interface FolderSelectorProps {
 function FolderSelector({ label, folder }: FolderSelectorProps) {
   return (
     <FormField label={label}>
-      <Queryable query={folder.options$}>
-        {(options) => (
-          <Queryable query={folder.selectedId$}>
-            {(selectedId) => (
-              <div className="border border-input rounded-md max-h-[200px] overflow-y-auto">
-                {options.map((opt) => (
-                  <button
-                    key={opt.key ?? "root"}
-                    type="button"
-                    onClick={() => folder.select(opt.key)}
-                    className={`
-                      w-full h-row px-3 text-left text-dense-sm transition-colors
-                      ${selectedId === opt.key
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50"
-                      }
-                    `}
-                    style={{ paddingLeft: `${12 + opt.depth * 16}px` }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Queryable>
+      <Queryable query={[folder.options$, folder.selectedId$]}>
+        {([options, selectedId]) => (
+          <div className="border border-input rounded-md max-h-[200px] overflow-y-auto">
+            {options.map((opt) => (
+              <button
+                key={opt.key ?? "root"}
+                type="button"
+                onClick={() => folder.select(opt.key)}
+                className={`
+                  w-full h-row px-3 text-left text-dense-sm transition-colors
+                  ${selectedId === opt.key
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50"
+                  }
+                `}
+                style={{ paddingLeft: `${12 + opt.depth * 16}px` }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         )}
       </Queryable>
     </FormField>

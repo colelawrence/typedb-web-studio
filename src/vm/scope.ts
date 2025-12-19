@@ -41,7 +41,6 @@ import {
   getConnectionStatus,
   onStatusChange as subscribeToStatusChange,
   onModeChange as subscribeToModeChange,
-  type TypeDBService,
   type QueryResponse,
   type ServiceMode,
 } from "../services";
@@ -157,6 +156,8 @@ import type {
 import {
   createContextManager,
   createContextDatabaseAdapter,
+  LESSON_DB_PREFIX,
+  type ContextManager,
 } from "../curriculum";
 import { constant } from "./learn/constant";
 
@@ -1148,6 +1149,45 @@ export function createStudioScope(
     }
   };
 
+  // Helper for creating database options (used by both databases$ and groupedDatabases$)
+  const createDatabaseOption = (entry: { name: string }): DatabaseOptionVM => {
+    const isLessonDatabase = entry.name.startsWith(LESSON_DB_PREFIX);
+    const lessonContextName = isLessonDatabase
+      ? entry.name.slice(LESSON_DB_PREFIX.length)
+      : null;
+
+    return {
+      key: entry.name,
+      label: entry.name,
+      isLessonDatabase,
+      lessonContextName,
+      isSelected$: computed(
+        (get) => get(activeDatabase$) === entry.name,
+        { label: `database.${entry.name}.isSelected`, deps: [entry.name] }
+      ),
+      select: () => {
+        store.commit(
+          events.connectionSessionSet({ activeDatabase: entry.name })
+        );
+        databaseSelectorVM.close();
+        showSnackbar("success", `Now using database '${entry.name}'`);
+        refreshSchemaForDatabase(entry.name);
+      },
+      openDeleteDialog: () => {
+        showSnackbar("warning", "Delete database not yet implemented");
+      },
+    };
+  };
+
+  // Shared computed for the database list
+  const databases$ = computed(
+    (get) => {
+      const catalog = get(sessionDatabases$);
+      return catalog.databases.map(createDatabaseOption);
+    },
+    { label: "databaseSelector.databases" }
+  );
+
   const databaseSelectorVM: DatabaseSelectorVM = {
     visible$: computed(
       (get) => {
@@ -1211,36 +1251,17 @@ export function createStudioScope(
       { label: "databaseSelector.disabled" }
     ),
 
-    databases$: computed(
+    databases$,
+
+    groupedDatabases$: computed(
       (get) => {
-        const catalog = get(sessionDatabases$);
-        const databases = catalog.databases;
-
-        return databases.map(
-          (entry): DatabaseOptionVM => ({
-            key: entry.name,
-            label: entry.name,
-            isSelected$: computed(
-              (get) => get(activeDatabase$) === entry.name,
-              { label: `database.${entry.name}.isSelected`, deps: [entry.name] }
-            ),
-            select: () => {
-              store.commit(
-                events.connectionSessionSet({ activeDatabase: entry.name })
-              );
-              databaseSelectorVM.close();
-              showSnackbar("success", `Now using database '${entry.name}'`);
-
-              // Refresh schema for the newly selected database (async, fire-and-forget)
-              refreshSchemaForDatabase(entry.name);
-            },
-            openDeleteDialog: () => {
-              showSnackbar("warning", "Delete database not yet implemented");
-            },
-          })
-        );
+        const allDatabases = get(databases$);
+        return {
+          regularDatabases: allDatabases.filter((db) => !db.isLessonDatabase),
+          lessonDatabases: allDatabases.filter((db) => db.isLessonDatabase),
+        };
       },
-      { label: "databaseSelector.databases" }
+      { label: "databaseSelector.groupedDatabases" }
     ),
 
     createNew: () => {
@@ -2190,7 +2211,31 @@ export function createStudioScope(
   );
 
   // ---------------------------------------------------------------------------
-  // Learn Page (created first so we can share VMs with Query Page)
+  // Shared Context Manager (used by both Learn and Query pages)
+  // ---------------------------------------------------------------------------
+
+  const contextDatabaseOps = createContextDatabaseAdapter({
+    getService,
+    store,
+    refreshDatabaseList,
+    quickConnectWasm,
+  });
+
+  const sharedContextManager = createContextManager({
+    contexts: curriculumLoadedContexts,
+    dbOps: contextDatabaseOps,
+    onContextChanged: (contextName) => {
+      if (contextName) {
+        showSnackbar("success", `Loaded context: ${contextName}`);
+      }
+    },
+    onStateUpdate: (state) => {
+      store.commit(events.lessonContextSet(state));
+    },
+  });
+
+  // ---------------------------------------------------------------------------
+  // Learn Page
   // ---------------------------------------------------------------------------
 
   const learnPageVM: LearnPageVM = createLearnPageVM(
@@ -2200,11 +2245,7 @@ export function createStudioScope(
     curriculumSectionsData,
     sharedProfileId,
     executeQueryAndUpdateResults,
-    {
-      getService,
-      refreshDatabaseList,
-      quickConnectWasm,
-    }
+    sharedContextManager
   );
 
   // ---------------------------------------------------------------------------
@@ -2257,7 +2298,8 @@ export function createStudioScope(
     sharedProfileId,
     sharedCurriculumMeta,
     executeQueryAndUpdateResults,
-    refreshSchemaForDatabase
+    refreshSchemaForDatabase,
+    sharedContextManager
   );
 
   // ---------------------------------------------------------------------------
@@ -2451,7 +2493,8 @@ function createQueryPageVM(
   profileId: string,
   curriculumMeta: CurriculumMeta,
   executeQueryAndUpdateResults: (args: ExecuteQueryArgs) => Promise<QueryExecutionResult>,
-  refreshSchemaForDatabase: (database: string) => Promise<void>
+  refreshSchemaForDatabase: (database: string) => Promise<void>,
+  contextManager: ContextManager
 ): QueryPageVM {
   // Helper to create schema tree item VMs
   const emptyChildren: SchemaTreeChildItemVM[] = [];
@@ -2823,11 +2866,14 @@ function createQueryPageVM(
       profileId,
       sections: curriculumSectionsData,
       replBridge: queryReplBridge,
+      contextManager,
       stateKeys: {
         visibleKey: "queryDocsViewerVisible",
         sectionIdKey: "queryDocsCurrentSectionId",
         labelPrefix: "queryDocsViewer",
       },
+      navigate,
+      toggleDatabaseSelector: () => databaseSelector.toggle(),
     });
 
   // Schema Graph Panel VM
@@ -3551,11 +3597,7 @@ function createLearnPageVM(
     error?: string;
     executionTimeMs: number;
   }>,
-  contextDeps: {
-    getService: () => TypeDBService;
-    refreshDatabaseList: () => Promise<void>;
-    quickConnectWasm: () => Promise<TypeDBService>;
-  }
+  contextManager: ContextManager
 ): LearnPageVM {
   // Group sections by folder path for curriculum structure
   const sectionsByFolder = new Map<string, ParsedSection[]>();
@@ -3605,33 +3647,6 @@ function createLearnPageVM(
     showSnackbar,
   });
 
-  // Create context database adapter and context manager for lesson databases
-  const contextDatabaseOps = createContextDatabaseAdapter({
-    getService: contextDeps.getService,
-    store,
-    refreshDatabaseList: contextDeps.refreshDatabaseList,
-    quickConnectWasm: contextDeps.quickConnectWasm,
-  });
-
-  // Log available contexts for debugging
-  console.log(`[createLearnPageVM] Available contexts:`, Object.keys(curriculumLoadedContexts));
-
-  const contextManager = createContextManager({
-    contexts: curriculumLoadedContexts,
-    dbOps: contextDatabaseOps,
-    onContextChanged: (contextName) => {
-      console.log(`[createLearnPageVM] Context changed to: ${contextName}`);
-      if (contextName) {
-        showSnackbar("success", `Loaded context: ${contextName}`);
-      }
-    },
-    // Commit context state changes to LiveStore for reactivity
-    onStateUpdate: (state) => {
-      console.log(`[createLearnPageVM] Context state update:`, state);
-      store.commit(events.lessonContextSet(state));
-    },
-  });
-
   // Create document viewer scope first (navigation needs viewerService)
   const { vm: viewerVM, service: viewerService } = createDocumentViewerScope({
     store,
@@ -3639,6 +3654,7 @@ function createLearnPageVM(
     sections,
     replBridge,
     contextManager,
+    navigate,
   });
 
   // Create navigation scope - drives viewerService.openSection for section changes

@@ -30,6 +30,7 @@ import {
   type ExampleRunReadiness,
   type ExampleRunResultVM,
   type ContextSwitchPromptVM,
+  type ExampleBlockedState,
 } from "./document-viewer.vm";
 import type { ContextManager } from "../../curriculum/context-manager";
 import { lessonDatabaseNameForContext } from "../../curriculum/lesson-db";
@@ -84,6 +85,16 @@ export interface DocumentViewerScopeOptions {
     /** Label prefix for computed queryables. Default: "documentViewer" */
     labelPrefix: string;
   };
+  /**
+   * Navigation function for routing to other pages.
+   * Used by example VMs to navigate to connection page when blocked.
+   */
+  navigate?: (path: string) => void;
+  /**
+   * Function to open the database selector.
+   * Used by example VMs when blocked due to no database selected.
+   */
+  toggleDatabaseSelector?: () => void;
 }
 
 // ============================================================================
@@ -109,6 +120,8 @@ export function createDocumentViewerScope(
       sectionIdKey: "learnCurrentSectionId",
       labelPrefix: "documentViewer",
     },
+    navigate,
+    toggleDatabaseSelector,
   } = options;
 
   const { visibleKey, sectionIdKey, labelPrefix } = stateKeys;
@@ -431,10 +444,10 @@ export function createDocumentViewerScope(
             console.log(`[ExampleBlock.run] isLessonReady: ${isReady}`);
             if (!isReady) {
               console.log(
-                `[ExampleBlock.run] Loading context: ${requiredContext}`
+                `[ExampleBlock.run] Switching to context: ${requiredContext}`
               );
-              await contextManager.loadContext(requiredContext);
-              console.log(`[ExampleBlock.run] Context loaded`);
+              await contextManager.switchOrLoadContext(requiredContext);
+              console.log(`[ExampleBlock.run] Context ready`);
             }
           }
 
@@ -553,16 +566,59 @@ export function createDocumentViewerScope(
         }
       );
 
-      // Helper to load context without running
+      // Blocked state with actionable fix (for inline prompts instead of tooltips)
+      const blockedState$ = computed<ExampleBlockedState | null>(
+        (get) => {
+          if (!isInteractive) return null;
+          if (get(executionState$).type === "running") return null;
+
+          const canAutoLoad = requiredContext && hasContextManager;
+          const session = get(connectionSession$);
+
+          if (session.status !== "connected" && !canAutoLoad) {
+            return {
+              reason: "Not connected to database",
+              action: { type: "connect", message: "Connect to a database server" },
+            };
+          }
+
+          if (session.status === "connected" && !session.activeDatabase && !canAutoLoad) {
+            return {
+              reason: "No database selected",
+              action: { type: "selectDatabase", message: "Select a database to run queries" },
+            };
+          }
+
+          if (requiredContext && !hasContextManager && !get(isLessonReady$)) {
+            return {
+              reason: `Requires "${requiredContext}" lesson context`,
+              action: {
+                type: "loadContext",
+                message: `Load the "${requiredContext}" context`,
+                contextName: requiredContext,
+              },
+            };
+          }
+
+          return null;
+        },
+        {
+          label: `example.blockedState:${exampleKey}`,
+          deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0, isInteractive ? 1 : 0],
+        }
+      );
+
+      const navigateToConnect = () => navigate?.("/connect");
+      const openDatabaseSelector = () => toggleDatabaseSelector?.();
+
       const loadContextAction = async (): Promise<void> => {
-        if (!contextManager || !requiredContext) return;
-
+        if (!contextManager || !requiredContext) {
+          console.warn("[loadContext] Called without contextManager or requiredContext", { hasContextManager, requiredContext });
+          return;
+        }
         const ctx = store.query(lessonContext$);
-        // If already on the right context and not loading, nothing to do
         if (ctx.currentContext === requiredContext && !ctx.isLoading) return;
-
-        // Delegates to the ContextManager (creates DB, populates, selects)
-        await contextManager.loadContext(requiredContext);
+        await contextManager.switchOrLoadContext(requiredContext);
       };
 
       return {
@@ -586,6 +642,9 @@ export function createDocumentViewerScope(
         runReadiness$,
         canLoadContext$,
         loadContext: loadContextAction,
+        blockedState$,
+        navigateToConnect,
+        openDatabaseSelector,
       };
     });
 
@@ -755,7 +814,7 @@ export function createDocumentViewerScope(
   const switchContext = async () => {
     const section = getCurrentSection();
     if (!contextManager || !section?.context) return;
-    await contextManager.loadContext(section.context);
+    await contextManager.switchOrLoadContext(section.context);
   };
 
   const contextSwitchPrompt: ContextSwitchPromptVM = {

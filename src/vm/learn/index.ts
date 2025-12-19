@@ -35,6 +35,8 @@ export type {
   ExampleRunReadiness,
   ExampleRunResultVM,
   ContextSwitchPromptVM,
+  ExampleBlockedAction,
+  ExampleBlockedState,
 } from "./document-viewer.vm";
 
 // Content block parsing utilities
