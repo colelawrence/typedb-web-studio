@@ -296,9 +296,14 @@ export function createDocumentViewerScope(
           }
 
           // If context is required but no contextManager is provided,
-          // we cannot auto-load it
+          // we cannot auto-load it. However, if the context is already loaded
+          // and ready, we should allow execution (e.g., E2E tests or Query page
+          // where context was loaded via Learn page first).
           if (requiredContext && !hasContextManager) {
-            return `Requires "${requiredContext}" lesson context (open Learn page to load it)`;
+            const isReady = get(isLessonReady$);
+            if (!isReady) {
+              return `Requires "${requiredContext}" lesson context (open Learn page to load it)`;
+            }
           }
 
           // The context manager can only auto-setup connection/database if there's
@@ -359,6 +364,21 @@ export function createDocumentViewerScope(
       };
 
       const runAction = async (): Promise<void> => {
+        // Guard: Check if we can actually run before doing anything
+        const disabledReason = store.query(runDisabledReason$);
+
+        console.log(
+          `[ExampleBlock.run] Pre-flight check:`,
+          `\n  exampleId: ${example.id}`,
+          `\n  runDisabledReason: ${disabledReason}`,
+          `\n  hasContextManager: ${hasContextManager}`
+        );
+
+        if (disabledReason !== null) {
+          console.warn(`[ExampleBlock.run] Cannot run: ${disabledReason}`);
+          return;
+        }
+
         store.setSignal(executionState$, { type: "running" });
         store.setSignal(currentResult$, null);
 
@@ -367,17 +387,36 @@ export function createDocumentViewerScope(
           ? lessonDatabaseNameForContext(requiredContext)
           : null;
 
+        // DEBUG: Log the state when run is clicked
+        const debugSession = store.query(connectionSession$);
+        const debugLesson = store.query(lessonContext$);
+        console.log(
+          `[ExampleBlock.run] Starting execution:`,
+          `\n  exampleId: ${example.id}`,
+          `\n  requiredContext: ${requiredContext}`,
+          `\n  expectedDb: ${expectedDb}`,
+          `\n  hasContextManager: ${!!contextManager}`,
+          `\n  connectionSession.status: ${debugSession.status}`,
+          `\n  connectionSession.activeDatabase: ${debugSession.activeDatabase}`,
+          `\n  lessonContext.currentContext: ${debugLesson.currentContext}`,
+          `\n  lessonContext.isLoading: ${debugLesson.isLoading}`
+        );
+
         try {
           // Auto-load context if section requires one and it's not already FULLY ready
           // Use the reactive isLessonReady$ signal which checks both context AND database
           if (requiredContext && contextManager) {
             const isReady = store.query(isLessonReady$);
+            console.log(`[ExampleBlock.run] isLessonReady: ${isReady}`);
             if (!isReady) {
+              console.log(`[ExampleBlock.run] Loading context: ${requiredContext}`);
               await contextManager.loadContext(requiredContext);
+              console.log(`[ExampleBlock.run] Context loaded`);
             }
           }
 
           // Run the query, passing the expected database for lesson queries
+          console.log(`[ExampleBlock.run] Running query on database: ${expectedDb}`);
           const result = await replBridge.runQuery(example.query, { database: expectedDb });
 
           // Record execution
@@ -465,7 +504,7 @@ export function createDocumentViewerScope(
           // Everything else is blocked (no connection, no context manager, etc.)
           return "blocked";
         },
-        { label: `example.runReadiness:${exampleKey}`, deps: [exampleKey] }
+        { label: `example.runReadiness:${exampleKey}`, deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0] }
       );
 
       // Helper to load context without running

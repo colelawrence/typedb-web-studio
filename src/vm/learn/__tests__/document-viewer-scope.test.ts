@@ -28,7 +28,7 @@ import type { ParsedSection } from "../../../curriculum/types";
 const MOCK_SECTION: ParsedSection = {
   id: "first-queries",
   title: "Your First Queries",
-  context: "social-network",
+  context: null, // No context required for basic execution tests
   requires: ["types-intro"],
   headings: [
     { id: "finding-entities", text: "Finding Entities", level: 2, line: 10 },
@@ -87,8 +87,16 @@ match $p person;
   sourceFile: "docs/curriculum/01-foundations/03-first-queries.md",
 };
 
+// Section with context requirement for context manager tests
+const MOCK_SECTION_WITH_CONTEXT: ParsedSection = {
+  ...MOCK_SECTION,
+  id: "context-queries",
+  context: "social-network", // Requires context for loading tests
+};
+
 const MOCK_SECTIONS: Record<string, ParsedSection> = {
   "first-queries": MOCK_SECTION,
+  "context-queries": MOCK_SECTION_WITH_CONTEXT,
 };
 
 // ============================================================================
@@ -129,6 +137,13 @@ async function createTestContext(profileId = "test-profile"): Promise<TestContex
     displayName: "Test User",
     createdAt: new Date(),
     lastActiveAt: new Date(),
+  }));
+
+  // Set up connection state for basic tests (so examples can run)
+  store.commit(events.connectionSessionSet({
+    status: "connected",
+    activeDatabase: "test-db",
+    lastStatusChange: Date.now(),
   }));
 
   const replBridge = createMockReplBridge();
@@ -216,7 +231,7 @@ describe("DocumentViewerScope", () => {
       expect(section).not.toBeNull();
       expect(section!.id).toBe("first-queries");
       expect(section!.title).toBe("Your First Queries");
-      expect(section!.context).toBe("social-network");
+      expect(section!.context).toBeNull();
     });
 
     it("makes viewer visible when opening a section", () => {
@@ -513,7 +528,7 @@ describe("DocumentViewerScope", () => {
     });
 
     it("returns required context when section loaded", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
       expect(required).toBe("social-network");
     });
@@ -648,20 +663,20 @@ describe("DocumentViewerScope with ContextManager", () => {
 
   describe("Context Switch Prompt", () => {
     it("is visible when context doesn't match", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
       expect(isVisible).toBe(true);
     });
 
     it("is not visible when context matches", async () => {
       mockContextManager.setContext("social-network");
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const isVisible = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$);
       expect(isVisible).toBe(false);
     });
 
     it("shows required context from section", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const required = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.requiredContext$);
       expect(required).toBe("social-network");
     });
@@ -673,13 +688,13 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("switchContext calls context manager", async () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       await ctx.viewerVM.contextSwitchPrompt.switchContext();
       expect(mockContextManager.loadContextCalls).toContain("social-network");
     });
 
     it("dismiss hides the prompt", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(true);
 
       ctx.viewerVM.contextSwitchPrompt.dismiss();
@@ -687,11 +702,49 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("is not visible after switching context", async () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(true);
 
       await ctx.viewerVM.contextSwitchPrompt.switchContext();
       expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isVisible$)).toBe(false);
+    });
+
+    it("exposes isLoading$ from lesson context", () => {
+      // Initially not loading
+      const isLoading = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isLoading$);
+      expect(isLoading).toBe(false);
+    });
+
+    it("exposes error$ from lesson context", () => {
+      // Initially no error
+      const error = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.error$);
+      expect(error).toBeNull();
+    });
+
+    it("isLoading$ reflects loading state during context switch", async () => {
+      ctx.viewerVM.openSection("context-queries");
+
+      // Before switch - not loading
+      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isLoading$)).toBe(false);
+
+      // After switch completes - not loading (context is now loaded)
+      await ctx.viewerVM.contextSwitchPrompt.switchContext();
+      expect(ctx.store.query(ctx.viewerVM.contextSwitchPrompt.isLoading$)).toBe(false);
+    });
+
+    it("error$ shows error when context loading fails", () => {
+      ctx.viewerVM.openSection("context-queries");
+
+      // Simulate an error by setting it directly in LiveStore
+      ctx.store.commit(events.lessonContextSet({
+        currentContext: null,
+        isLoading: false,
+        lastError: "Failed to create database",
+        lastLoadedAt: null,
+      }));
+
+      const error = ctx.store.query(ctx.viewerVM.contextSwitchPrompt.error$);
+      expect(error).toBe("Failed to create database");
     });
   });
 
@@ -701,7 +754,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       expect(mockContextManager.currentContext).toBeNull();
 
       // Open section and run an example
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       expect(section).not.toBeNull();
       expect(section!.examples.length).toBeGreaterThan(0);
@@ -720,7 +773,7 @@ describe("DocumentViewerScope with ContextManager", () => {
       expect(mockContextManager.loadContextCalls).toHaveLength(0);
 
       // Open section and run an example
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
       await example.run();
@@ -730,7 +783,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("loads correct context for section that requires it", async () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
 
       // Verify section requires social-network context
@@ -750,7 +803,7 @@ describe("DocumentViewerScope with ContextManager", () => {
 
   describe("Reactive Context Signals", () => {
     it("example exposes requiredContext from section", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
@@ -759,7 +812,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("isContextReady$ is false when context not loaded", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
@@ -768,7 +821,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("isContextReady$ becomes true when matching context is loaded", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
@@ -783,7 +836,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("isContextReady$ stays false when wrong context is loaded", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
@@ -795,7 +848,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("canRun$ is true when not currently running", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
@@ -888,7 +941,7 @@ describe("DocumentViewerScope with ContextManager", () => {
     });
 
     it("reactive signals update when context changes", () => {
-      ctx.viewerVM.openSection("first-queries");
+      ctx.viewerVM.openSection("context-queries");
       const section = ctx.store.query(ctx.viewerVM.currentSection$);
       const example = section!.examples[0];
 
@@ -918,12 +971,12 @@ describe("DocumentViewerScope with ContextManager", () => {
       const { vm } = createDocumentViewerScope({
         store,
         profileId: "test-profile-no-cm",
-        sections: MOCK_SECTIONS, // first-queries requires "social-network" context
+        sections: MOCK_SECTIONS, // context-queries requires "social-network" context
         replBridge,
         // NOTE: No contextManager provided!
       });
 
-      vm.openSection("first-queries");
+      vm.openSection("context-queries");
       const section = store.query(vm.currentSection$);
       expect(section).not.toBeNull();
 

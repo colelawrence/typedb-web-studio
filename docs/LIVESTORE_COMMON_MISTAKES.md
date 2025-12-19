@@ -99,6 +99,79 @@ Skip `deps` when:
 
 ---
 
+## Duplicate `deps` Arrays Causing Signal Conflicts
+
+### The Problem
+
+When two different computed signals have **identical** `deps` arrays, LiveStore may incorrectly conflate them in the reactive graph. This can cause:
+- Stack overflow errors (`Maximum call stack size exceeded` in `markSuperCompDirtyRec`)
+- Signals that work via React subscription but crash on direct `store.query()`
+- Unknown atom errors (`getAtom (unknown atom with ID=undefined)`)
+
+### Bad Example
+
+```typescript
+// ❌ Two different computeds with identical deps
+const canRun$ = computed(
+  (get) => get(runDisabledReason$) === null,
+  { label: `example.canRun:${exampleKey}`, deps: [exampleKey] }
+);
+
+const runReadiness$ = computed(
+  (get) => {
+    if (!get(canRun$)) return "blocked";
+    return "ready";
+  },
+  { label: `example.runReadiness:${exampleKey}`, deps: [exampleKey] }  // ❌ Same deps as canRun$!
+);
+```
+
+Even though the labels are different, the `deps: [exampleKey]` is identical. This can corrupt the dependency graph when `runReadiness$` tries to read `canRun$`.
+
+### Good Example
+
+```typescript
+// ✅ Each computed has unique deps that reflect its behavior
+const canRun$ = computed(
+  (get) => get(runDisabledReason$) === null,
+  { label: `example.canRun:${exampleKey}`, deps: [exampleKey] }
+);
+
+const runReadiness$ = computed(
+  (get) => {
+    const canRunNow = get(canRun$);
+    const canLoad = get(canLoadContext$);
+    if (canRunNow) return "ready";
+    if (canLoad) return "needs-context";
+    return "blocked";
+  },
+  {
+    label: `example.runReadiness:${exampleKey}`,
+    deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0]  // ✅ Unique deps
+  }
+);
+```
+
+### Rule of Thumb
+
+**No two computed signals in the same scope should have identical `deps` arrays.**
+
+If you find yourself with multiple computeds using the same `deps`, add distinguishing factors:
+- Add configuration values that affect behavior (`requiredContext`, `hasContextManager`)
+- Add a type discriminator (`"canRun"` vs `"runReadiness"`)
+- Include any closed-over values that differ between computeds
+
+### Debugging This Issue
+
+If you see `Maximum call stack size exceeded` in LiveStore's reactive internals:
+1. Find computeds with identical `deps` arrays
+2. Add distinguishing values to make each `deps` unique
+3. Verify by testing each signal individually with `store.query()`
+
+See [LIVESTORE_DEPS_POSTMORTEM.md](./LIVESTORE_DEPS_POSTMORTEM.md) for a detailed case study of this bug.
+
+---
+
 ## Using Signals for Temporary, Non-Persisted State
 
 ### The Pattern
