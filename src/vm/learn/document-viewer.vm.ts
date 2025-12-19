@@ -352,6 +352,27 @@ export interface DocumentExampleVM {
    * No-op if the example does not require a context or no contextManager is available.
    */
   loadContext(): Promise<void>;
+
+  /**
+   * Structured blocked state information.
+   * Returns null when the example can run, or details about why it's blocked
+   * and what action can fix it.
+   *
+   * Used to show inline prompts instead of disabled buttons with tooltips.
+   */
+  blockedState$: Queryable<ExampleBlockedState | null>;
+
+  /**
+   * Navigate to the connection page.
+   * Used when blocked due to "not connected" state.
+   */
+  navigateToConnect(): void;
+
+  /**
+   * Open the database selector.
+   * Used when blocked due to "no database selected" state.
+   */
+  openDatabaseSelector(): void;
 }
 
 /**

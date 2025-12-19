@@ -36,7 +36,6 @@ import { lessonDatabaseNameForContext } from "../../curriculum/lesson-db";
 import { constant } from "./constant";
 import { parseContentBlocks } from "./content-blocks";
 
-
 // ============================================================================
 // Service Interface
 // ============================================================================
@@ -113,15 +112,15 @@ export function createDocumentViewerScope(
   } = options;
 
   const { visibleKey, sectionIdKey, labelPrefix } = stateKeys;
+  const documentViewerKey = [labelPrefix, sectionIdKey, visibleKey].join("|")
 
   // ---------------------------------------------------------------------------
   // Visibility State (from LiveStore)
   // ---------------------------------------------------------------------------
 
-  const isVisible$ = computed(
-    (get) => get(uiState$)[visibleKey],
-    { label: `${labelPrefix}.isVisible` }
-  );
+  const isVisible$ = computed((get) => get(uiState$)[visibleKey], {
+    label: `${labelPrefix}.isVisible`,
+  });
 
   const show = () => {
     store.commit(events.uiStateSet({ [visibleKey]: true }));
@@ -181,29 +180,35 @@ export function createDocumentViewerScope(
       const isRead$ = computed(
         (get) => {
           const progress = get(progressQuery$);
-          return progress.some(p => p.headingId === heading.id && p.markedRead);
+          return progress.some(
+            (p) => p.headingId === heading.id && p.markedRead
+          );
         },
         { label: `heading.isRead:${headingKey}`, deps: [headingKey] }
       );
 
       const markRead = () => {
-        store.commit(events.readingProgressMarked({
-          profileId,
-          sectionId,
-          headingId: heading.id,
-          markedRead: true,
-          viewedAt: new Date(),
-        }));
+        store.commit(
+          events.readingProgressMarked({
+            profileId,
+            sectionId,
+            headingId: heading.id,
+            markedRead: true,
+            viewedAt: new Date(),
+          })
+        );
       };
 
       const markUnread = () => {
-        store.commit(events.readingProgressMarked({
-          profileId,
-          sectionId,
-          headingId: heading.id,
-          markedRead: false,
-          viewedAt: new Date(),
-        }));
+        store.commit(
+          events.readingProgressMarked({
+            profileId,
+            sectionId,
+            headingId: heading.id,
+            markedRead: false,
+            viewedAt: new Date(),
+          })
+        );
       };
 
       const toggleRead = () => {
@@ -230,7 +235,8 @@ export function createDocumentViewerScope(
     // Create example VMs
     const exampleVMs = section.examples.map((example): DocumentExampleVM => {
       const exampleKey = `${profileId}:${example.id}`;
-      const isInteractive = example.type === "example" || example.type === "invalid";
+      const isInteractive =
+        example.type === "example" || example.type === "invalid";
       const requiredContext = section.context;
 
       // Execution state (local, not persisted)
@@ -240,10 +246,9 @@ export function createDocumentViewerScope(
       );
 
       // Current result (local, not persisted)
-      const currentResult$ = signal<ExampleRunResultVM | null>(
-        null,
-        { label: `example.currentResult:${exampleKey}` }
-      );
+      const currentResult$ = signal<ExampleRunResultVM | null>(null, {
+        label: `example.currentResult:${exampleKey}`,
+      });
 
       // Reactive: is the required context name currently loaded?
       // Note: This only checks the context NAME, not whether the DB is actually selected.
@@ -253,7 +258,10 @@ export function createDocumentViewerScope(
           const contextState = get(lessonContext$);
           return contextState.currentContext === requiredContext;
         },
-        { label: `example.isContextReady:${exampleKey}`, deps: [exampleKey, requiredContext] }
+        {
+          label: `example.isContextReady:${exampleKey}`,
+          deps: [exampleKey, requiredContext],
+        }
       );
 
       // Reactive: is the lesson ACTUALLY ready for query execution?
@@ -278,7 +286,10 @@ export function createDocumentViewerScope(
             session.activeDatabase === expectedDb
           );
         },
-        { label: `example.isLessonReady:${exampleKey}`, deps: [exampleKey, requiredContext] }
+        {
+          label: `example.isLessonReady:${exampleKey}`,
+          deps: [exampleKey, requiredContext],
+        }
       );
 
       // Reactive: why can't this example run right now?
@@ -330,7 +341,15 @@ export function createDocumentViewerScope(
           // Can run (context will be auto-loaded if needed)
           return null;
         },
-        { label: `example.runDisabledReason:${exampleKey}`, deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0, isInteractive ? 1 : 0] }
+        {
+          label: `example.runDisabledReason:${exampleKey}`,
+          deps: [
+            exampleKey,
+            requiredContext,
+            hasContextManager ? 1 : 0,
+            isInteractive ? 1 : 0,
+          ],
+        }
       );
 
       // Reactive: can this example be run right now?
@@ -344,7 +363,7 @@ export function createDocumentViewerScope(
       const wasExecuted$ = computed(
         (get) => {
           const executed = get(executedQuery$);
-          return executed.some(e => e.exampleId === example.id);
+          return executed.some((e) => e.exampleId === example.id);
         },
         { label: `example.wasExecuted:${exampleKey}`, deps: [exampleKey] }
       );
@@ -352,15 +371,17 @@ export function createDocumentViewerScope(
       const copyToReplAction = () => {
         replBridge.copyToRepl(example.query);
         // Record as docs-copy execution (not a full run)
-        store.commit(events.exampleExecuted({
-          profileId,
-          exampleId: example.id,
-          succeeded: true,
-          source: "docs-copy",
-          executedAt: new Date(),
-          durationMs: null,
-          errorMessage: null,
-        }));
+        store.commit(
+          events.exampleExecuted({
+            profileId,
+            exampleId: example.id,
+            succeeded: true,
+            source: "docs-copy",
+            executedAt: new Date(),
+            durationMs: null,
+            errorMessage: null,
+          })
+        );
       };
 
       const runAction = async (): Promise<void> => {
@@ -409,31 +430,45 @@ export function createDocumentViewerScope(
             const isReady = store.query(isLessonReady$);
             console.log(`[ExampleBlock.run] isLessonReady: ${isReady}`);
             if (!isReady) {
-              console.log(`[ExampleBlock.run] Loading context: ${requiredContext}`);
+              console.log(
+                `[ExampleBlock.run] Loading context: ${requiredContext}`
+              );
               await contextManager.loadContext(requiredContext);
               console.log(`[ExampleBlock.run] Context loaded`);
             }
           }
 
           // Run the query, passing the expected database for lesson queries
-          console.log(`[ExampleBlock.run] Running query on database: ${expectedDb}`);
-          const result = await replBridge.runQuery(example.query, { database: expectedDb });
+          console.log(
+            `[ExampleBlock.run] Running query on database: ${expectedDb}`
+          );
+          const result = await replBridge.runQuery(example.query, {
+            database: expectedDb,
+          });
 
           // Record execution
-          store.commit(events.exampleExecuted({
-            profileId,
-            exampleId: example.id,
-            succeeded: result.success,
-            source: "docs-run",
-            executedAt: new Date(),
-            durationMs: result.executionTimeMs,
-            errorMessage: result.error ?? null,
-          }));
+          store.commit(
+            events.exampleExecuted({
+              profileId,
+              exampleId: example.id,
+              succeeded: result.success,
+              source: "docs-run",
+              executedAt: new Date(),
+              durationMs: result.executionTimeMs,
+              errorMessage: result.error ?? null,
+            })
+          );
 
           if (result.success) {
-            store.setSignal(executionState$, { type: "success", resultCount: result.resultCount ?? 0 });
+            store.setSignal(executionState$, {
+              type: "success",
+              resultCount: result.resultCount ?? 0,
+            });
           } else {
-            store.setSignal(executionState$, { type: "error", message: result.error ?? "Unknown error" });
+            store.setSignal(executionState$, {
+              type: "error",
+              message: result.error ?? "Unknown error",
+            });
           }
 
           store.setSignal(currentResult$, {
@@ -446,17 +481,22 @@ export function createDocumentViewerScope(
           });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          store.setSignal(executionState$, { type: "error", message: errorMessage });
+          store.setSignal(executionState$, {
+            type: "error",
+            message: errorMessage,
+          });
 
-          store.commit(events.exampleExecuted({
-            profileId,
-            exampleId: example.id,
-            succeeded: false,
-            source: "docs-run",
-            executedAt: new Date(),
-            durationMs: null,
-            errorMessage,
-          }));
+          store.commit(
+            events.exampleExecuted({
+              profileId,
+              exampleId: example.id,
+              succeeded: false,
+              source: "docs-run",
+              executedAt: new Date(),
+              durationMs: null,
+              errorMessage,
+            })
+          );
 
           store.setSignal(currentResult$, {
             success: false,
@@ -478,7 +518,10 @@ export function createDocumentViewerScope(
 
           return true;
         },
-        { label: `example.canLoadContext:${exampleKey}`, deps: [exampleKey, requiredContext] }
+        {
+          label: `example.canLoadContext:${exampleKey}`,
+          deps: [exampleKey, requiredContext],
+        }
       );
 
       // High-level readiness state for UI
@@ -504,7 +547,10 @@ export function createDocumentViewerScope(
           // Everything else is blocked (no connection, no context manager, etc.)
           return "blocked";
         },
-        { label: `example.runReadiness:${exampleKey}`, deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0] }
+        {
+          label: `example.runReadiness:${exampleKey}`,
+          deps: [exampleKey, requiredContext, hasContextManager ? 1 : 0],
+        }
       );
 
       // Helper to load context without running
@@ -548,9 +594,12 @@ export function createDocumentViewerScope(
       (get): DocumentProgressVM => {
         const progress = get(progressQuery$);
         // Only count headings (not root entry where headingId is null)
-        const readCount = progress.filter(p => p.markedRead && p.headingId !== null).length;
+        const readCount = progress.filter(
+          (p) => p.markedRead && p.headingId !== null
+        ).length;
         const totalCount = section.headings.length || 1; // At least 1 for the root section
-        const percent = totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0;
+        const percent =
+          totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0;
 
         return {
           readCount,
@@ -564,31 +613,37 @@ export function createDocumentViewerScope(
 
     const markAllRead = () => {
       // Mark root section
-      store.commit(events.readingProgressMarked({
-        profileId,
-        sectionId,
-        headingId: null,
-        markedRead: true,
-        viewedAt: new Date(),
-      }));
+      store.commit(
+        events.readingProgressMarked({
+          profileId,
+          sectionId,
+          headingId: null,
+          markedRead: true,
+          viewedAt: new Date(),
+        })
+      );
 
       // Mark all headings
       for (const heading of section.headings) {
-        store.commit(events.readingProgressMarked({
-          profileId,
-          sectionId,
-          headingId: heading.id,
-          markedRead: true,
-          viewedAt: new Date(),
-        }));
+        store.commit(
+          events.readingProgressMarked({
+            profileId,
+            sectionId,
+            headingId: heading.id,
+            markedRead: true,
+            viewedAt: new Date(),
+          })
+        );
       }
     };
 
     const markAllUnread = () => {
-      store.commit(events.readingProgressCleared({
-        profileId,
-        sectionId,
-      }));
+      store.commit(
+        events.readingProgressCleared({
+          profileId,
+          sectionId,
+        })
+      );
     };
 
     // Parse content blocks from raw markdown using the heading/example VMs
@@ -613,19 +668,6 @@ export function createDocumentViewerScope(
   };
 
   // ---------------------------------------------------------------------------
-  // Context Switch Prompt - Dismissal State
-  // ---------------------------------------------------------------------------
-
-  // Dismissal state as a signal for reactivity.
-  // When dismissed, stores the sectionId it was dismissed for.
-  // Gets cleared when navigating to a different section to restore the
-  // "reminder on revisit" behavior.
-  const contextPromptDismissedFor$ = signal<string | null>(
-    null,
-    { label: `${labelPrefix}.contextPromptDismissedFor` }
-  );
-
-  // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
 
@@ -637,19 +679,15 @@ export function createDocumentViewerScope(
       return;
     }
 
-    // Reset dismissal state when changing sections.
-    // This restores the "reminder on revisit" behavior: if the user dismisses
-    // the prompt for section A, navigates to B, then back to A, the prompt
-    // should appear again for A.
-    store.setSignal(contextPromptDismissedFor$, null);
-
     // Check if section exists before updating state
     const section = sections[sectionId];
     if (section) {
-      store.commit(events.uiStateSet({
-        [sectionIdKey]: sectionId,
-        [visibleKey]: true,
-      }));
+      store.commit(
+        events.uiStateSet({
+          [sectionIdKey]: sectionId,
+          [visibleKey]: true,
+        })
+      );
       onSectionOpened?.(sectionId);
     }
   };
@@ -681,14 +719,6 @@ export function createDocumentViewerScope(
       // Not visible if section doesn't require a context
       if (!section.context) return false;
 
-      // Read dismissal state reactively
-      const dismissedForSection = get(contextPromptDismissedFor$);
-
-      // Not visible if dismissed for THIS section
-      if (dismissedForSection === section.id) {
-        return false;
-      }
-
       // Read context state from LiveStore (REACTIVE!)
       const contextState = get(lessonContext$);
 
@@ -698,7 +728,10 @@ export function createDocumentViewerScope(
       // Visible if context doesn't match required
       return contextState.currentContext !== section.context;
     },
-    { label: `${labelPrefix}.contextSwitchPrompt.isVisible` }
+    {
+      label: `${labelPrefix}.contextSwitchPrompt.isVisible`,
+      deps: [`contextManager-${contextManager ? 1 : 0}`, documentViewerKey],
+    }
   );
 
   const currentContext$ = computed(
@@ -711,28 +744,18 @@ export function createDocumentViewerScope(
     { label: `${labelPrefix}.contextSwitchPrompt.requiredContext` }
   );
 
-  const contextIsLoading$ = computed(
-    (get) => get(lessonContext$).isLoading,
-    { label: `${labelPrefix}.contextSwitchPrompt.isLoading` }
-  );
+  const contextIsLoading$ = computed((get) => get(lessonContext$).isLoading, {
+    label: `${labelPrefix}.contextSwitchPrompt.isLoading`,
+  });
 
-  const contextError$ = computed(
-    (get) => get(lessonContext$).lastError,
-    { label: `${labelPrefix}.contextSwitchPrompt.error` }
-  );
+  const contextError$ = computed((get) => get(lessonContext$).lastError, {
+    label: `${labelPrefix}.contextSwitchPrompt.error`,
+  });
 
   const switchContext = async () => {
     const section = getCurrentSection();
     if (!contextManager || !section?.context) return;
     await contextManager.loadContext(section.context);
-    // Clear dismissal after successful switch (prompt should hide because context now matches)
-    store.setSignal(contextPromptDismissedFor$, null);
-  };
-
-  const dismissContextPrompt = () => {
-    const section = getCurrentSection();
-    // Set dismissal for current section (reactive!)
-    store.setSignal(contextPromptDismissedFor$, section?.id ?? null);
   };
 
   const contextSwitchPrompt: ContextSwitchPromptVM = {
@@ -742,7 +765,6 @@ export function createDocumentViewerScope(
     isLoading$: contextIsLoading$,
     error$: contextError$,
     switchContext,
-    dismiss: dismissContextPrompt,
   };
 
   // ---------------------------------------------------------------------------
@@ -758,23 +780,27 @@ export function createDocumentViewerScope(
     if (!section) return;
 
     // Mark root section
-    store.commit(events.readingProgressMarked({
-      profileId,
-      sectionId,
-      headingId: null,
-      markedRead: true,
-      viewedAt: new Date(),
-    }));
+    store.commit(
+      events.readingProgressMarked({
+        profileId,
+        sectionId,
+        headingId: null,
+        markedRead: true,
+        viewedAt: new Date(),
+      })
+    );
 
     // Mark all headings
     for (const heading of section.headings) {
-      store.commit(events.readingProgressMarked({
-        profileId,
-        sectionId,
-        headingId: heading.id,
-        markedRead: true,
-        viewedAt: new Date(),
-      }));
+      store.commit(
+        events.readingProgressMarked({
+          profileId,
+          sectionId,
+          headingId: heading.id,
+          markedRead: true,
+          viewedAt: new Date(),
+        })
+      );
     }
   };
 

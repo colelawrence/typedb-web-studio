@@ -228,3 +228,52 @@ describe("Lesson context cleared on disconnect (stale context bug)", () => {
     expect(afterDisconnect.lastError).toBeNull();
   });
 });
+
+/**
+ * Tests for stale connection state on page load.
+ *
+ * Bug: When the page reloads, LiveStore restores state from persistence but the
+ * TypeDB WASM service starts fresh (disconnected, no databases). This caused:
+ * - Play button enabled when service was actually disconnected
+ * - Context switch prompt hidden when context DB didn't exist
+ * - "Database not found" errors when running examples
+ *
+ * Fix: The scope now syncs the initial service status with LiveStore on startup.
+ */
+describe("Initial service status sync (stale connection bug)", () => {
+  let studio: TestStudio | null = null;
+
+  afterEach(async () => {
+    if (studio) {
+      await studio.cleanup();
+      studio = null;
+    }
+  });
+
+  it("connection status is 'disconnected' on fresh app startup", async () => {
+    // When we bootstrap a fresh app, even though LiveStore might have stale
+    // persisted state, the initial sync should set status to disconnected
+    // because the WASM service starts fresh.
+    studio = await bootstrapStudioForTest();
+    const { app, query } = studio;
+
+    // The connection status should be disconnected (synced with actual service)
+    const status = query(app.topBar.connectionStatus.state$);
+    expect(status).toBe("disconnected");
+  });
+
+  it("lesson context is null on fresh app startup", async () => {
+    studio = await bootstrapStudioForTest();
+    const { query } = studio;
+
+    // The lesson context should be cleared (part of the disconnected state cleanup)
+    type LessonContextState = {
+      currentContext: string | null;
+      isLoading: boolean;
+      lastError: string | null;
+      lastLoadedAt: number | null;
+    };
+    const context = query(lessonContext$) as LessonContextState;
+    expect(context.currentContext).toBeNull();
+  });
+});

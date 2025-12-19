@@ -31,12 +31,14 @@ import {
   queryResults$,
   sessionDatabases$,
   queryHistory$,
+  lessonContext$,
 } from "../livestore/queries";
 import {
   getService,
   quickConnectWasm,
   disconnect as disconnectService,
   detectQueryType,
+  getConnectionStatus,
   onStatusChange as subscribeToStatusChange,
   onModeChange as subscribeToModeChange,
   type TypeDBService,
@@ -686,6 +688,53 @@ export function createStudioScope(
       }
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // Initial Service Status Sync
+  // ---------------------------------------------------------------------------
+  // On page load, LiveStore may restore stale "connected" state from persistence.
+  // But the TypeDB WASM service starts fresh with no databases.
+  // We must sync the actual service status to LiveStore on startup to prevent
+  // stale state bugs like:
+  // - Play button enabled when service is disconnected
+  // - Context switch prompt hidden when context DB doesn't exist
+  {
+    const actualStatus = getConnectionStatus();
+    const storedSession = store.query(connectionSession$);
+    const storedLessonContext = store.query(lessonContext$);
+    console.log(
+      `[scope] Initial state check:`,
+      `\n  Service status: ${actualStatus}`,
+      `\n  LiveStore connectionSession.status: ${storedSession.status}`,
+      `\n  LiveStore lessonContext.currentContext: ${storedLessonContext.currentContext}`,
+      `\n  LiveStore connectionSession.activeDatabase: ${storedSession.activeDatabase}`
+    );
+    if (storedSession.status !== actualStatus) {
+      console.log(
+        `[scope] Initial status sync: LiveStore says '${storedSession.status}' but service is '${actualStatus}' - SYNCING`
+      );
+      if (actualStatus === "disconnected") {
+        handleServiceDisconnected(store);
+      } else {
+        store.commit(
+          events.connectionSessionSet({
+            status: actualStatus,
+            lastStatusChange: Date.now(),
+          })
+        );
+      }
+      // Log the state after sync
+      const afterSync = store.query(connectionSession$);
+      const afterSyncContext = store.query(lessonContext$);
+      console.log(
+        `[scope] After sync:`,
+        `\n  connectionSession.status: ${afterSync.status}`,
+        `\n  lessonContext.currentContext: ${afterSyncContext.currentContext}`
+      );
+    } else {
+      console.log(`[scope] Initial status already in sync (${actualStatus})`);
+    }
+  }
 
   const _unsubscribeModeChange = subscribeToModeChange((mode: ServiceMode) => {
     const currentSession = store.query(connectionSession$);

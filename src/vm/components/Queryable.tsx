@@ -46,12 +46,48 @@ export function Queryable<T>(props: {
 }): React.ReactNode;
 
 /**
- * Implementation that handles both overloads.
+ * Renders multiple Queryable values as a tuple.
+ * Useful when you need to combine multiple reactive values.
+ *
+ * @example
+ * ```tsx
+ * <Queryable query={[vm.name$, vm.count$]}>
+ *   {([name, count]) => <div>{name}: {count}</div>}
+ * </Queryable>
+ * ```
+ */
+export function Queryable<
+	// biome-ignore lint/suspicious/noExplicitAny: required for tuple type constraint
+	T extends [QueryableType<any>, ...QueryableType<any>[]],
+>(props: {
+	query: T;
+	children: (
+		value: { [P in keyof T]: T[P] extends QueryableType<infer R> ? R : never },
+	) => React.ReactNode;
+}): React.ReactNode;
+
+/**
+ * Implementation that handles all overloads.
  */
 export function Queryable(props: {
-	query: QueryableType<unknown>;
-	children?: (value: unknown) => React.ReactNode;
+	// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overload types
+	query: QueryableType<any> | [QueryableType<any>, ...QueryableType<any>[]];
+	// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overload types
+	children?: (value: any) => React.ReactNode;
 }) {
+	// Handle tuple case
+	if (Array.isArray(props.query)) {
+		return (
+			<QueryableTuple
+				queries={props.query}
+				// biome-ignore lint/style/noNonNullAssertion: tuple overload requires children
+				// biome-ignore lint/correctness/noChildrenProp: passing children as prop for render function pattern
+				children={props.children!}
+			/>
+		);
+	}
+
+	// biome-ignore lint/correctness/useHookAtTopLevel: array case returns early to QueryableTuple component
 	const value = useQuery(props.query);
 
 	return (
@@ -59,6 +95,7 @@ export function Queryable(props: {
 			{typeof props.children === "function" ? (
 				<CatchBoundary
 					getResetKey={() =>
+						// biome-ignore lint/suspicious/noExplicitAny: accessing optional label property
 						String(props.query) + String((props.query as any).label)
 					}
 					onCatch={() => {
@@ -78,7 +115,7 @@ export function Queryable(props: {
 						}
 					}}
 				>
-					{/* biome-ignore lint/correctness/noChildrenProp: <explanation> */}
+					{/* biome-ignore lint/correctness/noChildrenProp: passing children as prop for render function pattern */}
 					<RenderFn value={value} children={props.children} />
 				</CatchBoundary>
 			) : (
@@ -93,4 +130,25 @@ function RenderFn<T>(props: {
 	children: (value: T) => React.ReactNode;
 }) {
 	return <>{props.children(props.value)}</>;
+}
+
+function QueryableTuple(props: {
+	queries: QueryableType<unknown>[];
+	children: (values: unknown[]) => React.ReactNode;
+}) {
+	const values: unknown[] = [];
+	for (const q of props.queries) {
+		// biome-ignore lint/correctness/useHookAtTopLevel: tuple length is fixed at compile time, so hook order is stable
+		values.push(useQuery(q));
+	}
+
+	return (
+		<CatchBoundary
+			getResetKey={() => props.queries.map(String).join(",")}
+			onCatch={() => {}}
+		>
+			{/* biome-ignore lint/correctness/noChildrenProp: passing children as prop for render function pattern */}
+			<RenderFn value={values} children={props.children} />
+		</CatchBoundary>
+	);
 }

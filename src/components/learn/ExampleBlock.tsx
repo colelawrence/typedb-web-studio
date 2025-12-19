@@ -109,10 +109,12 @@ export function ExampleBlock({ vm }: ExampleBlockProps) {
 /**
  * Run button with state-dependent appearance.
  *
- * Shows different UI based on runReadiness:
- * - "ready": Simple "Run" button
- * - "needs-context": "Load & Run" button with database icon
- * - "blocked": Disabled "Run" button with tooltip
+ * Based on `runReadiness`:
+ * - "ready": Enabled Run button (just Play icon)
+ * - "needs-context": "Load & Run" button with Database + Play icons
+ * - "blocked": Disabled Run button with reason in tooltip
+ *
+ * During execution (`state.type === "running"`), shows spinner and disables.
  */
 function RunButton({
   state,
@@ -130,10 +132,11 @@ function RunButton({
   const isRunning = state.type === "running";
   const isBlocked = runReadiness === "blocked";
   const needsContext = runReadiness === "needs-context";
+  const isDisabled = isBlocked || isRunning;
 
   // Build title based on state
   let title = "Run query";
-  if (runDisabledReason && isBlocked) {
+  if (isBlocked && runDisabledReason) {
     title = runDisabledReason;
   } else if (isRunning) {
     title = "Running...";
@@ -148,7 +151,7 @@ function RunButton({
         variant="ghost"
         density="compact"
         onClick={onRun}
-        disabled={isRunning}
+        disabled={isDisabled}
         title={title}
         className="h-6 px-2 text-dense-xs gap-1"
       >
@@ -171,7 +174,7 @@ function RunButton({
       variant="ghost"
       density="compact"
       onClick={onRun}
-      disabled={isBlocked || isRunning}
+      disabled={isDisabled}
       title={title}
       className="h-6 px-2 text-dense-xs"
     >
