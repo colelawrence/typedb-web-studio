@@ -119,14 +119,26 @@ function QueryPageContent({ vm }: { vm: QueryPageVM }) {
               className="h-full"
             >
               {/* Editor */}
-              <Panel defaultSize={65} minSize={20} order={1} id="editor-area-panel" className="flex flex-col justify-stretch">
+              <Panel
+                defaultSize={65}
+                minSize={20}
+                order={1}
+                id="editor-area-panel"
+                className="flex flex-col justify-stretch"
+              >
                 <QueryEditor vm={vm.editor} schemaViewer={vm.schemaViewer} />
               </Panel>
 
               <PanelResizeHandle className="h-1 bg-border hover:bg-accent transition-colors cursor-row-resize" />
 
               {/* Results Panel */}
-              <Panel defaultSize={25} minSize={10} order={2} id="results-panel">
+              <Panel
+                defaultSize={25}
+                minSize={10}
+                order={2}
+                id="results-panel"
+                className="flex flex-col justify-stretch"
+              >
                 <QueryResults vm={vm.results} />
               </Panel>
 
@@ -270,7 +282,9 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
             <Input
               type="text"
               value={filter ?? ""}
-              onChange={(e) => vm.graph.setHighlightFilter(e.target.value || null)}
+              onChange={(e) =>
+                vm.graph.setHighlightFilter(e.target.value || null)
+              }
               placeholder="Filter types..."
               className="w-40"
               density="compact"
@@ -288,7 +302,9 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
                 <div className="absolute inset-0 flex items-center justify-center bg-background/80">
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 className="size-8 animate-spin text-primary" />
-                    <p className="text-dense-sm text-muted-foreground">Loading schema...</p>
+                    <p className="text-dense-sm text-muted-foreground">
+                      Loading schema...
+                    </p>
                   </div>
                 </div>
               )}
@@ -298,10 +314,16 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
                   <div className="text-center space-y-3">
                     <Queryable query={vm.graph.statusMessage$}>
                       {(message) => (
-                        <p className="text-dense-sm text-destructive">{message}</p>
+                        <p className="text-dense-sm text-destructive">
+                          {message}
+                        </p>
                       )}
                     </Queryable>
-                    <Button variant="outline" density="compact" onClick={vm.graph.retry}>
+                    <Button
+                      variant="outline"
+                      density="compact"
+                      onClick={vm.graph.retry}
+                    >
                       <RefreshCw className="size-4" />
                       Retry
                     </Button>
@@ -315,7 +337,9 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
                     {(message) => (
                       <div className="text-center space-y-3">
                         <Database className="size-12 mx-auto text-muted-foreground/50" />
-                        <p className="text-dense-sm text-muted-foreground">{message}</p>
+                        <p className="text-dense-sm text-muted-foreground">
+                          {message}
+                        </p>
                       </div>
                     )}
                   </Queryable>
@@ -325,7 +349,9 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
               {/* Canvas container for graph library */}
               <div
                 ref={vm.graph.setCanvasRef}
-                className={`w-full h-full ${status !== "ready" ? "opacity-0" : ""}`}
+                className={`w-full h-full ${
+                  status !== "ready" ? "opacity-0" : ""
+                }`}
               />
             </>
           )}
@@ -338,21 +364,30 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
               <div className="absolute top-4 right-4 w-56 p-3 rounded-lg border border-border bg-card shadow-lg">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-dense-sm font-semibold text-foreground">{node.label}</h3>
-                    <span className={`px-2 py-0.5 rounded text-dense-xs font-medium ${
-                      node.kind === "entity" ? "bg-graph-entity/10 text-graph-entity" :
-                      node.kind === "relation" ? "bg-graph-relation/10 text-graph-relation" :
-                      "bg-graph-attribute/10 text-graph-attribute"
-                    }`}>
+                    <h3 className="text-dense-sm font-semibold text-foreground">
+                      {node.label}
+                    </h3>
+                    <span
+                      className={`px-2 py-0.5 rounded text-dense-xs font-medium ${
+                        node.kind === "entity"
+                          ? "bg-graph-entity/10 text-graph-entity"
+                          : node.kind === "relation"
+                          ? "bg-graph-relation/10 text-graph-relation"
+                          : "bg-graph-attribute/10 text-graph-attribute"
+                      }`}
+                    >
                       {node.kind}
                     </span>
                   </div>
                   {node.isAbstract && (
-                    <p className="text-dense-xs text-muted-foreground italic">Abstract type</p>
+                    <p className="text-dense-xs text-muted-foreground italic">
+                      Abstract type
+                    </p>
                   )}
                   {node.supertype && (
                     <p className="text-dense-xs text-muted-foreground">
-                      Extends: <span className="text-foreground">{node.supertype}</span>
+                      Extends:{" "}
+                      <span className="text-foreground">{node.supertype}</span>
                     </p>
                   )}
                   {Object.entries(node.details).map(([key, value]) => (
@@ -362,10 +397,19 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
                     </div>
                   ))}
                   <div className="flex gap-2 pt-2">
-                    <Button density="compact" onClick={node.generateFetchQuery} className="flex-1 text-dense-xs">
+                    <Button
+                      density="compact"
+                      onClick={node.generateFetchQuery}
+                      className="flex-1 text-dense-xs"
+                    >
                       Query
                     </Button>
-                    <Button variant="outline" density="compact" onClick={node.highlight} className="flex-1 text-dense-xs">
+                    <Button
+                      variant="outline"
+                      density="compact"
+                      onClick={node.highlight}
+                      className="flex-1 text-dense-xs"
+                    >
                       Highlight
                     </Button>
                   </div>
@@ -380,8 +424,12 @@ function SchemaGraphPane({ vm }: { vm: SchemaGraphPanelVM }) {
           {(node) =>
             node && (
               <div className="absolute bottom-4 left-4 px-3 py-2 rounded border border-border bg-card shadow-lg">
-                <span className="text-dense-sm font-medium text-foreground">{node.label}</span>
-                <span className="text-dense-xs text-muted-foreground ml-2">({node.kind})</span>
+                <span className="text-dense-sm font-medium text-foreground">
+                  {node.label}
+                </span>
+                <span className="text-dense-xs text-muted-foreground ml-2">
+                  ({node.kind})
+                </span>
               </div>
             )
           }
@@ -416,9 +464,19 @@ function DocsPane({ vm }: { vm: QueryPageVM["docsViewer"] }) {
   );
 }
 
-function QuerySidebar({ vm, schemaViewer }: { vm: QueryPageVM["sidebar"]; schemaViewer: SchemaGraphPanelVM }) {
+function QuerySidebar({
+  vm,
+  schemaViewer,
+}: {
+  vm: QueryPageVM["sidebar"];
+  schemaViewer: SchemaGraphPanelVM;
+}) {
   return (
-    <PanelGroup direction="vertical" autoSaveId="query-sidebar-sections" className="h-full">
+    <PanelGroup
+      direction="vertical"
+      autoSaveId="query-sidebar-sections"
+      className="h-full"
+    >
       {/* Top sections: Schema + Saved Queries - resizable */}
       <Panel defaultSize={70} minSize={10} order={1} id="sidebar-top-sections">
         <div className="h-full overflow-y-auto">
@@ -644,7 +702,13 @@ function SidebarSectionWithAction({
   );
 }
 
-function QueryEditor({ vm, schemaViewer }: { vm: QueryPageVM["editor"]; schemaViewer: SchemaGraphPanelVM }) {
+function QueryEditor({
+  vm,
+  schemaViewer,
+}: {
+  vm: QueryPageVM["editor"];
+  schemaViewer: SchemaGraphPanelVM;
+}) {
   const isSchemaVisible = useQuery(schemaViewer.isVisible$);
 
   return (
@@ -671,7 +735,9 @@ function QueryEditor({ vm, schemaViewer }: { vm: QueryPageVM["editor"]; schemaVi
             <Network className="size-4" />
           </Button>
 
-          <Queryable query={[vm.actions.run.disabled$, vm.actions.run.isRunning$]}>
+          <Queryable
+            query={[vm.actions.run.disabled$, vm.actions.run.isRunning$]}
+          >
             {([disabled, isRunning]) => (
               <Button
                 density="compact"
@@ -711,7 +777,7 @@ function QueryResults({ vm }: { vm: QueryPageVM["results"] }) {
         <Tabs
           value={selectedTab}
           onValueChange={(tab) => vm.setTab(tab as typeof selectedTab)}
-          className="flex-1 flex flex-col"
+          className="flex-1 flex flex-col justify-stretch"
         >
           {/* Tab bar - Task 5.4: h-default bar with h-compact tabs */}
           <TabsList
@@ -838,7 +904,11 @@ function SchemaTree({ vm }: { vm: import("@/vm").SchemaTreeVM }) {
               {(message) => (
                 <div className="text-center py-4 space-y-2">
                   <p className="text-dense-xs text-destructive">{message}</p>
-                  <Button variant="outline" density="compact" onClick={vm.retry}>
+                  <Button
+                    variant="outline"
+                    density="compact"
+                    onClick={vm.retry}
+                  >
                     <RefreshCw className="size-3" />
                     Retry
                   </Button>
@@ -872,7 +942,11 @@ function SchemaTree({ vm }: { vm: import("@/vm").SchemaTreeVM }) {
   );
 }
 
-function SchemaTreeGroup({ group }: { group: import("@/vm").SchemaTreeGroupVM }) {
+function SchemaTreeGroup({
+  group,
+}: {
+  group: import("@/vm").SchemaTreeGroupVM;
+}) {
   return (
     <div className="space-y-0.5">
       <Queryable query={group.collapsed$}>
