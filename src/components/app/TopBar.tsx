@@ -155,17 +155,35 @@ function DatabaseSelectorDropdown({ vm }: { vm: TopBarVM["databaseSelector"] }) 
           </div>
 
           <Queryable query={vm.groupedDatabases$}>
-            {({ regularDatabases, lessonDatabases }) => (
+            {({ regularDatabases, lessonDatabases, demoDatabases }) => (
               <div className="px-1">
                 {/* Regular databases */}
                 {regularDatabases.map((db) => (
                   <DatabaseOption key={db.key} vm={db} />
                 ))}
 
+                {/* Demo databases section */}
+                {demoDatabases.length > 0 && (
+                  <>
+                    {regularDatabases.length > 0 && (
+                      <div className="border-t border-border my-1" />
+                    )}
+                    <div className="flex items-center gap-2 px-2 py-1">
+                      <Database className="size-3 text-muted-foreground" />
+                      <span className="text-dense-xs text-muted-foreground">
+                        Demo Databases
+                      </span>
+                    </div>
+                    {demoDatabases.map((db) => (
+                      <DatabaseOption key={db.key} vm={db} showDemoBadge />
+                    ))}
+                  </>
+                )}
+
                 {/* Lesson databases section */}
                 {lessonDatabases.length > 0 && (
                   <>
-                    {regularDatabases.length > 0 && (
+                    {(regularDatabases.length > 0 || demoDatabases.length > 0) && (
                       <div className="border-t border-border my-1" />
                     )}
                     <div className="flex items-center gap-2 px-2 py-1">
@@ -201,15 +219,18 @@ function DatabaseSelectorDropdown({ vm }: { vm: TopBarVM["databaseSelector"] }) 
 function DatabaseOption({
   vm,
   showContextBadge,
+  showDemoBadge,
 }: {
   vm: {
     key: string;
     label: string;
     lessonContextName: string | null;
+    demo: import("@/demos").DemoDefinition | null;
     isSelected$: import("@/vm").Queryable<boolean>;
     select: () => void;
   };
   showContextBadge?: boolean;
+  showDemoBadge?: boolean;
 }) {
   return (
     <Queryable query={vm.isSelected$}>
@@ -222,10 +243,15 @@ function DatabaseOption({
           `}
         >
           <Database className="size-4" />
-          <span className="flex-1 truncate">{vm.label}</span>
+          <span className="flex-1 truncate">{vm.demo?.name ?? vm.label}</span>
           {showContextBadge && vm.lessonContextName && (
             <span className="text-dense-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
               {vm.lessonContextName}
+            </span>
+          )}
+          {showDemoBadge && vm.demo && (
+            <span className="text-dense-xs px-1.5 py-0.5 rounded bg-accent text-accent-foreground">
+              Demo
             </span>
           )}
           {isSelected && <Circle className="size-2 fill-current" />}

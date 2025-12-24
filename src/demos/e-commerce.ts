@@ -148,6 +148,9 @@ relation recommendation,
 `,
 
   sampleData: `
+# =============================================================================
+# Categories
+# =============================================================================
 insert $electronics isa category, has name "Electronics", has description "Electronic devices and accessories";
 
 insert $computers isa category, has name "Computers", has description "Desktop and laptop computers";
@@ -158,10 +161,16 @@ insert $clothing isa category, has name "Clothing", has description "Apparel and
 
 insert $books isa category, has name "Books", has description "Physical and digital books";
 
-insert $electronics isa category, has name "Electronics"; $computers isa category, has name "Computers"; (parent: $electronics, child: $computers) isa category-hierarchy;
+# =============================================================================
+# Category Hierarchy (using match-insert)
+# =============================================================================
+match $electronics isa category, has name "Electronics"; $computers isa category, has name "Computers"; insert (parent: $electronics, child: $computers) isa category-hierarchy;
 
-insert $electronics isa category, has name "Electronics"; $phones isa category, has name "Phones"; (parent: $electronics, child: $phones) isa category-hierarchy;
+match $electronics isa category, has name "Electronics"; $phones isa category, has name "Phones"; insert (parent: $electronics, child: $phones) isa category-hierarchy;
 
+# =============================================================================
+# Products
+# =============================================================================
 insert $laptop1 isa product, has name "Pro Laptop 15", has sku "LAPTOP-001", has description "15-inch professional laptop with M3 chip", has brand "TechBrand", has price 1999.99, has stock-level 50, has created-at 2023-01-15T10:00:00;
 
 insert $laptop2 isa product, has name "Budget Laptop 14", has sku "LAPTOP-002", has description "Affordable 14-inch laptop for everyday use", has brand "ValueTech", has price 699.99, has stock-level 120, has created-at 2023-02-20T10:00:00;
@@ -172,41 +181,62 @@ insert $shirt1 isa product, has name "Classic Cotton Shirt", has sku "SHIRT-001"
 
 insert $book1 isa product, has name "Learning TypeDB", has sku "BOOK-001", has description "Comprehensive guide to TypeDB and TypeQL", has brand "TechBooks", has price 39.99, has stock-level 1000, has created-at 2023-05-01T10:00:00;
 
-insert $laptop1 isa product, has sku "LAPTOP-001"; $computers isa category, has name "Computers"; (product: $laptop1, category: $computers) isa categorization;
+# =============================================================================
+# Product Categorization (using match-insert)
+# =============================================================================
+match $laptop1 isa product, has sku "LAPTOP-001"; $computers isa category, has name "Computers"; insert (product: $laptop1, category: $computers) isa categorization;
 
-insert $laptop2 isa product, has sku "LAPTOP-002"; $computers isa category, has name "Computers"; (product: $laptop2, category: $computers) isa categorization;
+match $laptop2 isa product, has sku "LAPTOP-002"; $computers isa category, has name "Computers"; insert (product: $laptop2, category: $computers) isa categorization;
 
-insert $phone1 isa product, has sku "PHONE-001"; $phones isa category, has name "Phones"; (product: $phone1, category: $phones) isa categorization;
+match $phone1 isa product, has sku "PHONE-001"; $phones isa category, has name "Phones"; insert (product: $phone1, category: $phones) isa categorization;
 
-insert $shirt1 isa product, has sku "SHIRT-001"; $clothing isa category, has name "Clothing"; (product: $shirt1, category: $clothing) isa categorization;
+match $shirt1 isa product, has sku "SHIRT-001"; $clothing isa category, has name "Clothing"; insert (product: $shirt1, category: $clothing) isa categorization;
 
-insert $book1 isa product, has sku "BOOK-001"; $books isa category, has name "Books"; (product: $book1, category: $books) isa categorization;
+match $book1 isa product, has sku "BOOK-001"; $books isa category, has name "Books"; insert (product: $book1, category: $books) isa categorization;
 
+# =============================================================================
+# Customers
+# =============================================================================
 insert $john isa customer, has name "John Doe", has email "john.doe@email.com", has address "123 Main St, New York, NY 10001", has created-at 2023-01-01T10:00:00;
 
 insert $jane isa customer, has name "Jane Smith", has email "jane.smith@email.com", has address "456 Oak Ave, Los Angeles, CA 90001", has created-at 2023-01-15T10:00:00;
 
 insert $mike isa customer, has name "Mike Johnson", has email "mike.j@email.com", has address "789 Pine Rd, Chicago, IL 60601", has created-at 2023-02-01T10:00:00;
 
+# =============================================================================
+# Orders
+# =============================================================================
 insert $order1 isa order, has order-number "ORD-2023-001", has total-amount 2049.98, has status "delivered", has created-at 2023-06-01T14:30:00, has shipped-at 2023-06-03T10:00:00;
 
 insert $order2 isa order, has order-number "ORD-2023-002", has total-amount 1249.98, has status "delivered", has created-at 2023-06-15T11:00:00, has shipped-at 2023-06-17T10:00:00;
 
-insert $john isa customer, has email "john.doe@email.com"; $order1 isa order, has order-number "ORD-2023-001"; (buyer: $john, order: $order1) isa purchase;
+# =============================================================================
+# Purchases (using match-insert)
+# =============================================================================
+match $john isa customer, has email "john.doe@email.com"; $order1 isa order, has order-number "ORD-2023-001"; insert (buyer: $john, order: $order1) isa purchase;
 
-insert $jane isa customer, has email "jane.smith@email.com"; $order2 isa order, has order-number "ORD-2023-002"; (buyer: $jane, order: $order2) isa purchase;
+match $jane isa customer, has email "jane.smith@email.com"; $order2 isa order, has order-number "ORD-2023-002"; insert (buyer: $jane, order: $order2) isa purchase;
 
-insert $order1 isa order, has order-number "ORD-2023-001"; $laptop1 isa product, has sku "LAPTOP-001"; (order: $order1, item: $laptop1) isa order-item, has quantity 1, has price 1999.99;
+# =============================================================================
+# Order Items (using match-insert)
+# =============================================================================
+match $order1 isa order, has order-number "ORD-2023-001"; $laptop1 isa product, has sku "LAPTOP-001"; insert (order: $order1, item: $laptop1) isa order-item, has quantity 1, has price 1999.99;
 
-insert $order2 isa order, has order-number "ORD-2023-002"; $phone1 isa product, has sku "PHONE-001"; (order: $order2, item: $phone1) isa order-item, has quantity 1, has price 1199.99;
+match $order2 isa order, has order-number "ORD-2023-002"; $phone1 isa product, has sku "PHONE-001"; insert (order: $order2, item: $phone1) isa order-item, has quantity 1, has price 1199.99;
 
-insert $john isa customer, has email "john.doe@email.com"; $laptop1 isa product, has sku "LAPTOP-001"; (reviewer: $john, reviewed: $laptop1) isa review, has rating 4.5, has description "Excellent laptop, very fast and reliable", has created-at 2023-06-10T10:00:00;
+# =============================================================================
+# Reviews (using match-insert)
+# =============================================================================
+match $john isa customer, has email "john.doe@email.com"; $laptop1 isa product, has sku "LAPTOP-001"; insert (reviewer: $john, reviewed: $laptop1) isa review, has rating 4.5, has description "Excellent laptop, very fast and reliable", has created-at 2023-06-10T10:00:00;
 
-insert $jane isa customer, has email "jane.smith@email.com"; $phone1 isa product, has sku "PHONE-001"; (reviewer: $jane, reviewed: $phone1) isa review, has rating 5.0, has description "Best phone I have ever owned!", has created-at 2023-06-25T14:00:00;
+match $jane isa customer, has email "jane.smith@email.com"; $phone1 isa product, has sku "PHONE-001"; insert (reviewer: $jane, reviewed: $phone1) isa review, has rating 5.0, has description "Best phone I have ever owned!", has created-at 2023-06-25T14:00:00;
 
-insert $laptop1 isa product, has sku "LAPTOP-001"; $phone1 isa product, has sku "PHONE-001"; (source: $laptop1, suggested: $phone1) isa recommendation, has rating 0.85;
+# =============================================================================
+# Recommendations (using match-insert)
+# =============================================================================
+match $laptop1 isa product, has sku "LAPTOP-001"; $phone1 isa product, has sku "PHONE-001"; insert (source: $laptop1, suggested: $phone1) isa recommendation, has rating 0.85;
 
-insert $laptop1 isa product, has sku "LAPTOP-001"; $book1 isa product, has sku "BOOK-001"; (source: $laptop1, suggested: $book1) isa recommendation, has rating 0.72;
+match $laptop1 isa product, has sku "LAPTOP-001"; $book1 isa product, has sku "BOOK-001"; insert (source: $laptop1, suggested: $book1) isa recommendation, has rating 0.72;
 `,
 
   exampleQueries: [

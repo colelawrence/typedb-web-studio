@@ -151,33 +151,130 @@ function CreateDatabaseDialog({
   vm: CreateDatabaseDialogVM;
 }) {
   return (
-    <Dialog open onClose={vm.cancel}>
+    <Dialog open onClose={vm.cancel} maxWidth="md">
       <DialogHeader>
         <DialogTitle>Create Database</DialogTitle>
         <DialogDescription>
-          Create a new database on the connected server.
+          Create a new database or load a demo with sample data.
         </DialogDescription>
       </DialogHeader>
       <DialogContent>
-        <FormFieldFromVM input={vm.nameInput} label="Database Name" autoFocus />
+        {/* Mode tabs */}
+        <Queryable query={vm.mode$}>
+          {(mode) => (
+            <div className="flex gap-1 p-1 bg-muted rounded-lg mb-4">
+              <button
+                type="button"
+                onClick={() => vm.demos.clearSelection()}
+                className={`
+                  flex-1 h-compact px-3 rounded-md text-dense-sm font-medium transition-colors
+                  ${mode === "empty"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                  }
+                `}
+              >
+                Empty Database
+              </button>
+              <Queryable query={vm.demos.items$}>
+                {(items) => (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Switch to demo mode by selecting the first demo if none selected
+                      if (items.length > 0) {
+                        vm.demos.select(items[0].id);
+                      }
+                    }}
+                    className={`
+                      flex-1 h-compact px-3 rounded-md text-dense-sm font-medium transition-colors
+                      ${mode === "demo"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                      }
+                    `}
+                  >
+                    Demo Database
+                  </button>
+                )}
+              </Queryable>
+            </div>
+          )}
+        </Queryable>
+
+        {/* Content based on mode */}
+        <Queryable query={vm.mode$}>
+          {(mode) =>
+            mode === "empty" ? (
+              <FormFieldFromVM input={vm.nameInput} label="Database Name" autoFocus />
+            ) : (
+              <DemoSelector demos={vm.demos} />
+            )
+          }
+        </Queryable>
       </DialogContent>
       <DialogFooter>
         <Button variant="secondary" onClick={vm.cancel}>
           Cancel
         </Button>
-        <Queryable query={[vm.createDisabled$, vm.isCreating$]}>
-          {([disabled, isCreating]) => (
+        <Queryable query={[vm.mode$, vm.createDisabled$, vm.isCreating$]}>
+          {([mode, disabled, isCreating]) => (
             <Button
               onClick={vm.create}
               disabled={disabled !== null}
               loading={isCreating}
             >
-              Create
+              {mode === "demo" ? "Load Demo" : "Create"}
             </Button>
           )}
         </Queryable>
       </DialogFooter>
     </Dialog>
+  );
+}
+
+function DemoSelector({ demos }: { demos: CreateDatabaseDialogVM["demos"] }) {
+  return (
+    <Queryable query={demos.items$}>
+      {(items) => (
+        <div className="space-y-2">
+          <p className="text-dense-sm text-muted-foreground mb-3">
+            Select a demo to load with pre-built schema and sample data:
+          </p>
+          <div className="grid gap-2">
+            {items.map((demo) => (
+              <Queryable key={demo.id} query={demo.isSelected$}>
+                {(isSelected) => (
+                  <button
+                    type="button"
+                    onClick={demo.select}
+                    className={`
+                      w-full p-3 rounded-lg border text-left transition-colors
+                      ${isSelected
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50 hover:bg-accent/50"
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-dense-sm">{demo.name}</span>
+                      {isSelected && (
+                        <span className="text-dense-xs px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
+                          Selected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-dense-xs text-muted-foreground">
+                      {demo.description}
+                    </p>
+                  </button>
+                )}
+              </Queryable>
+            ))}
+          </div>
+        </div>
+      )}
+    </Queryable>
   );
 }
 

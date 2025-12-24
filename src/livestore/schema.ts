@@ -218,10 +218,6 @@ export const tables = {
       id: State.SQLite.text({ primaryKey: true }),
       /** User-provided or auto-generated name */
       name: State.SQLite.text({ default: "" }),
-      /** Whether this is a demo server (read-only, pre-loaded data) */
-      isDemo: State.SQLite.boolean({ default: false }),
-      /** Demo identifier if isDemo=true (e.g., "S1") */
-      demoId: State.SQLite.text({ nullable: true }),
       /** Last time this server was used/connected */
       lastUsedAt: State.SQLite.integer({
         nullable: true,
@@ -310,6 +306,38 @@ export const tables = {
       id: SessionIdSymbol,
       value: {
         currentContext: null,
+        isLoading: false,
+        lastError: null,
+        lastLoadedAt: null,
+      },
+    },
+  }),
+
+  // -------------------------------------------------------------------------
+  // Demo Context (Client Document - Session-scoped)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Tracks the current demo state for demos loaded from the Connect page.
+   * This is the reactive source of truth for which demo database is active.
+   * Demos are ephemeral databases (demo_*) that exist alongside regular databases.
+   */
+  demoContext: State.SQLite.clientDocument({
+    name: "demoContext",
+    schema: Schema.Struct({
+      /** Currently loaded demo ID, or null if none */
+      currentDemo: Schema.NullOr(Schema.String),
+      /** Whether a demo is currently being loaded */
+      isLoading: Schema.Boolean,
+      /** Last error message, or null if no error */
+      lastError: Schema.NullOr(Schema.String),
+      /** Timestamp when demo was last loaded */
+      lastLoadedAt: Schema.NullOr(Schema.Number),
+    }),
+    default: {
+      id: SessionIdSymbol,
+      value: {
+        currentDemo: null,
         isLoading: false,
         lastError: null,
         lastLoadedAt: null,
@@ -761,8 +789,6 @@ export const events = {
     schema: Schema.Struct({
       id: Schema.String,
       name: Schema.String,
-      isDemo: Schema.Boolean,
-      demoId: Schema.NullOr(Schema.String),
       createdAt: Schema.Date,
     }),
   }),
@@ -889,6 +915,12 @@ export const events = {
   // -------------------------------------------------------------------------
 
   lessonContextSet: tables.lessonContext.set,
+
+  // -------------------------------------------------------------------------
+  // Demo Context Events (Client-only)
+  // -------------------------------------------------------------------------
+
+  demoContextSet: tables.demoContext.set,
 
   // -------------------------------------------------------------------------
   // UI State Events (Client-only)
@@ -1025,12 +1057,10 @@ const materializers = State.SQLite.materializers(events, {
   "v1.ConnectionDeleted": ({ id }) => tables.connections.delete().where({ id }),
 
   // Local server materializers
-  "v1.LocalServerCreated": ({ id, name, isDemo, demoId, createdAt }) =>
+  "v1.LocalServerCreated": ({ id, name, createdAt }) =>
     tables.localServers.insert({
       id,
       name,
-      isDemo,
-      demoId,
       lastUsedAt: null,
       createdAt,
     }),

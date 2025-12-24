@@ -32,6 +32,7 @@ import {
   sessionDatabases$,
   queryHistory$,
   lessonContext$,
+  demoContext$,
 } from "../livestore/queries";
 import {
   getService,
@@ -46,6 +47,11 @@ import {
 } from "../services";
 import { TypeDBEmbeddedService } from "../services/typedb-embedded-service";
 import { DEMOS, getDemoById } from "../demos";
+import {
+  demoDatabaseNameForDemo,
+  isDemoDatabase,
+  getDemoIdFromDatabaseName,
+} from "../demos/demo-db";
 import { parseSchema } from "../services/schema-parser";
 import { generateFetchQuery } from "../services/query-generator";
 
@@ -62,6 +68,7 @@ import type {
   DialogsVM,
   ActiveDialogVM,
   CreateDatabaseDialogVM,
+  DemoOptionVM,
 } from "./dialogs/dialogs.vm";
 import type {
   HomePageVM,
@@ -157,6 +164,7 @@ import {
   createContextManager,
   createContextDatabaseAdapter,
   LESSON_DB_PREFIX,
+  splitTypeQLStatements,
   type ContextManager,
 } from "../curriculum";
 import { constant } from "./learn/constant";
@@ -632,7 +640,7 @@ function handleServiceDisconnected(store: Store<typeof schema>): void {
  */
 function scheduleAutoReconnect(
   store: Store<typeof schema>,
-  serverInfo: { id: string; name: string; isDemo: boolean; demoId: string | null },
+  serverInfo: { id: string; name: string },
   activeDatabase: string | null,
   lessonContext: string | null
 ): void {
@@ -643,7 +651,6 @@ function scheduleAutoReconnect(
     console.log(
       `[scope] Auto-reconnect: Starting reconnection attempt`,
       `\n  Server: ${serverInfo.name} (${serverInfo.id})`,
-      `\n  isDemo: ${serverInfo.isDemo}, demoId: ${serverInfo.demoId}`,
       `\n  activeDatabase: ${activeDatabase}`,
       `\n  lessonContext: ${lessonContext}`
     );
@@ -658,84 +665,13 @@ function scheduleAutoReconnect(
     );
 
     try {
-      // Determine what database to create/connect to
-      const databaseToConnect = serverInfo.isDemo && serverInfo.demoId
-        ? serverInfo.demoId
-        : (activeDatabase || "playground");
+      // Determine what database to connect to
+      const databaseToConnect = activeDatabase || "playground";
 
       console.log(`[scope] Auto-reconnect: Connecting to database '${databaseToConnect}'`);
 
       // Connect via WASM
       await quickConnectWasm(databaseToConnect);
-
-      // If this was a demo, reload the demo data
-      if (serverInfo.isDemo && serverInfo.demoId) {
-        const demo = getDemoById(serverInfo.demoId);
-        if (demo) {
-          console.log(`[scope] Auto-reconnect: Reloading demo data for '${demo.name}'`);
-
-          // Parse and load schema
-          const parsedSchema = parseSchema(demo.schema);
-          store.commit(
-            events.schemaTypesSet({
-              entities: parsedSchema.entities.map((e) => ({
-                label: e.label,
-                isAbstract: e.isAbstract,
-                supertype: e.supertype,
-                ownedAttributes: e.ownedAttributes,
-                playedRoles: e.playedRoles,
-              })),
-              relations: parsedSchema.relations.map((r) => ({
-                label: r.label,
-                isAbstract: r.isAbstract,
-                supertype: r.supertype,
-                ownedAttributes: r.ownedAttributes,
-                relatedRoles: r.relatedRoles,
-              })),
-              attributes: parsedSchema.attributes.map((a) => ({
-                label: a.label,
-                valueType: a.valueType,
-              })),
-            })
-          );
-
-          // Load schema definition
-          const service = getService();
-          const cleanSchema = demo.schema
-            .split("\n")
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0 && !line.startsWith("#"))
-            .join("\n");
-
-          try {
-            await service.executeQuery(databaseToConnect, cleanSchema, {
-              transactionType: "schema",
-            });
-          } catch (e) {
-            console.warn(`[scope] Auto-reconnect: Schema loading warning:`, e);
-          }
-
-          // Load sample data
-          const dataStatements = demo.sampleData
-            .split(/;\s*\n/)
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0 && !s.startsWith("#"));
-
-          for (const statement of dataStatements) {
-            if (statement.trim()) {
-              try {
-                await service.executeQuery(databaseToConnect, statement + ";", {
-                  transactionType: "write",
-                });
-              } catch (e) {
-                console.warn(`[scope] Auto-reconnect: Data statement warning:`, e);
-              }
-            }
-          }
-
-          console.log(`[scope] Auto-reconnect: Demo '${demo.name}' reloaded successfully`);
-        }
-      }
 
       // Restore the session state
       store.commit(
@@ -952,7 +888,7 @@ export function createStudioScope(
           console.log(
             `[scope] Auto-reconnect: Found server info:`,
             serverInfo
-              ? `\n    name: ${serverInfo.name}, isDemo: ${serverInfo.isDemo}, demoId: ${serverInfo.demoId}`
+              ? `\n    name: ${serverInfo.name}`
               : `\n    (server not found in localServers table)`
           );
 
@@ -1407,11 +1343,18 @@ export function createStudioScope(
       ? entry.name.slice(LESSON_DB_PREFIX.length)
       : null;
 
+    const _isDemoDatabase = isDemoDatabase(entry.name);
+    const demoId = getDemoIdFromDatabaseName(entry.name);
+    const demo = demoId ? getDemoById(demoId) : null;
+
     return {
       key: entry.name,
       label: entry.name,
       isLessonDatabase,
       lessonContextName,
+      isDemoDatabase: _isDemoDatabase,
+      demoId,
+      demo: demo ?? null,
       isSelected$: computed(
         (get) => get(activeDatabase$) === entry.name,
         { label: `database.${entry.name}.isSelected`, deps: [entry.name] }
@@ -1508,8 +1451,11 @@ export function createStudioScope(
       (get) => {
         const allDatabases = get(databases$);
         return {
-          regularDatabases: allDatabases.filter((db) => !db.isLessonDatabase),
+          regularDatabases: allDatabases.filter(
+            (db) => !db.isLessonDatabase && !db.isDemoDatabase
+          ),
           lessonDatabases: allDatabases.filter((db) => db.isLessonDatabase),
+          demoDatabases: allDatabases.filter((db) => db.isDemoDatabase),
         };
       },
       { label: "databaseSelector.groupedDatabases" }
@@ -1814,23 +1760,18 @@ export function createStudioScope(
       console.warn(`[scope] Schema loading warning:`, e);
     }
 
-    // Load sample data (insert statements)
+    // Load sample data (insert and match-insert statements)
     console.log(`[scope] Loading sample data for ${demo.name}...`);
-    const dataStatements = demo.sampleData
-      .split(/;\s*\n/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith("#"));
+    const dataStatements = splitTypeQLStatements(demo.sampleData);
 
     for (const statement of dataStatements) {
-      if (statement.trim()) {
-        try {
-          await service.executeQuery(databaseName, statement + ";", {
-            transactionType: "write",
-          });
-        } catch (e) {
-          console.warn(`[scope] Data statement warning:`, e);
-          // Continue with other statements
-        }
+      try {
+        await service.executeQuery(databaseName, statement, {
+          transactionType: "write",
+        });
+      } catch (e) {
+        console.warn(`[scope] Data statement warning:`, e);
+        // Continue with other statements
       }
     }
 
@@ -1957,23 +1898,29 @@ export function createStudioScope(
                 },
               })
             ),
-            isLoading$: constant(false, `demo.${demo.id}.isLoading`),
+            isLoading$: computed(
+              (get) => get(demoContext$).isLoading && get(demoContext$).currentDemo === demo.id,
+              { label: `demo.${demo.id}.isLoading`, deps: [demo.id] }
+            ),
             isActive$: computed(
               (get) => {
                 const session = get(connectionSession$);
+                const demoDbName = demoDatabaseNameForDemo(demo.id);
                 return (
                   session.status === "connected" &&
-                  session.activeDatabase === demo.id
+                  session.activeDatabase === demoDbName
                 );
               },
               { label: `demo.${demo.id}.isActive`, deps: [demo.id] }
             ),
             load: async () => {
+              const demoDbName = demoDatabaseNameForDemo(demo.id);
+
               // Check if already active
               const session = store.query(connectionSession$);
               if (
                 session.status === "connected" &&
-                session.activeDatabase === demo.id
+                session.activeDatabase === demoDbName
               ) {
                 // Already on this demo, just navigate to query page
                 showSnackbar("success", `Continuing with ${demo.name}`);
@@ -1983,42 +1930,44 @@ export function createStudioScope(
               }
 
               try {
-                showSnackbar("success", `Loading ${demo.name}...`);
-
-                // Create a demo server entry
-                const serverId = createID("demo");
+                // Update demo context state - loading
                 store.commit(
-                  events.localServerCreated({
-                    id: serverId,
-                    name: demo.name,
-                    isDemo: true,
-                    demoId: demo.id,
-                    createdAt: new Date(),
+                  events.demoContextSet({
+                    currentDemo: demo.id,
+                    isLoading: true,
+                    lastError: null,
+                    lastLoadedAt: null,
                   })
                 );
 
-                // Connect via WASM (creates the database)
-                await quickConnectWasm(demo.id);
+                showSnackbar("success", `Loading ${demo.name}...`);
+
+                // Connect via WASM (creates the database with demo_ prefix)
+                await quickConnectWasm(demoDbName);
 
                 // Load the demo schema and data
-                await loadDemoData(demo.id, demo.id);
+                await loadDemoData(demo.id, demoDbName);
 
                 store.commit(
                   events.connectionSessionSet({
                     status: "connected",
-                    savedLocalServerId: serverId,
-                    activeDatabase: demo.id,
+                    activeDatabase: demoDbName,
                     connectedAt: Date.now(),
                     lastStatusChange: Date.now(),
                   }),
+                  events.demoContextSet({
+                    currentDemo: demo.id,
+                    isLoading: false,
+                    lastError: null,
+                    lastLoadedAt: Date.now(),
+                  }),
                   events.uiStateSet({
                     currentPage: "query",
-                  }),
-                  events.localServerUpdated({
-                    id: serverId,
-                    lastUsedAt: new Date(),
                   })
                 );
+
+                // Refresh database list so demo appears in selector
+                refreshDatabaseList();
 
                 showSnackbar(
                   "success",
@@ -2027,6 +1976,14 @@ export function createStudioScope(
                 navigate("/query");
               } catch (error) {
                 console.error("[scope] Failed to load demo:", error);
+                store.commit(
+                  events.demoContextSet({
+                    currentDemo: demo.id,
+                    isLoading: false,
+                    lastError: String(error),
+                    lastLoadedAt: null,
+                  })
+                );
                 showSnackbar("error", `Failed to load demo: ${error}`);
               }
             },
@@ -2129,8 +2086,6 @@ export function createStudioScope(
         events.localServerCreated({
           id: serverId,
           name: serverName,
-          isDemo: false,
-          demoId: null,
           createdAt: new Date(),
         })
       );
@@ -2571,22 +2526,87 @@ export function createStudioScope(
   const createDatabaseName$ = signal<string>("", { label: "createDatabase.name" });
   const createDatabaseError$ = signal<string | null>(null, { label: "createDatabase.error" });
   const createDatabaseIsCreating$ = signal<boolean>(false, { label: "createDatabase.isCreating" });
+  const createDatabaseMode$ = signal<"empty" | "demo">("empty", { label: "createDatabase.mode" });
+  const createDatabaseSelectedDemoId$ = signal<string | null>(null, { label: "createDatabase.selectedDemoId" });
+
+  // Reset create database dialog state
+  const resetCreateDatabaseDialog = () => {
+    store.setSignal(createDatabaseName$, "");
+    store.setSignal(createDatabaseError$, null);
+    store.setSignal(createDatabaseIsCreating$, false);
+    store.setSignal(createDatabaseMode$, "empty");
+    store.setSignal(createDatabaseSelectedDemoId$, null);
+  };
 
   // Create database dialog VM (reusable instance)
   const createDatabaseDialogVM: CreateDatabaseDialogVM = {
+    mode$: createDatabaseMode$,
     nameInput: {
       value$: createDatabaseName$,
       update: (value: string) => {
         store.setSignal(createDatabaseName$, value);
         // Clear error when user types
         store.setSignal(createDatabaseError$, null);
+        // Switch to empty mode when typing
+        if (value.trim()) {
+          store.setSignal(createDatabaseMode$, "empty");
+          store.setSignal(createDatabaseSelectedDemoId$, null);
+        }
       },
       error$: createDatabaseError$,
       placeholder: "my_database",
       label: "Database Name",
     },
+    demos: {
+      items$: computed(
+        (get): DemoOptionVM[] => {
+          get(createDatabaseSelectedDemoId$); // Subscribe to changes
+          return DEMOS.map((demo) => ({
+            id: demo.id,
+            name: demo.name,
+            description: demo.description,
+            isSelected$: computed(
+              (innerGet) => innerGet(createDatabaseSelectedDemoId$) === demo.id,
+              { label: `createDatabase.demo.${demo.id}.isSelected`, deps: [demo.id] }
+            ),
+            select: () => {
+              store.setSignal(createDatabaseSelectedDemoId$, demo.id);
+              store.setSignal(createDatabaseMode$, "demo");
+              store.setSignal(createDatabaseName$, ""); // Clear custom name
+              store.setSignal(createDatabaseError$, null);
+            },
+          }));
+        },
+        { label: "createDatabase.demos.items" }
+      ),
+      selectedId$: createDatabaseSelectedDemoId$,
+      select: (demoId: string) => {
+        store.setSignal(createDatabaseSelectedDemoId$, demoId);
+        store.setSignal(createDatabaseMode$, "demo");
+        store.setSignal(createDatabaseName$, ""); // Clear custom name
+        store.setSignal(createDatabaseError$, null);
+      },
+      clearSelection: () => {
+        store.setSignal(createDatabaseSelectedDemoId$, null);
+        store.setSignal(createDatabaseMode$, "empty");
+      },
+    },
     createDisabled$: computed(
       (get): DisabledState => {
+        if (get(createDatabaseIsCreating$)) {
+          return { displayReason: "Creating..." };
+        }
+
+        const mode = get(createDatabaseMode$);
+        if (mode === "demo") {
+          const selectedDemoId = get(createDatabaseSelectedDemoId$);
+          if (!selectedDemoId) {
+            return { displayReason: "Select a demo" };
+          }
+          return null;
+        }
+
+        // Empty mode
         const name = get(createDatabaseName$);
         if (!name.trim()) {
           return { displayReason: "Name is required" };
@@ -2595,9 +2615,6 @@ export function createStudioScope(
         if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) {
           return { displayReason: "Must start with letter, only letters/numbers/underscores" };
         }
-        if (get(createDatabaseIsCreating$)) {
-          return { displayReason: "Creating..." };
-        }
         return null;
       },
       { label: "createDatabase.disabled" }
@@ -2605,32 +2622,71 @@ export function createStudioScope(
     isCreating$: createDatabaseIsCreating$,
     cancel: () => {
       store.commit(events.uiStateSet({ activeDialog: null }));
-      // Reset state
-      store.setSignal(createDatabaseName$, "");
-      store.setSignal(createDatabaseError$, null);
-      store.setSignal(createDatabaseIsCreating$, false);
+      resetCreateDatabaseDialog();
     },
     create: async () => {
-      const name = store.query(createDatabaseName$).trim();
-      if (!name) return;
-
+      const mode = store.query(createDatabaseMode$);
       store.setSignal(createDatabaseIsCreating$, true);
       store.setSignal(createDatabaseError$, null);
 
       try {
         const service = getService();
-        await service.createDatabase(name);
 
-        // Success - close dialog, select new database, refresh list
-        store.commit(
-          events.uiStateSet({ activeDialog: null }),
-          events.connectionSessionSet({ activeDatabase: name })
-        );
-        store.setSignal(createDatabaseName$, "");
-        store.setSignal(createDatabaseIsCreating$, false);
+        if (mode === "demo") {
+          // Demo mode - load demo database
+          const demoId = store.query(createDatabaseSelectedDemoId$);
+          if (!demoId) return;
 
-        showSnackbar("success", `Database '${name}' created`);
-        refreshDatabaseList();
+          const demo = getDemoById(demoId);
+          if (!demo) {
+            throw new Error(`Demo not found: ${demoId}`);
+          }
+
+          const demoDbName = demoDatabaseNameForDemo(demoId);
+
+          // Create or recreate the demo database
+          const databases = await service.getDatabases();
+          const databaseNames = databases.map((db) => db.name);
+          if (databaseNames.includes(demoDbName)) {
+            await service.deleteDatabase(demoDbName);
+          }
+          await service.createDatabase(demoDbName);
+
+          // Load demo data
+          await loadDemoData(demoId, demoDbName);
+
+          // Success - close dialog, select new database
+          store.commit(
+            events.uiStateSet({ activeDialog: null }),
+            events.connectionSessionSet({ activeDatabase: demoDbName }),
+            events.demoContextSet({
+              currentDemo: demoId,
+              isLoading: false,
+              lastError: null,
+              lastLoadedAt: Date.now(),
+            })
+          );
+          resetCreateDatabaseDialog();
+
+          showSnackbar("success", `Loaded ${demo.name} demo`);
+          refreshDatabaseList();
+        } else {
+          // Empty mode - create blank database
+          const name = store.query(createDatabaseName$).trim();
+          if (!name) return;
+
+          await service.createDatabase(name);
+
+          // Success - close dialog, select new database
+          store.commit(
+            events.uiStateSet({ activeDialog: null }),
+            events.connectionSessionSet({ activeDatabase: name })
+          );
+          resetCreateDatabaseDialog();
+
+          showSnackbar("success", `Database '${name}' created`);
+          refreshDatabaseList();
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         store.setSignal(createDatabaseError$, errorMessage);

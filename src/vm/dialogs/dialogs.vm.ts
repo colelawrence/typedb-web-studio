@@ -151,10 +151,22 @@ export interface StrongConfirmationDialogVM {
 
 /**
  * Create database dialog.
+ *
+ * Supports two modes:
+ * - Empty database: User enters a name, creates blank database
+ * - Demo database: User selects a demo, creates pre-populated database
  */
 export interface CreateDatabaseDialogVM {
   /**
-   * Database name input.
+   * Current creation mode.
+   *
+   * - `"empty"`: Creating a blank database with custom name
+   * - `"demo"`: Loading a demo database with schema and sample data
+   */
+  mode$: Queryable<"empty" | "demo">;
+
+  /**
+   * Database name input (for empty mode).
    *
    * **Validation:**
    * - Required
@@ -165,16 +177,44 @@ export interface CreateDatabaseDialogVM {
   nameInput: FormInputVM;
 
   /**
-   * Disabled state for create button.
+   * Available demo databases to choose from.
+   */
+  demos: {
+    /**
+     * List of available demos.
+     */
+    items$: Queryable<DemoOptionVM[]>;
+
+    /**
+     * Currently selected demo ID, or null if none selected.
+     */
+    selectedId$: Queryable<string | null>;
+
+    /**
+     * Selects a demo. Sets mode to "demo".
+     */
+    select(demoId: string): void;
+
+    /**
+     * Clears demo selection. Reverts mode to "empty".
+     */
+    clearSelection(): void;
+  };
+
+  /**
+   * Disabled state for create/load button.
    *
-   * **Disabled when:**
+   * **Disabled when (empty mode):**
    * - Name is empty
    * - Name has validation error
+   *
+   * **Disabled when (demo mode):**
+   * - No demo selected
    */
   createDisabled$: Queryable<DisabledState>;
 
   /**
-   * Whether creation is in progress.
+   * Whether creation/loading is in progress.
    */
   isCreating$: Queryable<boolean>;
 
@@ -184,12 +224,12 @@ export interface CreateDatabaseDialogVM {
   cancel(): void;
 
   /**
-   * Creates the database.
+   * Creates the database (empty mode) or loads the demo (demo mode).
    *
    * **On success:**
    * - Closes dialog
    * - Selects new database
-   * - Shows toast "Database '{name}' created"
+   * - Shows toast "Database '{name}' created" or "Loaded {demo} demo"
    * - Refreshes database list
    *
    * **On error:**
@@ -197,6 +237,26 @@ export interface CreateDatabaseDialogVM {
    * - Does not close dialog
    */
   create(): void;
+}
+
+/**
+ * Individual demo option in the create database dialog.
+ */
+export interface DemoOptionVM {
+  /** Demo ID (e.g., "social-network") */
+  id: string;
+
+  /** Display name (e.g., "Social Network") */
+  name: string;
+
+  /** Short description of what the demo contains */
+  description: string;
+
+  /** Whether this demo is currently selected */
+  isSelected$: Queryable<boolean>;
+
+  /** Selects this demo */
+  select(): void;
 }
 
 /**

@@ -127,6 +127,24 @@ export interface DatabaseOptionVM {
   lessonContextName: string | null;
 
   /**
+   * Whether this is a demo database (name starts with "demo_").
+   */
+  isDemoDatabase: boolean;
+
+  /**
+   * Demo ID for demo databases (e.g., "social-network" from "demo_social_network").
+   * Null for non-demo databases.
+   */
+  demoId: string | null;
+
+  /**
+   * Demo definition for demo databases.
+   * Provides access to demo name, description, and example queries.
+   * Null for non-demo databases.
+   */
+  demo: import("../../demos").DemoDefinition | null;
+
+  /**
    * Whether this database is currently selected.
    * Visual: Checkmark icon or highlighted background.
    */
@@ -159,8 +177,10 @@ export interface DatabaseOptionVM {
  * Databases grouped by type for display.
  */
 export interface GroupedDatabasesVM {
-  /** Regular (non-lesson) databases */
+  /** Regular user databases (not lesson or demo) */
   regularDatabases: DatabaseOptionVM[];
   /** Lesson databases (learn_* pattern) */
   lessonDatabases: DatabaseOptionVM[];
+  /** Demo databases (demo_* pattern) */
+  demoDatabases: DatabaseOptionVM[];
 }

@@ -139,16 +139,10 @@ export const allConnections$ = queryDb(
 // Local Server Queries
 // ============================================================================
 
-/** All local WASM servers (non-demo), ordered by last used */
+/** All local WASM servers, ordered by last used */
 export const localServers$ = queryDb(
-  tables.localServers.where({ isDemo: false }).orderBy("lastUsedAt", "desc"),
+  tables.localServers.orderBy("lastUsedAt", "desc"),
   { label: "localServers" }
-);
-
-/** All demo servers, ordered by name */
-export const demoServers$ = queryDb(
-  tables.localServers.where({ isDemo: true }).orderBy("name", "asc"),
-  { label: "demoServers" }
 );
 
 // ============================================================================
@@ -211,4 +205,13 @@ export const sessionDatabases$ = queryDb(tables.sessionDatabases.get(), {
 /** Current lesson context state for the Learn page */
 export const lessonContext$ = queryDb(tables.lessonContext.get(), {
   label: "lessonContext",
+});
+
+// ============================================================================
+// Demo Context (Session-Scoped Demo State)
+// ============================================================================
+
+/** Current demo context state for demo databases */
+export const demoContext$ = queryDb(tables.demoContext.get(), {
+  label: "demoContext",
 });

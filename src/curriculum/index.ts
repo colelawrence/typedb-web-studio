@@ -67,6 +67,9 @@ export {
 // Re-export lesson database utilities
 export { lessonDatabaseNameForContext, LESSON_DB_PREFIX } from './lesson-db';
 
+// Re-export TypeQL statement splitter
+export { splitTypeQLStatements } from './typeql-statement-splitter';
+
 // Re-export link utilities
 export {
   parseLinks,

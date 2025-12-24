@@ -210,6 +210,9 @@ relation event-participation,
 `,
 
   sampleData: `
+# =============================================================================
+# Fields (Academic Disciplines)
+# =============================================================================
 insert $cs isa field, has name "Computer Science", has description "The study of computation and information", has domain "Science";
 
 insert $ai isa field, has name "Artificial Intelligence", has description "The study of intelligent agents", has domain "Computer Science";
@@ -222,14 +225,20 @@ insert $kg isa field, has name "Knowledge Graphs", has description "Graph-struct
 
 insert $math isa field, has name "Mathematics", has description "The study of numbers and structures", has domain "Science";
 
-insert $cs isa field, has name "Computer Science"; $ai isa field, has name "Artificial Intelligence"; (general: $cs, specific: $ai) isa specialization;
+# =============================================================================
+# Field Specializations (using match-insert)
+# =============================================================================
+match $cs isa field, has name "Computer Science"; $ai isa field, has name "Artificial Intelligence"; insert (general: $cs, specific: $ai) isa specialization;
 
-insert $ai isa field, has name "Artificial Intelligence"; $ml isa field, has name "Machine Learning"; (general: $ai, specific: $ml) isa specialization;
+match $ai isa field, has name "Artificial Intelligence"; $ml isa field, has name "Machine Learning"; insert (general: $ai, specific: $ml) isa specialization;
 
-insert $cs isa field, has name "Computer Science"; $db isa field, has name "Database Systems"; (general: $cs, specific: $db) isa specialization;
+match $cs isa field, has name "Computer Science"; $db isa field, has name "Database Systems"; insert (general: $cs, specific: $db) isa specialization;
 
-insert $db isa field, has name "Database Systems"; $kg isa field, has name "Knowledge Graphs"; (general: $db, specific: $kg) isa specialization;
+match $db isa field, has name "Database Systems"; $kg isa field, has name "Knowledge Graphs"; insert (general: $db, specific: $kg) isa specialization;
 
+# =============================================================================
+# Locations
+# =============================================================================
 insert $usa isa location, has name "United States", has country "USA", has population 331000000;
 
 insert $uk isa location, has name "United Kingdom", has country "UK", has population 67000000;
@@ -238,10 +247,16 @@ insert $california isa location, has name "California", has country "USA", has p
 
 insert $london isa location, has name "London", has country "UK", has city "London", has population 8982000;
 
-insert $california isa location, has name "California"; $usa isa location, has name "United States"; (inner: $california, outer: $usa) isa located-in;
+# =============================================================================
+# Location Hierarchy (using match-insert)
+# =============================================================================
+match $california isa location, has name "California"; $usa isa location, has name "United States"; insert (inner: $california, outer: $usa) isa located-in;
 
-insert $london isa location, has name "London"; $uk isa location, has name "United Kingdom"; (inner: $london, outer: $uk) isa located-in;
+match $london isa location, has name "London"; $uk isa location, has name "United Kingdom"; insert (inner: $london, outer: $uk) isa located-in;
 
+# =============================================================================
+# Organizations
+# =============================================================================
 insert $mit isa organization, has name "Massachusetts Institute of Technology", has alias "MIT", has description "Private research university", has founded 1861-04-10T00:00:00, has employee-count 12000;
 
 insert $stanford isa organization, has name "Stanford University", has description "Private research university in California", has founded 1885-11-11T00:00:00, has employee-count 15000;
@@ -250,12 +265,21 @@ insert $google isa organization, has name "Google", has alias "Alphabet", has de
 
 insert $deepmind isa organization, has name "DeepMind", has description "AI research laboratory", has founded 2010-09-23T00:00:00, has employee-count 1000;
 
-insert $google isa organization, has name "Google"; $california isa location, has name "California"; (organization: $google, location: $california) isa headquartered;
+# =============================================================================
+# Organization Headquarters (using match-insert)
+# =============================================================================
+match $google isa organization, has name "Google"; $california isa location, has name "California"; insert (organization: $google, location: $california) isa headquartered;
 
-insert $deepmind isa organization, has name "DeepMind"; $london isa location, has name "London"; (organization: $deepmind, location: $london) isa headquartered;
+match $deepmind isa organization, has name "DeepMind"; $london isa location, has name "London"; insert (organization: $deepmind, location: $london) isa headquartered;
 
-insert $deepmind isa organization, has name "DeepMind"; $google isa organization, has name "Google"; (part: $deepmind, whole: $google) isa part-of;
+# =============================================================================
+# Part-Of Relations (using match-insert)
+# =============================================================================
+match $deepmind isa organization, has name "DeepMind"; $google isa organization, has name "Google"; insert (part: $deepmind, whole: $google) isa part-of;
 
+# =============================================================================
+# People
+# =============================================================================
 insert $turing isa person, has name "Alan Turing", has description "Pioneer of theoretical computer science and AI", has birth-date 1912-06-23T00:00:00;
 
 insert $hinton isa person, has name "Geoffrey Hinton", has alias "Godfather of AI", has description "Pioneer of deep learning and neural networks";
@@ -264,35 +288,53 @@ insert $lecun isa person, has name "Yann LeCun", has description "Pioneer of con
 
 insert $page isa person, has name "Larry Page", has description "Co-founder of Google";
 
-insert $hinton isa person, has name "Geoffrey Hinton"; $google isa organization, has name "Google"; (employee: $hinton, employer: $google) isa employment, has start-date 2013-03-12T00:00:00;
+# =============================================================================
+# Employment (using match-insert)
+# =============================================================================
+match $hinton isa person, has name "Geoffrey Hinton"; $google isa organization, has name "Google"; insert (employee: $hinton, employer: $google) isa employment, has start-date 2013-03-12T00:00:00;
 
-insert $turing isa person, has name "Alan Turing"; $cs isa field, has name "Computer Science"; (person: $turing, field: $cs) isa expertise, has confidence 1.0;
+# =============================================================================
+# Expertise (using match-insert)
+# =============================================================================
+match $turing isa person, has name "Alan Turing"; $cs isa field, has name "Computer Science"; insert (person: $turing, field: $cs) isa expertise, has confidence 1.0;
 
-insert $turing isa person, has name "Alan Turing"; $ai isa field, has name "Artificial Intelligence"; (person: $turing, field: $ai) isa expertise, has confidence 1.0;
+match $turing isa person, has name "Alan Turing"; $ai isa field, has name "Artificial Intelligence"; insert (person: $turing, field: $ai) isa expertise, has confidence 1.0;
 
-insert $hinton isa person, has name "Geoffrey Hinton"; $ml isa field, has name "Machine Learning"; (person: $hinton, field: $ml) isa expertise, has confidence 1.0;
+match $hinton isa person, has name "Geoffrey Hinton"; $ml isa field, has name "Machine Learning"; insert (person: $hinton, field: $ml) isa expertise, has confidence 1.0;
 
-insert $lecun isa person, has name "Yann LeCun"; $ml isa field, has name "Machine Learning"; (person: $lecun, field: $ml) isa expertise, has confidence 1.0;
+match $lecun isa person, has name "Yann LeCun"; $ml isa field, has name "Machine Learning"; insert (person: $lecun, field: $ml) isa expertise, has confidence 1.0;
 
+# =============================================================================
+# Theories
+# =============================================================================
 insert $turing_machine isa theory, has name "Turing Machine", has description "Abstract mathematical model of computation";
 
 insert $backpropagation isa theory, has name "Backpropagation", has description "Algorithm for training neural networks";
 
 insert $transformer isa theory, has name "Transformer Architecture", has description "Neural network architecture using self-attention";
 
+# =============================================================================
+# Works (Papers, Books)
+# =============================================================================
 insert $computing_machinery isa work, has name "Computing Machinery and Intelligence", has description "Turings seminal paper proposing the Turing Test", has identifier "10.1093/mind/LIX.236.433";
 
 insert $imagenet isa work, has name "ImageNet Classification with Deep CNNs", has description "AlexNet paper that revolutionized computer vision", has identifier "NIPS-2012";
 
 insert $attention_paper isa work, has name "Attention Is All You Need", has description "Paper introducing the Transformer architecture", has identifier "arXiv:1706.03762";
 
-insert $turing isa person, has name "Alan Turing"; $computing_machinery isa work, has name "Computing Machinery and Intelligence"; (creator: $turing, work: $computing_machinery) isa creation, has start-date 1950-01-01T00:00:00;
+# =============================================================================
+# Creations (using match-insert)
+# =============================================================================
+match $turing isa person, has name "Alan Turing"; $computing_machinery isa work, has name "Computing Machinery and Intelligence"; insert (creator: $turing, work: $computing_machinery) isa creation, has start-date 1950-01-01T00:00:00;
 
-insert $hinton isa person, has name "Geoffrey Hinton"; $imagenet isa work, has name "ImageNet Classification with Deep CNNs"; (creator: $hinton, work: $imagenet) isa creation, has start-date 2012-01-01T00:00:00;
+match $hinton isa person, has name "Geoffrey Hinton"; $imagenet isa work, has name "ImageNet Classification with Deep CNNs"; insert (creator: $hinton, work: $imagenet) isa creation, has start-date 2012-01-01T00:00:00;
 
-insert $imagenet isa work, has identifier "NIPS-2012"; $computing_machinery isa work, has identifier "10.1093/mind/LIX.236.433"; (citing: $imagenet, cited: $computing_machinery) isa citation;
+# =============================================================================
+# Citations (using match-insert)
+# =============================================================================
+match $imagenet isa work, has identifier "NIPS-2012"; $computing_machinery isa work, has identifier "10.1093/mind/LIX.236.433"; insert (citing: $imagenet, cited: $computing_machinery) isa citation;
 
-insert $attention_paper isa work, has identifier "arXiv:1706.03762"; $imagenet isa work, has identifier "NIPS-2012"; (citing: $attention_paper, cited: $imagenet) isa citation;
+match $attention_paper isa work, has identifier "arXiv:1706.03762"; $imagenet isa work, has identifier "NIPS-2012"; insert (citing: $attention_paper, cited: $imagenet) isa citation;
 `,
 
   exampleQueries: [
